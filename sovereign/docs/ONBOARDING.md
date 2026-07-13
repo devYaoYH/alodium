@@ -4,63 +4,39 @@
 
 Operator, once per user:
 
-1. Authentik admin → *Directory → Invitations → Create* (enrollment flow,
-   single-use, expiring).
+1. `./scripts/invite.sh <username> <email> "Display Name"` — prints a
+   single-use, 72-hour link and (with `qrencode` installed) a scannable QR.
 2. Send the link / show the QR.
 
 The new user, on the phone they always carry:
 
 1. Open the link.
-2. Enter name + email when asked.
-3. Tap **Create passkey** → approve with Face ID / fingerprint. No password
-   exists, ever.
-4. Open `https://home.<domain>`, add it to the home screen. Every app is a
+2. Tap **Create passkey** → approve with Face ID / fingerprint. There is no
+   password step — Pocket ID doesn't have one.
+3. Open `https://home.<domain>`, add it to the home screen. Every app is a
    tile there; tapping a tile signs them in with the same passkey.
 
-Prerequisite: the operator has completed one-time setup below and has
-logged in with their own passkey end-to-end once — if the enrollment flow
-isn't configured passkey-first, step 3 silently falls back to passwords.
-
----
-
-A trusted user (Ring 1 — family, close friends) needs exactly three things:
-the node's domain, a passkey on their phone, and an invitation from you.
-No VPN client, no overlay network, no password. The chain of authority is:
-passkey in their phone's secure enclave → node Authentik (OIDC) → every app
-federates from there.
+That's the entire flow. Passkey-only is enforced by the product: there is no
+password mode to fall back to, nothing to configure wrong.
 
 ## One-time operator setup (Ring 0)
 
-1. **Initialize Authentik.** Visit
-   `https://auth.<domain>/if/flow/initial-setup/` and create the `akadmin`
-   account. This account is Ring 0: before doing anything else, go to
-   *Settings → MFA Devices* and register a passkey (WebAuthn), then treat the
-   recovery codes as vault material.
-
-2. **Make passkeys the login method.** In the admin interface
-   (*Flows & Stages*), edit the default authentication flow so the
-   authenticator-validation stage accepts WebAuthn and the enrollment flow
-   registers a passkey during first login. Delete/disable password stages for
-   Ring 0/1 users — "no passwords anywhere in Rings 0/1" is the design
-   invariant, not a preference.
-
-3. **Federate the apps.** For each app with native OIDC (Forgejo first:
-   *Site Administration → Authentication Sources* on the Forgejo side,
-   *Applications → Providers* on the Authentik side), register Authentik as
-   the provider. For apps without OIDC (Radicale), use the Caddy
-   `forward_auth` snippet in `caddy/Caddyfile` backed by an Authentik Proxy
-   Provider — the proxy asserts identity, the app trusts the header.
-
-## Inviting the user
-
-1. In Authentik: *Directory → Users → Create*, or better, create an
-   **enrollment invitation** (*Flows → Enrollment → Invitations*) — this
-   yields a one-time link/QR.
-2. Send the link. On their phone, it opens `auth.<domain>`, prompts for a
-   passkey, and the phone's enclave does the rest. This is the M4 "QR
-   onboarding" flow in embryonic form.
-3. Point them at `https://home.<domain>` — the dashboard is the only URL a
-   trusted user ever needs to remember.
+1. **Initialize Pocket ID.** Visit `https://auth.<domain>/setup` and enroll
+   YOUR passkey — the first account is the admin. This is the Ring 0
+   identity; enroll a second passkey (backup device or hardware key) from
+   the admin UI before inviting anyone.
+2. **Mint an API key** (admin → API Keys) and put it in `.env` as
+   `POCKET_ID_API_KEY` — `scripts/invite.sh` uses it.
+3. **Federate the apps.** For each app with native OIDC, create an OIDC
+   client in Pocket ID (admin → OIDC Clients) and register Pocket ID as the
+   auth source on the app side. Forgejo first: *Site Administration →
+   Authentication Sources → Add → OAuth2/OIDC*, issuer `https://auth.<domain>`
+   (auto-discovery). Keep Forgejo's local admin password login enabled as the
+   documented break-glass.
+4. **Non-OIDC apps** (Radicale): create an OIDC client for `oauth2-proxy`,
+   fill `OAUTH2_PROXY_*` in `.env`, enable the shim —
+   `docker compose --profile authshim up -d` — and put the app's Caddy route
+   behind the `(authed)` forward-auth snippet in the Caddyfile.
 
 ## Reality check for the current MVP
 
@@ -73,10 +49,10 @@ reachable from the internet**. Today that means:
 - For local development with `NODE_DOMAIN=localhost`, add hosts entries
   (`127.0.0.1 auth.localhost home.localhost git.localhost llm.localhost
   cal.localhost`) or use `curl --resolve`; Caddy serves these names from its
-  internal CA, so browsers will warn until you trust that CA
+  internal CA, so trust that CA once
   (`docker exec caddy cat /data/caddy/pki/authorities/local/root.crt`).
 
 The permanent fix is the M2 front door: a disposable VPS running an L4 SNI
 passthrough, WireGuard dialed outbound from the node, TLS terminating here.
-Onboarding instructions above are written against that end state and work
-unchanged once the anchor exists.
+The steps above are written against that end state and work unchanged once
+the anchor exists.

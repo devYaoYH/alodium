@@ -48,9 +48,16 @@ cal.{$NODE_DOMAIN} {
 
 # Ring 2 (by function) — the identity provider IS the public door: family logs
 # in from anywhere with a passkey, so the login flow cannot sit behind an IP
-# guard. Authentik's admin interface is protected by its own auth; treat the
-# admin user as ring 0 and enroll it with a passkey immediately.
+# guard. Pocket ID is passkey-only by construction; its admin surface is
+# protected by the operator's passkey.
 auth.{$NODE_DOMAIN} {
+	reverse_proxy pocket-id:1411
+}
+
+# DEMOLITION PENDING (Phase 5): Authentik parked here until Pocket ID passkey
+# login is verified end-to-end. Ring 0 — operator only.
+auth-old.{$NODE_DOMAIN} {
+	import ring0
 	reverse_proxy authentik:9000
 }
 
@@ -61,13 +68,14 @@ home.{$NODE_DOMAIN} {
 }
 
 # --- forward-auth template ------------------------------------------------
-# For apps with no native OIDC (e.g. Radicale), route through Authentik's
-# embedded outpost once a Proxy Provider is configured for the app:
+# For apps with no native OIDC (e.g. Radicale): oauth2-proxy is an OIDC client
+# of Pocket ID; Caddy asks it, the app trusts the asserted header. Enable the
+# authshim profile and import this snippet in the app's route:
 #
 # (authed) {
-# 	forward_auth authentik:9000 {
-# 		uri /outpost.goauthentik.io/auth/caddy
-# 		copy_headers X-Authentik-Username X-Authentik-Groups X-Authentik-Email
+# 	forward_auth oauth2-proxy:4180 {
+# 		uri /oauth2/auth
+# 		copy_headers X-Auth-Request-User X-Auth-Request-Email
 # 	}
 # }
 

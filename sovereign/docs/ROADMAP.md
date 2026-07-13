@@ -33,10 +33,11 @@ hands the human three clicks — account signups and payments stay human by desi
 The guided-VPS anchor becomes a first-class placement: stateless cloud-init,
 outbound WireGuard from the node, an L4 SNI passthrough so TLS terminates on the
 node and the VPS never sees plaintext, node-run CoreDNS issuing wildcard certs
-via DNS-01 so registrar tokens are never lent out. The identity layer lands here,
-fully specified: Authentik as the node-resident IdP, forward-auth at Caddy for
-non-OIDC apps, passkeys-only for Rings 0/1, per-caller scoped tokens for machines
-inside, deny by default. The policy loop lands (agent-drafted rule commits,
+via DNS-01 so registrar tokens are never lent out. The identity layer lands here, fully
+specified: Pocket ID as the node-resident IdP (passkey-only by construction;
+the IdP is deferred until the second human — M0–M1 use app-native logins),
+oauth2-proxy forward-auth at Caddy for non-OIDC apps, per-caller scoped tokens
+for machines inside, deny by default. The policy loop lands (agent-drafted rule commits,
 operator approval, deterministic enforcement), and so does the change pipeline:
 staging project, manifest-declared tests, promotion refused on red, deploys
 pinned by digest and git tag. Exit criteria: destroying and re-provisioning the
@@ -63,8 +64,9 @@ escalate.
 
 Family accounts across services via the door's SSO, calendar ACLs (edit for
 family, busy-only feed public), the QR onboarding flow that configures a phone in
-one scan — passkey enrollment in Authentik plus app config; no overlay client, no
-passwords — and shared photos or files as the anchor app. Exit criteria: one
+one scan — dashboard → Pocket ID API one-time link → passkey enrollment on the
+family phone; no overlay client, no passwords — and shared photos or files as
+the anchor app. Exit criteria: one
 non-technical household member uses the node daily for a month without asking the
 operator for help. This milestone makes the operator a service provider; the UPS
 and the monitoring agent stop being optional here.

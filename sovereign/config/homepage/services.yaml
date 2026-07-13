@@ -10,10 +10,10 @@
         href: https://llm.{{HOMEPAGE_VAR_NODE_DOMAIN}}
         description: virtual keys, budgets, audit · ring 0
         siteMonitor: http://litellm:4000/health/liveliness
-    - Identity (Authentik):
+    - Identity (Pocket ID):
         href: https://auth.{{HOMEPAGE_VAR_NODE_DOMAIN}}
-        description: passkeys, OIDC · the door itself
-        siteMonitor: http://authentik:9000/-/health/live/
+        description: passkeys only, OIDC · the door itself
+        siteMonitor: http://pocket-id:1411/healthz
 
 - Coming up:
     - Calendar (Radicale):

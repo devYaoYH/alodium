@@ -37,10 +37,11 @@ identity:
   # The node IS the identity provider. "Node-resident" follows compute: in
   # Tier 1 (compute: cloud) the IdP runs on that VM — same stack, same manifest.
   # Root of trust is the phone passkey regardless of placement.
-  provider: authentik        # node-resident IdP at auth.<domain>; admin = ring 0
-  human_auth: passkeys       # no passwords anywhere in rings 0/1
+  provider: pocket-id        # passkey-only OIDC, single container, SQLite —
+                             # lean is the only mode
+  human_auth: passkeys       # enforced by the product: no password mode exists
   overlay: none              # never a dependency; if ever added: headscale with
-                             # Authentik as its OIDC source (no third-party
+                             # the node IdP as its OIDC source (no third-party
                              # identity roots)
 
 rings:

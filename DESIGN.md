@@ -73,16 +73,18 @@ podman-compatible, and the agent runtime slot adopts rootless podman first.
 Humans get one identity at the door; machines get many identities inside; nothing
 is trusted for being on the network.
 
-Human plane (Rings 0/1): the node runs the identity provider — Authentik,
-node-resident, behind the front door at `auth.<domain>`, with its own Postgres
-and Redis on a private network per the db-isolation pattern. Its admin surface is
-Ring 0. The chain of authority is: passkey in the user's phone secure enclave →
-node Authentik (OIDC) → everything federates. No passwords anywhere in Rings 0/1.
-Apps integrate one of two ways: (a) native OIDC (Forgejo, Miniflux, and most
-self-hostable apps) against Authentik; (b) Caddy forward-auth for apps without
-OIDC (Radicale) — the proxy asserts the authenticated identity and the app
-trusts it. Family access needs no overlay client: public front door + passkey
-covers Ring 1.
+Human plane (Rings 0/1): the node runs the identity provider — Pocket ID,
+node-resident, behind the front door at `auth.<domain>`: passkey-only OIDC in a
+single container with SQLite. The chain of authority is: passkey in the user's
+phone secure enclave → node Pocket ID (OIDC) → everything federates. "No
+passwords anywhere in Rings 0/1" is enforced by the product, not maintained by
+configuration — Pocket ID has no password mode to misconfigure. Apps integrate
+one of two ways: (a) native OIDC (Forgejo, Miniflux, and most self-hostable
+apps) against Pocket ID; (b) oauth2-proxy forward-auth at Caddy for apps
+without OIDC (Radicale) — the proxy asserts the authenticated identity and the
+app trusts it. User lifecycle UI (invites, offboarding) is our dashboard's job,
+driving the IdP API; the IdP itself stays a small, boring OIDC core. Family
+access needs no overlay client: public front door + passkey covers Ring 1.
 
 "Node-resident" is a placement statement, not "on-prem": in Tier 1
 (`compute: cloud`, e.g. a GCP VM) the IdP runs on that VM — same stack, same
@@ -205,8 +207,8 @@ three things must survive the box; place them deliberately:
 1. **restic passphrase + repo location** → phone secure enclave AND a printed
    card;
 2. **passkeys** (private halves) → already phone-resident; the restored
-   Authentik database holds the public halves, so every login works immediately
-   post-restore;
+   `pocketid_data` volume (Pocket ID's SQLite) holds the public halves, so
+   every login works immediately post-restore;
 3. **domain + anchor** → survive independently of the box; the anchor serves a
    "node restoring" page and waits for a new box to dial in.
 
@@ -243,10 +245,14 @@ Rootless podman as execution target over root-daemon Docker: per-app user
 namespaces contain container escape, and there is no root daemon to own.
 Per-caller tokens over mTLS-everywhere: boring, legible, individually revocable;
 cryptographic caller identity can arrive later without redesign.
-Authentik over Authelia/Pocket ID: a full OIDC provider with passkeys and user
-lifecycle for Ring 1, at the cost of a heavier footprint; revisit if the
-month-six tax proves real. No third-party identity roots — ever. The anchor is
-an L4 passthrough: rented hardware gets metadata, never plaintext.
+Pocket ID over Authentik: an invariant enforced by the product beats an
+invariant maintained by configuration — Pocket ID cannot do passwords, so
+"no passwords in Rings 0/1" is structural; family lifecycle UI belongs to our
+dashboard driving the IdP API, not to the IdP; and four heavy containers for
+an admin UI we intentionally hide failed agent-legibility and
+boring-technology review. OIDC keeps the IdP swappable if needs outgrow it.
+No third-party identity roots — ever. The anchor is an L4 passthrough: rented
+hardware gets metadata, never plaintext.
 
 Two principles govern future choices. Agent legibility: the sysadmin is a language
 model, so mainstream formats (compose, Caddyfiles, systemd, TOML/YAML) are a

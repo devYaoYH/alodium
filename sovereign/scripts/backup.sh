@@ -22,6 +22,7 @@ TARGETS=(
   "$VOLUMES_ROOT/sovereign-node_litellm_db"
   "$VOLUMES_ROOT/sovereign-node_radicale_data"
   "$VOLUMES_ROOT/sovereign-node_caddy_data"
+  "$VOLUMES_ROOT/sovereign-node_pocketid_data"   # identity: SQLite + passkey public halves
 )
 
 if [[ "${1:-}" == "init" ]]; then

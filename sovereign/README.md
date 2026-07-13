@@ -12,9 +12,9 @@ domain and are comfortable with Docker. See `docs/PHILOSOPHY.md` for why this ex
 | Service   | Role                                        | Ring    |
 |-----------|---------------------------------------------|---------|
 | Caddy     | Reverse proxy, TLS, the only exposed thing  | door    |
-| Authentik | Identity provider — passkeys, OIDC, forward-auth | door / ring 0 admin |
+| Pocket ID | Identity provider — passkey-only OIDC, single container | door / ring 0 admin |
 | LiteLLM   | LLM gateway — virtual keys, budgets, audit  | ring 0  |
-| Postgres  | LiteLLM's + Authentik's databases (isolated)| ring 0  |
+| Postgres  | LiteLLM's database (isolated network)       | ring 0  |
 | Forgejo   | Git platform, config-as-code source of truth, upstream mirror cache | ring 1 |
 | Homepage  | Trusted-people dashboard, health checks, config in git | ring 1 |
 | Radicale  | CalDAV/CardDAV calendar + contacts (optional profile) | ring 1 |
@@ -48,9 +48,9 @@ arrives in later milestones — see the roadmap.
    repo named `node-config` and push this directory to it. From now on, config
    changes flow through git. Hand-edits on the box are considered migration debt.
 
-6. Identity: initialize Authentik at `https://auth.yourdomain/if/flow/initial-setup/`,
-   enroll a passkey for the admin immediately, then follow `docs/ONBOARDING.md`
-   to invite trusted users. Passkeys only — no passwords in rings 0/1.
+6. Identity: initialize Pocket ID at `https://auth.yourdomain/setup` — enrolling
+   your passkey IS the setup; there are no passwords. Then invite trusted users
+   with `./scripts/invite.sh` (see docs/ONBOARDING.md).
 
 7. Backups (not optional — this box is your identity):
 

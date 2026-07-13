@@ -17,10 +17,11 @@ volumes:
   litellm_db:
   forgejo_data:
   radicale_data:
-  authentik_db:
-  authentik_redis:
-  authentik_media:
-  authentik_templates:
+  authentik_db:        # demolition pending — see Phase 5 note in services
+  authentik_redis:     # demolition pending
+  authentik_media:     # demolition pending
+  authentik_templates: # demolition pending
+  pocketid_data:
   agent_workspace:
 
 services:
@@ -101,8 +102,47 @@ services:
     networks: [edge]
 
   # --- identity plane -------------------------------------------------------
-  # The node IS the identity provider: passkey -> Authentik (OIDC) -> everything
-  # federates. Admin surface is ring 0; the login flow itself is the public door.
+  # The node IS the identity provider: passkey -> Pocket ID (OIDC) -> everything
+  # federates. Passkey-only is enforced by the product: Pocket ID has no
+  # password mode to misconfigure. Single container, SQLite. That is the point.
+
+  pocket-id:
+    image: ghcr.io/pocket-id/pocket-id:v1@sha256:f8cde808e8e840acda25683fc2168e0206e3f3fb1a48cca89d211aafd87eaeef
+    container_name: pocket-id
+    restart: unless-stopped
+    environment:
+      APP_URL: https://auth.${NODE_DOMAIN}
+      TRUST_PROXY: "true"
+    volumes:
+      - pocketid_data:/app/data     # SQLite + keys live here; in restic include list
+    networks: [edge]
+
+  # Forward-auth shim for apps with no native OIDC (radicale): Caddy asks
+  # oauth2-proxy, oauth2-proxy asks Pocket ID, the app trusts the asserted
+  # header. Enable AFTER creating its OIDC client in Pocket ID (docs/ONBOARDING.md):
+  #   docker compose --profile authshim up -d
+  oauth2-proxy:
+    profiles: [authshim]
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.8.1@sha256:d62e2d81c6f5048f652f67c302083be1272c181b971fad80e5a30ebe2b8b75d8
+    container_name: oauth2-proxy
+    restart: unless-stopped
+    environment:
+      OAUTH2_PROXY_PROVIDER: oidc
+      OAUTH2_PROXY_OIDC_ISSUER_URL: https://auth.${NODE_DOMAIN}
+      OAUTH2_PROXY_CLIENT_ID: ${OAUTH2_PROXY_CLIENT_ID:-}
+      OAUTH2_PROXY_CLIENT_SECRET: ${OAUTH2_PROXY_CLIENT_SECRET:-}
+      OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_PROXY_COOKIE_SECRET:-}   # openssl rand -base64 32 | head -c 32
+      OAUTH2_PROXY_COOKIE_DOMAINS: .${NODE_DOMAIN}
+      OAUTH2_PROXY_EMAIL_DOMAINS: "*"
+      OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
+      OAUTH2_PROXY_REVERSE_PROXY: "true"
+      OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
+    networks: [edge]
+
+  # --- DEMOLITION PENDING (Phase 5) -------------------------------------------
+  # Authentik parked at auth-old.<domain> until Pocket ID passkey login is
+  # verified end-to-end by the operator. Then: remove these four services,
+  # final restic snapshot tagged authentik-final, remove volumes.
 
   authentik:
     image: ghcr.io/goauthentik/server:2025.6@sha256:acde6a1fc963301fe27f7e86facb9aefbc68eb523210bcab5679a899e6bf72d5
