@@ -1,0 +1,27 @@
+[server]
+hosts = 0.0.0.0:5232
+
+[auth]
+# Basic-auth via htpasswd; credentials live in /data/users (minted host-side)
+# htpasswd_encryption=md5 matches `openssl passwd -apr1` used by chat-tools-setup.sh
+# (Apache MD5, aka apr1)
+type = htpasswd
+htpasswd_filename = /data/users
+htpasswd_encryption = md5
+
+[storage]
+# Filesystem-backed collections live under /data (volume-owned state)
+filesystem_folder = /data/collections
+
+[web]
+# Lightweight built-in HTML UI on /
+type = builtin
+
+[rights]
+# Enforce per-user ownership; rules file minted/owned at /data/rights
+# by chat-tools-setup.sh
+type = from_file
+file = /data/rights
+
+[logging]
+level = info

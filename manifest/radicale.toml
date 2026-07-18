@@ -1,0 +1,33 @@
+# Radicale — CalDAV/CardDAV server. Image digest-pinned in compose.
+
+[app]
+name = "radicale"
+version = "latest"
+description = "CalDAV/CardDAV; ring 1 behind the door"
+image = "tomsquest/docker-radicale:latest"
+ring = 1
+
+[service]
+port = 5232
+api = "https://radicale.org/"
+
+[expose.chat]
+# Open WebUI tool server (OpenAPI) on the internal front network
+# Declared by manifest; scripts/chat-tools-setup.sh makes Open WebUI agree.
+tools = "http://radicale-toolshim:8100"
+
+[needs]
+# No node-plane creds. DAV/API auth is the app's business (htpasswd in /data).
+
+[resources]
+volumes = ["radicale_data"]
+database = "none"   # filesystem in the volume
+
+[tests]
+# Toolshim should answer its OpenAPI; upstream can be empty and still be ok
+command = "curl -fsS http://radicale-toolshim:8100/openapi.json"
+timeout_seconds = 30
+
+[lifecycle]
+backup = ["radicale_data"]
+update_policy = "staged"

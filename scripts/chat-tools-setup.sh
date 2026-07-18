@@ -24,6 +24,50 @@ loadenv() {
 }
 loadenv
 
+saveenv() {  # saveenv <key> <value> [file=.env]
+  local f="${3:-.env}"
+  grep -q "^$1=" "$f" && sed -i '' "s|^$1=.*|$1=$2|" "$f" || printf '%s=%s\n' "$1" "$2" >> "$f"
+}
+
+
+echo "== 0/2 radicale: ensure htpasswd auth (for chat write) =="
+# A write-capable chat surface must NOT ride an unauthenticated backend.
+# Create/update an htpasswd-backed Radicale config on first run, and mint a
+# dedicated Basic-auth user for the shim. Idempotent: re-runs are no-ops.
+if docker ps --format '{{.Names}}' | grep -qx radicale; then
+  RAD_USER="${RADICALE_TOOL_USER:-operator}"
+  if [[ -z "${RADICALE_TOOL_PASSWORD:-}" ]]; then
+    RAD_PASS=$(openssl rand -base64 18)
+    saveenv RADICALE_TOOL_PASSWORD "$RAD_PASS" secrets/radicale.env
+    echo "   minted RADICALE_TOOL_PASSWORD -> secrets/radicale.env"
+  else
+    RAD_PASS="$RADICALE_TOOL_PASSWORD"
+  fi
+  saveenv RADICALE_TOOL_USER "$RAD_USER" secrets/radicale.env
+  # Build or update /data/users, /data/rights inside the container (config is tracked
+  # in-repo at apps/radicale/config and mounted at /config/config by compose)
+  HTPASS=$(openssl passwd -apr1 "$RAD_PASS")
+  docker exec radicale sh -c 'mkdir -p /data/collections && touch /data/users /data/rights'
+  # Ensure user entry exists/updated (replace or append)
+  docker exec radicale sh -lc "grep -v '^${RAD_USER}:' /data/users > /data/users.new || true; echo '${RAD_USER}:${HTPASS}' >> /data/users.new; mv /data/users.new /data/users"
+  # Minimal rights: owner full access (login -> own collections)
+  if ! docker exec radicale sh -c "grep -q '\[owner-write\]' /data/rights" >/dev/null 2>&1; then
+    docker exec radicale sh -c 'cat > /data/rights <<EOF
+[owner-write]
+user = .+
+collection = ^%(login)s(/.*)?$
+permission = rw
+EOF'
+    echo "   wrote /data/rights"
+  else
+    echo "   rights file present — skip"
+  fi
+  docker restart radicale >/dev/null 2>&1 && echo "   radicale restarted to pick up auth"
+else
+  echo "   radicale not running — skip auth setup; re-run after enabling --profile apps"
+fi
+
+
 DECLARED=$(python3 - <<'EOF'
 import glob, json, tomllib
 conns = []
