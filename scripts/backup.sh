@@ -17,6 +17,7 @@ ENV_FILE="scripts/backup.env"
 source "$ENV_FILE"
 
 VOLUMES_ROOT="$(docker volume inspect sovereign-node_forgejo_data --format '{{ .Mountpoint }}' | xargs dirname | xargs dirname)"
+# Core volumes: the stack itself (identity, git, keys, TLS state).
 TARGETS=(
   "$VOLUMES_ROOT/sovereign-node_forgejo_data"
   "$VOLUMES_ROOT/sovereign-node_litellm_db"
@@ -24,21 +25,43 @@ TARGETS=(
   "$VOLUMES_ROOT/sovereign-node_caddy_data"
   "$VOLUMES_ROOT/sovereign-node_pocketid_data"   # identity: SQLite + passkey public halves
 )
+# App volumes: GENERATED from each app manifest's [lifecycle].backup — the
+# manifest is the inventory (DESIGN.md). Add an app, declare its backup,
+# and this list follows; nothing to remember.
+while IFS= read -r vol; do
+  TARGETS+=("$VOLUMES_ROOT/sovereign-node_${vol}")
+done < <(python3 - <<'EOF'
+import tomllib, pathlib
+for p in sorted(pathlib.Path("manifest").glob("*.toml")):
+    if p.name.endswith(".example.toml"): continue
+    for v in tomllib.loads(p.read_text()).get("lifecycle", {}).get("backup", []):
+        print(v.removeprefix("sovereign-node_"))
+EOF
+)
 
 if [[ "${1:-}" == "init" ]]; then
   restic init
   exit 0
 fi
 
-# Consistent DB snapshot: dump Postgres instead of copying live files.
+# Consistent DB snapshots: dump Postgres instead of copying live files.
 docker exec litellm-db pg_dump -U litellm litellm > /tmp/litellm.sql
+DUMPS=(/tmp/litellm.sql)
+if docker ps --format '{{.Names}}' | grep -qx miniflux-db; then
+  docker exec miniflux-db pg_dump -U miniflux miniflux > /tmp/miniflux.sql
+  DUMPS+=(/tmp/miniflux.sql)
+fi
 
-restic backup "${TARGETS[@]}" /tmp/litellm.sql \
+# Manifest-declared volumes only exist once their profile has run; skip absent.
+EXISTING=()
+for t in "${TARGETS[@]}"; do [[ -d "$t" ]] && EXISTING+=("$t"); done
+
+restic backup "${EXISTING[@]}" "${DUMPS[@]}" \
   --tag sovereign-node --exclude-caches
 
 restic forget --tag sovereign-node --keep-daily 7 --keep-weekly 4 --keep-monthly 6 --prune
 
-rm -f /tmp/litellm.sql
+rm -f "${DUMPS[@]}"
 echo "backup complete: $(date -Is)"
 
 # Restore drill (quarterly, minimum):

@@ -1,0 +1,25 @@
+# The service-to-service contract (app.toml [service].api points here).
+# Every endpoint the app exposes appears here; the registry serves this to
+# other services and to humans. Keep it truthful — it is the interface.
+openapi: 3.0.3
+info:
+  title: __APP_NAME__
+  version: 0.1.0
+paths:
+  /healthz:
+    get:
+      summary: Liveness — polled by the dashboard and the change pipeline
+      responses:
+        "200":
+          description: ok
+  /v1/echo:
+    post:
+      summary: Example endpoint — replace with the app's real surface
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: echoes the request body

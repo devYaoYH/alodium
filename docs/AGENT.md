@@ -50,8 +50,10 @@ Never, structurally (not policy — absence):
 - **No `LITELLM_MASTER_KEY`, no `.env`, no vault** — not mounted, not in env.
 - **No docker socket** — it cannot start, stop, or inspect containers.
 - **No host filesystem** — only its workspace volume.
-- **Network: `edge` only** — it reaches services through their published
-  ports like any other client; databases are on networks it isn't in.
+- **Network: the `agents` spur only** — a dedicated network whose only other
+  members are the services its manifest `needs` declared: LiteLLM (inference)
+  and Forgejo (git). It is not on `edge`; radicale, homepage, and the IdP are
+  unreachable at the wire level, and databases are on networks it isn't in.
 
 Compromise analysis: a fully hostile agent (prompt-injected via a mirrored
 repo's README, say) can burn its LLM budget and open ugly PRs. It cannot
@@ -74,7 +76,7 @@ never knows.
 
 "The agent develops the node" means: everything in `node-config` is fair
 game to *propose* — including its own service definition, its own
-CLAUDE.md operating instructions, even this file. The boundary is that
+AGENTS.md operating instructions, even this file. The boundary is that
 every self-modification travels the same PR path as any other change, and
 credential escalation is structurally outside its reach: budgets, token
 scopes, and mounts are set on the host side of the merge boundary.
@@ -100,16 +102,26 @@ The first real task, exercising every mechanism above:
 
 ## Interaction surface, staged
 
-- **Now (M0.5):** terminal — `docker compose run --rm agent`. You're on the
-  node (or SSH'd in); the session is the operator ring by definition.
-- **M3:** the ambient tenant — schedulable tasks (morning digest), a chat
-  bridge behind Authentik, still on virtual keys and read-only surfaces.
+- **Resident (M0.5):** terminal — `docker compose run --rm agent`. You're on
+  the node (or SSH'd in); the session is the operator ring by definition.
+  Persistent workspace, because the job is a continuing conversation about
+  the node.
+- **Ephemeral (M3, here):** ambient tasks as one-shot tenants —
+  `./scripts/run-task.sh tasks/<brief>.md`. One container per task, per-run
+  virtual key with budget and expiry, no workspace volume at all, state in
+  git artifacts only (a `digest`/`handoff` issue in the coordination repo —
+  see skills/coordination). The first ambient task is the morning digest
+  (`tasks/morning-digest.md`, cron it); the injection drill
+  (`scripts/drill-injection.sh`) proves the containment claim on demand.
+  Tenants coordinate through Forgejo issues, never through shared memory.
+- **Later:** a chat bridge behind the node IdP (Pocket ID), still on
+  virtual keys and read-only surfaces.
 - **Never:** an LLM in the request-authorization path. Unauthenticated
   internet traffic must not be able to talk its way in.
 
 ## Bring-up
 
-The jail is four files in `agent/` (Dockerfile, entrypoint, CLAUDE.md
+The jail is three files in `agent/` (Dockerfile, entrypoint, AGENTS.md
 operating instructions, .gitignore for the workspace) plus a compose
 service under `profiles: [agent]`. Steps:
 

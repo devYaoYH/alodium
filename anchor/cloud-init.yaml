@@ -1,0 +1,65 @@
+#cloud-config
+# The entire anchor, from first boot. Substitute ${...} before provisioning
+# (the M1 installer-agent does this; by hand, envsubst works fine).
+#
+# What this box is: an L4 SNI passthrough + a WireGuard responder.
+# What this box is NOT: a TLS terminator, a data store, an identity holder.
+# Rebuilding it from this file + two keys is the whole disaster plan.
+
+package_update: true
+packages: [nginx, libnginx-mod-stream, wireguard]
+
+write_files:
+  # --- WireGuard: the node dials US; we only answer -------------------------
+  - path: /etc/wireguard/wg0.conf
+    permissions: "0600"
+    content: |
+      [Interface]
+      Address = 10.88.0.1/24
+      ListenPort = 51820
+      PrivateKey = ${ANCHOR_WG_PRIVATE_KEY}
+
+      [Peer]
+      # the node. No Endpoint on purpose: it dials outbound (CGNAT-immune),
+      # we learn its address from the handshake.
+      PublicKey = ${NODE_WG_PUBLIC_KEY}
+      AllowedIPs = 10.88.0.2/32
+      PersistentKeepalive = 25
+
+  # --- nginx stream: read SNI, forward the still-encrypted bytes ------------
+  - path: /etc/nginx/modules-enabled/99-passthrough.conf
+    content: |
+      stream {
+        # Everything for the node's domain goes down the tunnel, encrypted.
+        # We never load a certificate; there is nothing here to steal.
+        map $ssl_preread_server_name $upstream {
+          ~\.${NODE_DOMAIN}$   10.88.0.2:443;
+          ${NODE_DOMAIN}       10.88.0.2:443;
+          default              127.0.0.1:9;    # discard: unknown SNI gets nothing
+        }
+        server {
+          listen 443;
+          listen [::]:443;
+          proxy_pass $upstream;
+          ssl_preread on;
+          proxy_connect_timeout 5s;
+        }
+        # Port 80 → node too: Caddy answers HTTP->HTTPS redirects itself.
+        server {
+          listen 80;
+          listen [::]:80;
+          proxy_pass 10.88.0.2:80;
+        }
+      }
+
+  # honesty page for the one failure mode worth explaining: node offline
+  # (nginx stream can't serve it — a monitoring hook may flip DNS to a status
+  # host; keeping this box dumb is the feature, so we accept a hard fail here)
+
+runcmd:
+  # nginx's default http site would fight for :80 — this box serves no http
+  - rm -f /etc/nginx/sites-enabled/default
+  - systemctl enable --now wg-quick@wg0
+  - systemctl restart nginx
+  # SSH stays for the operator; everything else is closed by absence.
+  - ufw allow 22/tcp && ufw allow 80/tcp && ufw allow 443/tcp && ufw allow 51820/udp && ufw --force enable

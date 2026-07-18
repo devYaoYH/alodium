@@ -44,6 +44,9 @@ for c in json.load(sys.stdin)['data']:
 echo "== 1/4 OIDC clients in Pocket ID =="
 mint_client forgejo "https://git.${NODE_DOMAIN}/user/oauth2/pocket-id/callback" FORGEJO_OIDC
 mint_client litellm "https://llm.${NODE_DOMAIN}/sso/callback" LITELLM_OIDC
+# feeds (miniflux, --profile feeds): minting ahead of enablement is harmless —
+# an unused client in Pocket ID grants nothing.
+mint_client miniflux "https://feeds.${NODE_DOMAIN}/oauth2/oidc/callback" MINIFLUX_OIDC
 
 echo "== 2/4 operator = LiteLLM UI admin =="
 ADMIN_ID=$("${CURL[@]}" "$AUTH_URL/api/users" | python3 -c "

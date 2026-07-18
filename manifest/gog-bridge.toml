@@ -1,0 +1,34 @@
+# The Google bridge (M3) — mail/calendar/drive as a typed, read-only-by-default
+# MCP surface for agents; send disabled at the door; the local mirror that
+# makes Gmail exitable. See docs/DESIGN.md "The Google bridge instead of a
+# mail server". Image is operator-mirrored and set via GOG_BRIDGE_IMAGE in .env.
+
+[app]
+name = "gog-bridge"
+version = "0"
+description = "Google mail/calendar/drive bridge: read-only MCP for agents, local mirror"
+image = "GOG_BRIDGE_IMAGE"       # operator-supplied; mirror first (scripts/mirror.sh)
+ring = 0                          # no public route at all — agents-spur only
+
+[service]
+port = 8085
+mcp = "mcp-tools.json"           # the typed tool surface agent consumers discover
+health = "/healthz"
+
+[needs]
+# Cold-upstream OAuth (Google) is held BY the bridge, not minted by the node —
+# the taxonomy's third class: touched at setup/token-refresh only. It declares
+# no internal calls. Consumers (the digester) declare THEIR read scope on the
+# bridge in their own briefs; destructive ops and send are not scopes at all.
+
+[resources]
+volumes = ["bridge_data"]
+database = "none"
+
+[tests]
+command = "curl -fsS $APP_URL/healthz"
+timeout_seconds = 30
+
+[lifecycle]
+backup = ["bridge_data"]         # the mail mirror — hourly, per DESIGN.md DR section
+update_policy = "pinned"         # manual only: it holds your Google tokens

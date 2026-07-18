@@ -1,0 +1,26 @@
+# Staging = the same stack under a second compose project with throwaway
+# volumes (DESIGN.md, "Environments and the change pipeline"). This overlay is
+# the ONLY difference from prod:
+#   - no host ports (prod already owns 80/443/2222) — tests reach services on
+#     the staging project's own networks, by name
+#   - no fixed container_name (prod owns those); staging containers get the
+#     project-prefixed default, sovereign-staging-<service>-1
+# Everything else — images, config, manifests — is identical by construction,
+# which is what makes staging representative.
+#
+# Never run directly; scripts/staging.sh owns the project name and lifecycle.
+# (`!reset` needs compose v2.24+.)
+services:
+  caddy:        { ports: !reset [], container_name: !reset "" }
+  forgejo:      { ports: !reset [], container_name: !reset "" }
+  litellm:      { container_name: !reset "" }
+  litellm-db:   { container_name: !reset "" }
+  radicale:     { container_name: !reset "" }
+  pocket-id:    { container_name: !reset "" }
+  oauth2-proxy: { container_name: !reset "" }
+  homepage:     { container_name: !reset "" }
+  agent:        { container_name: !reset "" }
+  registry:     { container_name: !reset "" }
+  miniflux:     { container_name: !reset "" }
+  miniflux-db:  { container_name: !reset "" }
+  gog-bridge:   { container_name: !reset "" }

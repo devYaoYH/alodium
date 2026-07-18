@@ -11,3 +11,11 @@ docker-compose.override.yml
 *.swp
 *.swo
 *~
+__pycache__/
+
+# The skill-discovery symlink IS tracked (global gitignores often exclude
+# .claude); everything else under .claude (session state, local settings)
+# stays out. The library itself lives in skills/ — framework-agnostic.
+!.claude/
+.claude/*
+!.claude/skills

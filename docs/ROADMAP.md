@@ -55,10 +55,25 @@ Gmail dependency exitable. The agent runtime slot ships as a jailed rootless
 profile honoring the contract in DESIGN.md — per-caller credentials from its
 manifest, discovery via the registry — with OpenClaw as the reference tenant and
 a first ambient agent that is deliberately low-stakes: the feed digester
-(Miniflux lands here too). Exit criteria: an agent summarizes the operator's
+(Miniflux lands here too). Ambient tasks run in the slot's ephemeral mode
+(DESIGN.md): one container per task, per-run virtual key with budget and
+expiry, workspace destroyed at teardown, all state in git artifacts rather
+than agent memory. Because that state is git-native, agent coordination rides
+the same rail: resident and ephemeral tenants track work and leave notes for
+each other as Forgejo issues and project boards — the tracker the node already
+runs, on the wire the agents already reach — rather than a new service. Enabling
+it is a scope bump, not a container: the agent token gains `write:issue` (widened
+by a reviewed diff, per DESIGN.md's jail principle), a `coordination` surface
+(org board or a dedicated repo) becomes the shared notebook, and AGENTS.md
+specifies the hand-off protocol — what an ephemeral tenant records before
+teardown so the next run, or a human, can pick up. A gitea-compatible MCP shim
+can front the REST API later; it is optional, since the jail can already call it.
+Exit criteria: an agent summarizes the operator's
 morning — mail subjects, calendar, feeds — using only virtual keys and read-only
-surfaces, and a simulated prompt-injection in a test email demonstrably fails to
-escalate.
+surfaces; that digest runs as an ephemeral tenant whose per-run key is dead
+(expired or revoked) by teardown; a simulated prompt-injection in a test
+email demonstrably fails to escalate; and one ephemeral tenant leaves a note
+(issue or board card) that a subsequent run reads and acts on.
 
 ## M4 — Ring 1: other people
 

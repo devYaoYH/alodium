@@ -8,6 +8,12 @@ layout:
   Node:
     style: row
     columns: 3
+  Operating:
+    style: row
+    columns: 4
+  Tenants:
+    style: row
+    columns: 3
   Coming up:
     style: row
     columns: 3

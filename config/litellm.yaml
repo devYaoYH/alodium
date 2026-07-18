@@ -24,6 +24,15 @@ model_list:
       model: openai/gpt-5
       api_key: os.environ/OPENAI_API_KEY
 
+  # Open-source lane via OpenRouter — lightweight coding-agent tasks.
+  # reasoning_effort is pinned here so every consumer of this alias gets the
+  # same behavior; a different effort level would be a separate alias.
+  - model_name: deepseek-flash
+    litellm_params:
+      model: openrouter/deepseek/deepseek-v4-flash
+      api_key: os.environ/OPENROUTER_API_KEY
+      reasoning_effort: xhigh
+
   # Tier 4 preview — local inference via an OpenAI-compatible server (Ollama,
   # vLLM, MLX, a DGX box). Uncomment and point at your hardware:
   # - model_name: local-small

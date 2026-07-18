@@ -45,22 +45,25 @@ identity:
                              # identity roots)
 
 rings:
-  ring0: [llm, auth-admin]   # admin surfaces: operator only
-  ring1: [git, cal, home]    # trusted people
+  ring0: [llm, auth-admin, registry]   # admin surfaces: operator only
+  ring1: [git, cal, home, feeds]       # trusted people
   ring2: [auth]              # deliberately public; the door itself, add slowly
 
 services:
-  enabled: [caddy, litellm, forgejo, authentik, homepage]
-  profiles: []               # add "apps" for radicale; later: google-bridge, agents, feeds
+  enabled: [caddy, litellm, forgejo, pocket-id, homepage, registry]
+  profiles: []               # apps (radicale) | feeds (miniflux) | bridge (google)
+                             # | agent (resident dev-agent) | authshim (oauth2-proxy)
 
 backups:
   tool: restic
   destination: b2            # b2 | s3 | local-nas
-  schedule: daily            # hourly for mail-mirror + calendar volumes once they exist
+  schedule: daily            # bridge_data (mail mirror): hourly once the bridge runs
   tested_restore: never      # updated automatically from quarterly restore drills; be honest
 
 agents:
-  # Reserved for milestone M3. Declared now so the shape is visible.
-  runtime: none              # none | openclaw | custom
-  inference_key: virtual     # agents receive LiteLLM virtual keys only
+  # The runtime slot (docs/AGENT.md). Resident: docker compose run --rm agent.
+  # Ephemeral: scripts/run-task.sh tasks/<brief>.md — per-run key, teardown.
+  runtime: claude-code       # none | claude-code | openclaw | custom (slot contract, DESIGN.md)
+  inference_key: virtual     # agents receive LiteLLM virtual keys only — never provider keys
   approvals: human           # destructive ops require operator approval
+  coordination: forgejo      # shared notebook: issues/board in the coordination repo

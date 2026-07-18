@@ -54,7 +54,18 @@ passthrough; the VPS holds zero identity state.
 Enforcement is structural, not behavioral. Caddy is the sole member of the host's
 port namespace (plus Forgejo SSH if deliberately enabled). Services join the `edge`
 network only to the extent Caddy must reach them; databases live on private
-networks with exactly one client.
+networks with exactly one client. Agent runtimes never join `edge`: they live on
+the `agents` spur, a network whose only other members are the services their
+manifests declared — the wire itself mirrors the manifest, so an injected agent
+cannot even route a packet to a service it was never granted.
+
+The spur is also `internal`: agents have no direct internet. This kills the
+lethal combination — untrusted content in, private data held, arbitrary
+egress out — at the network layer rather than in a prompt. An agent's only
+paths out of the box are LiteLLM (logged, budgeted inference) and whatever
+write scopes its manifest declared; upstream code arrives through
+operator-run pull mirrors, never direct fetch. A fooled agent that has read
+your mail has nowhere to send it.
 
 The node is single-human but multi-tenant, and the tenants are programs that must
 not trust each other: third-party images one supply-chain compromise from hostile,
@@ -94,7 +105,7 @@ domain, same users, no re-enrollment.
 
 There is no third-party in the identity chain. A private overlay (Tailscale et
 al.) is at most an optional operator convenience, never a dependency; if one is
-ever added it must be Headscale using Authentik as its OIDC source, because no
+ever added it must be Headscale using Pocket ID as its OIDC source, because no
 third-party service may be an identity root.
 
 The credential taxonomy, in full:
@@ -151,6 +162,38 @@ for service-to-service calls it points at OpenAPI contracts. The manifest format
 tracks openhost.toml as a compatibility target, not a dependency — their app
 ecosystem should run here with minimal translation.
 
+New services start from the skeleton (`templates/app-skeleton`): a runnable
+stdlib service that already satisfies every contract — manifest, OpenAPI
+stub, MCP tool stub, health endpoint, smoke tests the change pipeline can
+run. `scripts/new-app.sh <name>` seeds it as `apps/<name>` in Forgejo with
+the dev-agent as collaborator, so "up a service of kind X" is: operator runs
+one command, agent clones and fills the contracts, two PRs come back (the
+app itself, and its node-config registration — compose service, route,
+backups). Repo creation stays an operator moment; everything after is the
+agent's. The skeleton lives in node-config, so improving it is an ordinary
+agent PR — the scaffold itself is under version control like everything
+else.
+
+The know-how around these mechanisms is packaged the same way. `scripts/`
+holds the deterministic, operator-run tools (they carry tokens and touch
+docker — ring 0 by nature); `skills/` holds the agent-facing procedure
+layer that wraps them: new-app, wrap-upstream, register-service,
+propose-change. Skills are the division of labor made explicit — each one
+says what the agent does, what it asks the operator to run, and what ships
+as a PR. Because the library lives in node-config it travels into every
+agent workspace clone, any tenant occupying the slot inherits the same
+procedures, and improving a skill is an ordinary PR. Scripts enforce;
+skills instruct; neither substitutes for the other.
+
+The library is framework-agnostic on purpose: the operating contract is
+`AGENTS.md` (the cross-tool convention Codex, Gemini CLI, and most newer
+runtimes read natively) and skills are plain `skills/<name>/SKILL.md`
+files following the open Agent Skills format. Framework-specific wiring is
+kept at the edges, one line each: a tracked `.claude/skills` symlink gives
+Claude Code its discovery path, and each tenant's Dockerfile copies
+`AGENTS.md` wherever its framework expects instructions. Swapping or
+adding a tenant runtime touches the wiring, never the library.
+
 ## Environments and the change pipeline
 
 The Boq-derived capabilities — representative environments, ephemeral testing,
@@ -186,7 +229,9 @@ mirror plus the owned domain make it a migration, not a loss.
 ## The agent runtime slot (reserved, not yet built)
 
 The slot is a jailed container profile with the following contract: rootless
-podman with its own user-namespace range; network access to `edge` only;
+podman with its own user-namespace range; network access to the `agents`
+spur only (a network whose other members are exactly the services the
+tenant's manifest `needs` declared — never `edge`, never a database network);
 inference exclusively via an injected LiteLLM virtual key; service access
 exclusively via per-caller scoped credentials minted from its manifest's `needs`,
 discovered through the registry; no docker socket, no volume mounts outside its
@@ -195,6 +240,43 @@ destructive operations queued for human approval. Any runtime satisfying the
 contract may occupy the slot — OpenClaw included, which turns "run the viral
 agent without becoming a breach statistic" into this project's beachhead use
 case.
+
+The slot supports two tenancy modes. The **resident** tenant is the
+interactive dev-agent: a session the operator opens, talks to, and closes,
+with a workspace that persists because its job is a continuing conversation
+about the node. Everything else — scheduled jobs, ambient tasks, one-shot
+migrations — runs as an **ephemeral** tenant: a container minted for one
+task under the same contract, started clean, destroyed with its workspace
+when the task ends.
+
+Ephemeral tenancy is the deliberate answer to context rot. Long-running
+agents accumulate conversational state until quality degrades, cost
+balloons, and the accumulated context itself becomes the thing a prompt
+injection exfiltrates. The node refuses to let state live in an agent at
+all: whatever a task needs arrives as files (a task brief in git, the
+read-only surfaces its manifest declares), and whatever it produces leaves
+as files (a PR, a digest, a report committed somewhere reviewable). Memory
+belongs to git, not to a process; a successor picks up from artifacts,
+never from a transcript.
+
+Credentials follow the same lifecycle. An ephemeral tenant's LiteLLM
+virtual key is minted per run with a per-task budget and an expiry; its
+service tokens are the narrowest its manifest allows; teardown revokes
+whatever expiry has not already killed. A prompt-injected ephemeral tenant
+holds one task's budget, one task's scopes, and no history — the blast
+radius of a mayfly.
+
+Agent tasks that read from many services and answer or write back follow a
+triage rule with three tiers. **Reads** may be broad: read scopes across
+mail, calendar, notes, feeds are what make an assistant useful, and the
+egress lockdown plus read-only defaults bound the damage. **Writes** must be
+enumerable: each one a named manifest scope (`events.write`,
+`notes.append`), minted individually, so the audit log answers "what can
+change my data" by listing scopes, not reading code. **Destructive
+operations** (deletions, migrations, sends to third parties) are never a
+scope — they queue for human approval, always. Answering a question is a
+read plus an artifact; changing your calendar is a declared scope;
+deleting anything is an approval moment.
 
 ## Disaster recovery: the bootstrap chain and the Recovery Kit
 
@@ -245,6 +327,17 @@ Rootless podman as execution target over root-daemon Docker: per-app user
 namespaces contain container escape, and there is no root daemon to own.
 Per-caller tokens over mTLS-everywhere: boring, legible, individually revocable;
 cryptographic caller identity can arrive later without redesign.
+Point-to-point tool calls over an MCP gateway: agents connect directly to
+each service's declared surface, presenting that service's per-caller token,
+with network membership derived from the manifest — same containment as a
+gateway without a new high-value chokepoint or a framework-shaped
+dependency. The registry stays discovery-and-audit only; a gateway can
+arrive later, like mTLS, if centralized enforcement is ever warranted.
+AGENTS.md and `skills/` over framework-specific paths: agent frameworks
+churn (the roadmap names this risk), so instructions and procedures live
+at framework-neutral paths in open formats, and each runtime gets one line
+of wiring — a symlink or a Dockerfile COPY — never ownership of the
+contract.
 Pocket ID over Authentik: an invariant enforced by the product beats an
 invariant maintained by configuration — Pocket ID cannot do passwords, so
 "no passwords in Rings 0/1" is structural; family lifecycle UI belongs to our

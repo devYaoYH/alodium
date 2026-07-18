@@ -1,0 +1,32 @@
+# Miniflux — the algorithm-free timeline (M3). First real manifest through
+# the app-manifest v0 contract; the registry serves this block verbatim.
+
+[app]
+name = "miniflux"
+version = "2"                    # tracks the pinned digest in docker-compose.yml
+description = "Pull-based feed aggregator; the feed digester's read surface"
+image = "miniflux/miniflux"      # digest pinned in compose (scripts/pin-images.sh)
+ring = 1
+
+[service]
+port = 8080
+api = "https://miniflux.app/docs/api.html"   # upstream contract; no local OpenAPI copy
+health = "/healthcheck"
+
+[needs]
+# Nothing. Miniflux calls no internal service; the node IdP login is the
+# door's business (OIDC client minted by sso-setup.sh), not a `needs` credential.
+# The DIGESTER's read token is minted in Miniflux settings and declared in the
+# digester's own brief — the caller declares, never the callee.
+
+[resources]
+volumes = []
+database = "postgres"            # miniflux-db, private `feeds` network, one client
+
+[tests]
+command = "curl -fsS $APP_URL/healthcheck"
+timeout_seconds = 30
+
+[lifecycle]
+backup = ["miniflux_db"]
+update_policy = "staged"

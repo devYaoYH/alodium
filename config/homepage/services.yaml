@@ -1,4 +1,4 @@
-# Services shown on the trusted-people dashboard, with live health checks.
+# Services shown on the dashboard, with live health checks.
 # siteMonitor hits the container directly over the edge network.
 
 - Node:
@@ -15,12 +15,34 @@
         description: passkeys only, OIDC · the door itself
         siteMonitor: http://pocket-id:1411/healthz
 
+- Operating:
+    - Review agent PRs:
+        href: https://git.{{HOMEPAGE_VAR_NODE_DOMAIN}}/{{HOMEPAGE_VAR_NODE_CONFIG_REPO}}/pulls
+        description: the approval moment — merge is authorization
+    - Spend & virtual keys:
+        href: https://llm.{{HOMEPAGE_VAR_NODE_DOMAIN}}/ui
+        description: per-tenant budgets and usage (SSO)
+    - Users & OIDC clients:
+        href: https://auth.{{HOMEPAGE_VAR_NODE_DOMAIN}}/settings/admin
+        description: Pocket ID admin — invite via scripts/invite.sh
+    - Mirrors:
+        href: https://git.{{HOMEPAGE_VAR_NODE_DOMAIN}}/mirrors
+        description: cached upstreams — scripts/mirror.sh adds one
+
+- Tenants:
+    - agent-dev (resident):
+        description: Claude Code jail · $25/mo · writes via PR only · agents net, no egress
+    - helper-coder:
+        description: external coding helper · deepseek-flash only · $10 budget
+    - operator (you):
+        description: ring 0 — merges, deploys, mints; the human in every loop
+
 - Coming up:
     - Calendar (Radicale):
         href: https://cal.{{HOMEPAGE_VAR_NODE_DOMAIN}}
-        description: CalDAV/CardDAV · ring 1
+        description: CalDAV/CardDAV · ring 1 · profile "apps"
         siteMonitor: http://radicale:5232
     - Notes (Memos):
-        description: Google-Keep-style notes — first agent-deployed app (planned)
-    - Agent (dev jail):
-        description: Claude Code tenant in the runtime slot (planned)
+        description: first agent-deployed app — skills/new-app when ready
+    - Feeds (Miniflux):
+        description: pull, not push — M3 with the first ambient tenant

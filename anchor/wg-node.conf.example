@@ -1,0 +1,19 @@
+# Node side of the anchor tunnel. Copy to /etc/wireguard/wg-anchor.conf,
+# fill the ${...} values, then:  wg-quick up wg-anchor  (and enable the
+# systemd unit: systemctl enable wg-quick@wg-anchor).
+#
+# The node DIALS OUT — no port opens at home, CGNAT is irrelevant. Streams
+# arriving down this tunnel hit local :443/:80 where Caddy terminates TLS
+# exactly as if this box were public.
+
+[Interface]
+Address = 10.88.0.2/24
+PrivateKey = ${NODE_WG_PRIVATE_KEY}
+# No ListenPort: we are the initiator.
+
+[Peer]
+PublicKey = ${ANCHOR_WG_PUBLIC_KEY}
+Endpoint = anchor.${NODE_DOMAIN}:51820
+AllowedIPs = 10.88.0.1/32
+# Keep the NAT mapping alive from our side — we dialed, we keep dialing.
+PersistentKeepalive = 25

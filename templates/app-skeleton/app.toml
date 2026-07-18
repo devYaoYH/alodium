@@ -1,0 +1,32 @@
+# App manifest v0 — see manifest/app.example.toml in node-config for the
+# annotated reference. Deny by default: declare nothing, receive nothing.
+
+[app]
+name = "__APP_NAME__"
+version = "0.1.0"
+description = "TODO: one line, honest"
+image = "forgejo.internal/apps/__APP_NAME__"   # built from this repo; pin digest on deploy
+ring = 1                                        # 0 operator-only | 1 trusted people | 2 public
+
+[service]
+port = 8080
+api = "openapi.yaml"
+mcp = "mcp-tools.json"        # delete this line if no agent surface — deliberately
+health = "/healthz"
+
+[needs]
+# Empty is a feature. Each entry mints one scoped, revocable credential.
+# calendar = ["events.write"]
+# llm = { models = ["claude-haiku"], budget_usd = 2.0 }
+
+[resources]
+volumes = []
+database = "none"             # none | sqlite | postgres (installer provisions)
+
+[tests]
+command = "python3 tests/smoke.py"
+timeout_seconds = 60
+
+[lifecycle]
+backup = []                   # every volume above that must survive the box
+update_policy = "staged"      # staged = via change pipeline | pinned = manual only

@@ -3,12 +3,23 @@ name: sovereign-node
 # Trust boundaries are enforced by networks, not by good intentions.
 #   edge     — only things Caddy is allowed to reach. Caddy is the sole ingress.
 #   litellm  — LiteLLM <-> its database. Nothing else can reach Postgres.
-# Future agent runtimes join `edge` only, and talk to services through their
-# published ports — never to databases, never to the docker socket.
+#   agents   — the agent spur: agent runtimes NEVER join `edge`; they join
+#              this network, where the only listeners are the services their
+#              manifest `needs` declared (today: LiteLLM inference, Forgejo
+#              git). Never databases, never the docker socket.
 
 networks:
   edge:
   litellm:
+  feeds:
+    # Miniflux <-> its database. One client, one network, like litellm's.
+    internal: true
+  agents:
+    # internal: agents get NO direct internet. The only egress from the spur
+    # is LiteLLM (which reaches providers via `edge`). An injected agent that
+    # has read your data still has nowhere to send it — upstream code arrives
+    # via operator-run mirrors (scripts/mirror.sh), never direct fetch.
+    internal: true
 
 volumes:
   caddy_data:
@@ -18,6 +29,8 @@ volumes:
   radicale_data:
   pocketid_data:
   agent_workspace:
+  miniflux_db:
+  bridge_data:      # the local mail/calendar mirror — hourly in restic (backup.sh)
 
 services:
   caddy:
@@ -54,6 +67,7 @@ services:
       LITELLM_SALT_KEY: ${LITELLM_SALT_KEY}       # set once, never rotate casually
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       STORE_MODEL_IN_DB: "True"
       # Admin UI SSO via the node IdP (scripts/sso-setup.sh mints the client).
       # API auth is unchanged: virtual keys. Only humans log in via OIDC.
@@ -64,10 +78,14 @@ services:
       GENERIC_TOKEN_ENDPOINT: https://auth.${NODE_DOMAIN}/api/oidc/token
       GENERIC_USERINFO_ENDPOINT: https://auth.${NODE_DOMAIN}/api/oidc/userinfo
       GENERIC_SCOPE: openid profile email
+      # Key SSO users by the OIDC `sub` claim (Pocket ID user UUID) — must
+      # match PROXY_ADMIN_ID, which sso-setup.sh mints as exactly that UUID.
+      # LiteLLM's default (preferred_username) silently creates a new viewer.
+      GENERIC_USER_ID_ATTRIBUTE: sub
       PROXY_ADMIN_ID: ${LITELLM_PROXY_ADMIN_ID:-}
     volumes:
       - ./config/litellm.yaml:/app/config.yaml:ro
-    networks: [edge, litellm]
+    networks: [edge, litellm, agents]   # agents call inference here, by virtual key
 
   litellm-db:
     image: postgres:16-alpine@sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229
@@ -97,9 +115,14 @@ services:
       FORGEJO__server__ROOT_URL: https://git.${NODE_DOMAIN}/
       FORGEJO__server__SSH_PORT: "2222"
       FORGEJO__service__DISABLE_REGISTRATION: "true"   # you, then invited users only
+      # SSO links to EXISTING accounts by matching email — the Forgejo email
+      # must equal the Pocket ID one. Registration stays disabled: an unknown
+      # IdP email gets nothing. Invited users reach git only if you create
+      # their Forgejo account (matching email) deliberately.
+      FORGEJO__oauth2_client__ACCOUNT_LINKING: "auto"
     volumes:
       - forgejo_data:/data
-    networks: [edge]
+    networks: [edge, agents]   # agents clone/push here, by scoped token
     # SSH for git push. Deliberate second ingress — remove if HTTPS-only suits you.
     ports:
       - "2222:22"
@@ -162,6 +185,7 @@ services:
     environment:
       HOMEPAGE_ALLOWED_HOSTS: home.${NODE_DOMAIN}
       HOMEPAGE_VAR_NODE_DOMAIN: ${NODE_DOMAIN}
+      HOMEPAGE_VAR_NODE_CONFIG_REPO: ${NODE_CONFIG_REPO:-operator/node-config}
     volumes:
       - ./config/homepage:/app/config
     networks: [edge]
@@ -172,6 +196,8 @@ services:
   #   docker compose run --rm agent
   # Holds: a LiteLLM virtual key + a scoped Forgejo token. Does not hold:
   # docker socket, secrets, host mounts, database networks, deploy access.
+  # Network: the `agents` spur only — it can reach LiteLLM and Forgejo and
+  # nothing else; radicale, homepage, pocket-id are not even on its wire.
 
   agent:
     profiles: [agent]
@@ -185,18 +211,101 @@ services:
       ANTHROPIC_AUTH_TOKEN: ${AGENT_LLM_KEY:-}       # virtual key — never a provider key
       ANTHROPIC_MODEL: ${AGENT_MODEL:-claude-sonnet}             # LiteLLM alias
       ANTHROPIC_SMALL_FAST_MODEL: ${AGENT_FAST_MODEL:-claude-haiku}
-      AGENT_FORGEJO_TOKEN: ${AGENT_FORGEJO_TOKEN:-}  # scope: node-config + apps/* only
+      AGENT_FORGEJO_TOKEN: ${AGENT_FORGEJO_TOKEN:-}  # scope: node-config + apps/* + issues
       NODE_CONFIG_REPO: ${NODE_CONFIG_REPO:-}
+      COORDINATION_REPO: ${COORDINATION_REPO:-}      # the shared notebook (skills/coordination)
     volumes:
       - agent_workspace:/workspace
-    networks: [edge]
+    networks: [agents]
+
+  # --- service registry (M1) --------------------------------------------------
+  # One endpoint answering "what services exist here and what can I call":
+  # aggregates manifest/*.toml (+ the node manifest) into JSON. Discovery for
+  # humans, the installer, and agents alike — for agents it is effectively MCP
+  # discovery; for service-to-service calls it points at OpenAPI contracts.
+  # Read-only mounts, stdlib only, no state. Agents reach it on the spur at
+  # http://registry:8090; humans via registry.<domain> (ring 0).
+
+  registry:
+    image: python:3.12-alpine@sha256:6d43704baacd1bfbe7c295d7f13079d5d8104ed33568873133f8fc69980419df
+    container_name: registry
+    restart: unless-stopped
+    command: ["python", "/srv/registry.py"]
+    environment:
+      NODE_DOMAIN: ${NODE_DOMAIN}
+    volumes:
+      - ./registry/registry.py:/srv/registry.py:ro
+      - ./manifest:/srv/manifest:ro
+    networks: [edge, agents]
+
+  # --- feeds (M3): the algorithm-free timeline --------------------------------
+  # Pull-based aggregation; OIDC against the node IdP. On the agents spur
+  # because the feed digester (tasks/morning-digest.md) reads it by API token —
+  # a read-only token you mint in Miniflux settings, per the triage rule:
+  # reads may be broad. Enable:  docker compose --profile feeds up -d
+
+  miniflux:
+    profiles: [feeds]
+    image: miniflux/miniflux:latest@sha256:cd353a6af9ce663291f405eddef26fa0d567f486b521c5d34e3fb50e41938b9a
+    container_name: miniflux
+    restart: unless-stopped
+    depends_on:
+      - miniflux-db
+    environment:
+      DATABASE_URL: postgres://miniflux:${MINIFLUX_DB_PASSWORD:-}@miniflux-db:5432/miniflux?sslmode=disable
+      RUN_MIGRATIONS: "1"
+      BASE_URL: https://feeds.${NODE_DOMAIN}/
+      # Break-glass admin, created once; day-to-day login is OIDC via Pocket ID
+      # (client minted by scripts/sso-setup.sh, like Forgejo's and LiteLLM's).
+      CREATE_ADMIN: "1"
+      ADMIN_USERNAME: ${MINIFLUX_ADMIN_USER:-admin}
+      ADMIN_PASSWORD: ${MINIFLUX_ADMIN_PASSWORD:-}
+      OAUTH2_PROVIDER: oidc
+      OAUTH2_CLIENT_ID: ${MINIFLUX_OIDC_CLIENT_ID:-}
+      OAUTH2_CLIENT_SECRET: ${MINIFLUX_OIDC_CLIENT_SECRET:-}
+      OAUTH2_OIDC_DISCOVERY_ENDPOINT: https://auth.${NODE_DOMAIN}
+      OAUTH2_REDIRECT_URL: https://feeds.${NODE_DOMAIN}/oauth2/oidc/callback
+      OAUTH2_USER_CREATION: "0"        # invited humans only, same stance as Forgejo
+    networks: [edge, feeds, agents]
+
+  miniflux-db:
+    profiles: [feeds]
+    image: postgres:16-alpine@sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229
+    container_name: miniflux-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: miniflux
+      POSTGRES_USER: miniflux
+      POSTGRES_PASSWORD: ${MINIFLUX_DB_PASSWORD:-}
+    volumes:
+      - miniflux_db:/var/lib/postgresql/data
+    networks: [feeds]
+
+  # --- the Google bridge (M3) -------------------------------------------------
+  # gog/gws MCP container: mail/calendar/drive via YOUR Google account, exposed
+  # to agents as a typed, read-only-by-default tool surface — send disabled at
+  # the door, structurally. Holds scoped OAuth tokens (cold-upstream class) and
+  # the continuously synced local mirror that makes Gmail exitable. Lives on
+  # the agents spur ONLY: no edge, no public route — consumers are agents, not
+  # browsers. Image is operator-supplied (mirror it first: scripts/mirror.sh;
+  # pin the digest in .env). Enable:  docker compose --profile bridge up -d
+
+  gog-bridge:
+    profiles: [bridge]
+    image: ${GOG_BRIDGE_IMAGE:-sovereign-node/gog-bridge:unset}
+    container_name: gog-bridge
+    restart: unless-stopped
+    environment:
+      GOOGLE_OAUTH_CLIENT_ID: ${GOG_OAUTH_CLIENT_ID:-}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOG_OAUTH_CLIENT_SECRET:-}
+      BRIDGE_FLAGS: "--readonly-default --gmail-no-send"   # the door policy, as absence
+    volumes:
+      - bridge_data:/data        # OAuth tokens + the local mail mirror (hourly restic)
+    networks: [agents]
 
   # ---------------------------------------------------------------------------
   # Coming in later milestones (see docs/ROADMAP.md) — intentionally not yet here:
   #
-  #   gog-bridge   — gog/gws MCP container: mail/calendar/drive via your Google
-  #                  account, read-only by default, --gmail-no-send at the door.
-  #   miniflux     — pull-based feed aggregator (your algorithm-free timeline).
   #   memos        — Google-Keep-style notes; arrives as the agent's first
   #                  worked example (docs/AGENT.md).
   # ---------------------------------------------------------------------------

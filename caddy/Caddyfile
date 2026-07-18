@@ -63,6 +63,26 @@ home.{$NODE_DOMAIN} {
 	reverse_proxy homepage:3000
 }
 
+# Ring 0 — service registry: what exists on this node and what can it call.
+# Discovery/audit only; agents read it directly on the spur (registry:8090).
+registry.{$NODE_DOMAIN} {
+	import ring0
+	reverse_proxy registry:8090
+}
+
+# Ring 1 — feeds, the algorithm-free timeline (profile: feeds; OIDC login)
+feeds.{$NODE_DOMAIN} {
+	import ring1
+	reverse_proxy miniflux:8080
+}
+
+# Ring 1 — the apex lands on the dashboard. If the apex ever goes public
+# (ring 2 below), move this redirect to a path or drop it deliberately.
+{$NODE_DOMAIN} {
+	import ring1
+	redir https://home.{$NODE_DOMAIN}{uri}
+}
+
 # --- forward-auth template ------------------------------------------------
 # For apps with no native OIDC (e.g. Radicale): oauth2-proxy is an OIDC client
 # of Pocket ID; Caddy asks it, the app trusts the asserted header. Enable the

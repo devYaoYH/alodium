@@ -18,12 +18,21 @@ domain and are comfortable with Docker. See `docs/PHILOSOPHY.md` for why this ex
 | Forgejo   | Git platform, config-as-code source of truth, upstream mirror cache | ring 1 |
 | Homepage  | Trusted-people dashboard, health checks, config in git | ring 1 |
 | Radicale  | CalDAV/CardDAV calendar + contacts (optional profile) | ring 1 |
-| agent     | Claude Code in a jail — the resident dev-agent (optional profile, see docs/AGENT.md) | ring 0 session |
+| Registry  | Service registry: what exists here, what can I call — discovery for humans and agents | ring 0 |
+| Miniflux  | Pull-based feeds, the algorithm-free timeline (profile `feeds`) | ring 1 |
+| gog-bridge| Google mail/cal/drive as read-only MCP + local mirror (profile `bridge`, agents spur only) | ring 0 |
+| agent     | Claude Code in a jail — the resident dev-agent (profile `agent`, see docs/AGENT.md) | ring 0 session |
 
-Everything else (gog/gws Google bridge, feeds, photos, more agent tenants)
-arrives in later milestones — see the roadmap.
+Ephemeral agent tenants (one container, one task, one budgeted key) run via
+`scripts/run-task.sh` from briefs in `tasks/` — see docs/AGENT.md. Photos,
+memos, and more tenants arrive in later milestones — see the roadmap.
 
 ## Quickstart
+
+0. Or let the installer do 1–3 and validate the result (idempotent —
+   also safe to re-run on an existing node as a config check):
+
+       ./scripts/install.sh
 
 1. Copy env and fill it in:
 
@@ -71,16 +80,30 @@ arrives in later milestones — see the roadmap.
 ## Layout
 
     docker-compose.yml      the stack — every image pinned by digest
+    docker-compose.staging.yml  the one-file diff that makes the staging twin
     .env.example            secrets template (never commit .env)
     caddy/Caddyfile         routes, annotated by trust ring
     config/litellm.yaml     model list + router settings
     config/homepage/        trusted-people dashboard (config-as-code)
-    manifest/               placement manifest + app manifest v0 (the contracts)
+    manifest/               placement manifest + app manifests (the contracts)
+    registry/               the service registry: manifests -> one discovery endpoint
     agent/                  the dev-agent jail (Dockerfile + operating rules)
-    scripts/backup.sh       restic volume backup
+    tasks/                  ephemeral-tenant briefs (+ the injection-drill fixture)
+    anchor/                 the disposable VPS front door (cloud-init, WG, CoreDNS)
+    templates/app-skeleton/ the bare-minimum service every new app starts from
+    skills/                 the agent skill library — procedures for working this node
+                            (framework-agnostic; .claude/skills symlinks here)
+    scripts/install.sh      the interview: manifest, reachability, validation
+    scripts/backup.sh       restic backup; include list generated from manifests
     scripts/mirror.sh       cache an upstream repo in Forgejo (docs/MIRRORING.md)
+    scripts/new-app.sh      seed apps/<name> in Forgejo from the skeleton
     scripts/pin-images.sh   re-pin compose images to current digests
-    scripts/deploy.sh       the deterministic deploy step (post-merge)
+    scripts/staging.sh      the staging twin: same stack, throwaway volumes
+    scripts/run-tests.sh    manifest-declared tests against staging
+    scripts/promote.sh      staging -> tests -> prod; refuses promotion on red
+    scripts/deploy.sh       the deterministic deploy step (promote's last move)
+    scripts/run-task.sh     ephemeral agent tenancy: per-run key, one task, teardown
+    scripts/drill-injection.sh  prove a prompt-injection cannot escalate
     docs/                   PHILOSOPHY, DESIGN, ROADMAP, ONBOARDING, MIRRORING, AGENT
 
 ## Configuration layering — what's tracked vs. what's yours

@@ -1,0 +1,32 @@
+# Node-run CoreDNS (M2): the node answers DNS for its own zone, so Caddy can
+# complete ACME DNS-01 for wildcard certs WITHOUT registrar API tokens ever
+# being lent to the box (or to an agent). The registrar holds only a static
+# NS delegation; everything dynamic happens here, on hardware you own.
+#
+# Setup:
+#   1. At the registrar: NS records delegating <domain> (or a subzone like
+#      node.<domain>) to anchor.<domain>; the anchor forwards :53 down the
+#      tunnel like any other stream (add a udp/53 server block, or run this
+#      on the anchor's IP via the tunnel).
+#   2. Run CoreDNS with this Corefile on the node; zone file in ./zones/.
+#   3. Caddy: build with the RFC2136 DNS provider (or use certmagic's) and
+#      point DNS-01 at this server — the TXT challenge records appear here
+#      and nowhere else.
+#
+# This file is a template: copy beside a zones/ dir and fill the domain.
+
+${NODE_DOMAIN} {
+    file /zones/db.${NODE_DOMAIN}
+    # ACME DNS-01: allow dynamic TXT updates from localhost (Caddy) only,
+    # authenticated by TSIG key — mint with:  tsig-keygen acme-update
+    transfer {
+        to *
+    }
+    log
+}
+
+. {
+    # Everything else: refuse. This server exists for one zone.
+    forward . /etc/resolv.conf
+    cache 30
+}
