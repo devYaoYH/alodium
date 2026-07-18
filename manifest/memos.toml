@@ -1,0 +1,30 @@
+# Memos — the Keep-clone (docs/AGENT.md worked example). Upstream cached at
+# mirrors/memos; image digest-pinned in compose.
+
+[app]
+name = "memos"
+version = "stable"
+description = "Google-Keep-style notes; ring 1 behind the door"
+image = "neosmemo/memos"
+ring = 1
+
+[service]
+port = 5230
+api = "https://memos.apidocumentation.com/"   # upstream API contract
+health = "/healthz"
+
+[needs]
+# Nothing internal. Data migration (Takeout import) is an ephemeral-task
+# job with a Memos API token minted for that run — the caller declares.
+
+[resources]
+volumes = ["memos_data"]
+database = "none"     # embedded SQLite in the volume
+
+[tests]
+command = "curl -fsS $APP_URL/healthz"
+timeout_seconds = 30
+
+[lifecycle]
+backup = ["memos_data"]
+update_policy = "staged"

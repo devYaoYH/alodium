@@ -1,0 +1,30 @@
+# Open WebUI — chat.<domain>: the assistant's brain in a browser (profile
+# `chat`). Upstream cached at mirrors/open-webui. It consumes the assistant's
+# budgeted LiteLLM key; it holds no other credential. Tool-wielding chat (the
+# bridge to the real assistant tenant) is the roadmap's next step.
+
+[app]
+name = "open-webui"
+version = "main"
+description = "Chat UI over LiteLLM using the assistant's virtual key; ring 0"
+image = "ghcr.io/open-webui/open-webui"
+ring = 0
+
+[service]
+port = 8080
+health = "/health"
+
+[needs]
+llm = { models = ["claude-sonnet", "claude-haiku"], budget_usd = 15.0 }  # the assistant's key, shared surface
+
+[resources]
+volumes = ["openwebui_data"]
+database = "none"     # embedded SQLite in the volume
+
+[tests]
+command = "curl -fsS $APP_URL/health"
+timeout_seconds = 60
+
+[lifecycle]
+backup = ["openwebui_data"]
+update_policy = "staged"

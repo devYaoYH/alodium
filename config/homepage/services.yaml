@@ -1,33 +1,147 @@
 # Services shown on the dashboard, with live health checks.
-# siteMonitor hits the container directly over the edge network.
+# siteMonitor hits the container directly over the edge network; server/
+# container entries pull live docker status via docker-proxy (read-only).
+# Widget credentials are HOMEPAGE_VAR_* env — always the weak ones: budgeted
+# tenant keys and read-only tokens, never master/operator credentials.
 
 - Node:
     - Git (Forgejo):
         href: https://git.{{HOMEPAGE_VAR_NODE_DOMAIN}}
         description: config-as-code source of truth · ring 1
+        server: sovereign-node
+        container: forgejo
         siteMonitor: http://forgejo:3000
     - LLM Gateway (LiteLLM):
         href: https://llm.{{HOMEPAGE_VAR_NODE_DOMAIN}}
         description: virtual keys, budgets, audit · ring 0
+        server: sovereign-node
+        container: litellm
         siteMonitor: http://litellm:4000/health/liveliness
     - Identity (Pocket ID):
         href: https://auth.{{HOMEPAGE_VAR_NODE_DOMAIN}}
         description: passkeys only, OIDC · the door itself
+        server: sovereign-node
+        container: pocket-id
         siteMonitor: http://pocket-id:1411/healthz
 
+- Apps:
+    - Calendar (Radicale):
+        href: https://cal.{{HOMEPAGE_VAR_NODE_DOMAIN}}
+        description: CalDAV/CardDAV · ring 1
+        server: sovereign-node
+        container: radicale
+        siteMonitor: http://radicale:5232
+    - Notes (Memos):
+        href: https://notes.{{HOMEPAGE_VAR_NODE_DOMAIN}}
+        description: the Keep-clone · ring 1 · mirrors/memos
+        server: sovereign-node
+        container: memos
+        siteMonitor: http://memos:5230/healthz
+    - Feeds (Miniflux):
+        href: https://feeds.{{HOMEPAGE_VAR_NODE_DOMAIN}}
+        description: pull, not push · ring 1 · the digester reads here
+        server: sovereign-node
+        container: miniflux
+        siteMonitor: http://miniflux:8080/healthcheck
+    - Chat (assistant):
+        href: https://chat.{{HOMEPAGE_VAR_NODE_DOMAIN}}
+        description: the assistant's brain in a browser · spends its budget · ring 0
+        server: sovereign-node
+        container: open-webui
+        siteMonitor: http://open-webui:8080/health
+
 - Operating:
-    - Review agent PRs:
+    - Agent PRs (the approval moment):
         href: https://git.{{HOMEPAGE_VAR_NODE_DOMAIN}}/{{HOMEPAGE_VAR_NODE_CONFIG_REPO}}/pulls
-        description: the approval moment — merge is authorization
-    - Spend & virtual keys:
+        description: merge is authorization — everything else is a proposal
+        widget:
+          type: customapi
+          url: http://forgejo:3000/api/v1/repos/{{HOMEPAGE_VAR_NODE_CONFIG_REPO}}/pulls?state=open
+          headers:
+            Authorization: token {{HOMEPAGE_VAR_DASH_GIT_TOKEN}}
+          display: list
+          mappings:
+            - field: 0.title
+              label: newest open PR
+    - Coordination (the agents' notebook):
+        href: https://git.{{HOMEPAGE_VAR_NODE_DOMAIN}}/{{HOMEPAGE_VAR_COORDINATION_REPO}}/issues
+        description: handoffs, blocks, digests — what the tenants left for you
+    - Spend · agent-dev:
         href: https://llm.{{HOMEPAGE_VAR_NODE_DOMAIN}}/ui
-        description: per-tenant budgets and usage (SSO)
+        description: resident dev-agent, monthly budget
+        widget:
+          type: customapi
+          url: http://litellm:4000/key/info
+          headers:
+            Authorization: Bearer {{HOMEPAGE_VAR_AGENT_LLM_KEY}}
+          mappings:
+            - field: info.spend
+              label: spent $
+              format: float
+            - field: info.max_budget
+              label: budget $
+              format: float
+    - Spend · assistant:
+        href: https://llm.{{HOMEPAGE_VAR_NODE_DOMAIN}}/ui
+        description: front-door assistant + chat surface
+        widget:
+          type: customapi
+          url: http://litellm:4000/key/info
+          headers:
+            Authorization: Bearer {{HOMEPAGE_VAR_ASSISTANT_LLM_KEY}}
+          mappings:
+            - field: info.spend
+              label: spent $
+              format: float
+            - field: info.max_budget
+              label: budget $
+              format: float
+    - Auth events (Pocket ID):
+        href: https://auth.{{HOMEPAGE_VAR_NODE_DOMAIN}}/settings/admin
+        description: latest identity events at the door
+        widget:
+          type: customapi
+          url: http://pocket-id:1411/api/audit-logs?pagination%5Blimit%5D=1&sort%5Bcolumn%5D=createdAt&sort%5Bdirection%5D=desc
+          headers:
+            X-API-KEY: {{HOMEPAGE_VAR_POCKET_ID_API_KEY}}
+          mappings:
+            - field: data.0.event
+              label: latest
+            - field: data.0.createdAt
+              label: when
+              format: relativeDate
     - Users & OIDC clients:
         href: https://auth.{{HOMEPAGE_VAR_NODE_DOMAIN}}/settings/admin
         description: Pocket ID admin — invite via scripts/invite.sh
     - Mirrors:
         href: https://git.{{HOMEPAGE_VAR_NODE_DOMAIN}}/mirrors
         description: cached upstreams — scripts/mirror.sh adds one
+
+- Services (docker):
+    - registry:
+        description: service discovery · ring 0
+        server: sovereign-node
+        container: registry
+    - homepage:
+        description: this dashboard
+        server: sovereign-node
+        container: homepage
+    - caddy:
+        description: the only exposed thing
+        server: sovereign-node
+        container: caddy
+    - litellm-db:
+        description: LiteLLM's postgres · private network
+        server: sovereign-node
+        container: litellm-db
+    - miniflux-db:
+        description: Miniflux's postgres · private network
+        server: sovereign-node
+        container: miniflux-db
+    - docker-proxy:
+        description: read-only container status for this page
+        server: sovereign-node
+        container: docker-proxy
 
 - Tenants:
     - agent-dev (resident):
@@ -38,13 +152,3 @@
         description: run-task.sh · per-run key, budget + expiry · artifact = a coordination issue
     - operator (you):
         description: ring 0 — merges, deploys, mints; the human in every loop
-
-- Coming up:
-    - Calendar (Radicale):
-        href: https://cal.{{HOMEPAGE_VAR_NODE_DOMAIN}}
-        description: CalDAV/CardDAV · ring 1 · profile "apps"
-        siteMonitor: http://radicale:5232
-    - Notes (Memos):
-        description: first agent-deployed app — skills/new-app when ready
-    - Feeds (Miniflux):
-        description: pull, not push — M3 with the first ambient tenant

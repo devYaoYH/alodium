@@ -14,6 +14,10 @@ networks:
   feeds:
     # Miniflux <-> its database. One client, one network, like litellm's.
     internal: true
+  dockerwatch:
+    # homepage <-> docker-proxy ONLY: read-only container status for the
+    # dashboard. The raw socket never enters a routed container.
+    internal: true
   agents:
     # internal: agents get NO direct internet. The only egress from the spur
     # is LiteLLM (which reaches providers via `edge`). An injected agent that
@@ -32,6 +36,8 @@ volumes:
   assistant_workspace:
   miniflux_db:
   bridge_data:      # the local mail/calendar mirror — hourly in restic (backup.sh)
+  memos_data:
+  openwebui_data:
 
 services:
   caddy:
@@ -190,9 +196,33 @@ services:
       HOMEPAGE_ALLOWED_HOSTS: home.${NODE_DOMAIN}
       HOMEPAGE_VAR_NODE_DOMAIN: ${NODE_DOMAIN}
       HOMEPAGE_VAR_NODE_CONFIG_REPO: ${NODE_CONFIG_REPO:-operator/node-config}
+      HOMEPAGE_VAR_COORDINATION_REPO: ${COORDINATION_REPO:-operator/coordination}
+      # Dashboard widget credentials — deliberately the WEAK ones: budgeted
+      # tenant keys self-reporting via /key/info, the assistant's read-only
+      # git token, the Pocket ID admin API key for auth events. The LiteLLM
+      # master key and operator tokens never enter this container.
+      HOMEPAGE_VAR_AGENT_LLM_KEY: ${AGENT_LLM_KEY:-}
+      HOMEPAGE_VAR_ASSISTANT_LLM_KEY: ${ASSISTANT_LLM_KEY:-}
+      HOMEPAGE_VAR_DASH_GIT_TOKEN: ${ASSISTANT_FORGEJO_TOKEN:-}
+      HOMEPAGE_VAR_POCKET_ID_API_KEY: ${POCKET_ID_API_KEY:-}
     volumes:
       - ./config/homepage:/app/config
-    networks: [edge]
+    networks: [edge, dockerwatch]
+
+  # Read-only docker status for the dashboard: the proxy exposes ONLY
+  # container listing (CONTAINERS=1; everything else stays 0/denied) on an
+  # internal network whose sole other member is homepage. The socket mounts
+  # here read-only; no routed container ever touches it directly.
+  docker-proxy:
+    image: tecnativa/docker-socket-proxy:latest@sha256:1f3a6f303320723d199d2316a3e82b2e2685d86c275d5e3deeaf182573b47476
+    container_name: docker-proxy
+    restart: unless-stopped
+    environment:
+      CONTAINERS: "1"
+      POST: "0"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks: [dockerwatch]
 
   # --- the agent runtime slot, first tenant -----------------------------------
   # Claude Code in a jail (docs/AGENT.md). Interactive:
@@ -221,6 +251,38 @@ services:
     volumes:
       - agent_workspace:/workspace
     networks: [agents]
+
+  # --- apps ring 1: notes ------------------------------------------------------
+  # The Keep-clone from docs/AGENT.md's worked example. Upstream cached at
+  # mirrors/memos; SQLite in its volume; backup declared in manifest/memos.toml.
+  memos:
+    profiles: [apps]
+    image: neosmemo/memos:stable@sha256:3e1253477066eb2aefa91145f7f9038bb931ed88c8a3ee05310a933594cdba7d
+    container_name: memos
+    restart: unless-stopped
+    volumes:
+      - memos_data:/var/opt/memos
+    networks: [edge]
+
+  # --- chat: the assistant in a browser ----------------------------------------
+  # Open WebUI (mirrored at mirrors/open-webui) pointed at LiteLLM with the
+  # ASSISTANT'S budgeted virtual key — chat.<domain> is a conversation surface
+  # with the assistant's brain and budget. Honest limit: no tools here yet —
+  # the issue-filing, registry-reading assistant is the terminal session; the
+  # full tool-wielding chat bridge is the roadmap's next step. Ring 0.
+  open-webui:
+    profiles: [chat]
+    image: ghcr.io/open-webui/open-webui:main@sha256:a26effeb220e132482bf7e0560b3404843e7bc40d23051144e062960df8df6b0
+    container_name: open-webui
+    restart: unless-stopped
+    environment:
+      OPENAI_API_BASE_URL: http://litellm:4000/v1
+      OPENAI_API_KEY: ${ASSISTANT_LLM_KEY:-}
+      ENABLE_OLLAMA_API: "false"
+      WEBUI_URL: https://chat.${NODE_DOMAIN}
+    volumes:
+      - openwebui_data:/app/backend/data
+    networks: [edge]
 
   # --- the front-door assistant ------------------------------------------------
   # The conversational tenant: the operator opens a terminal and asks for
@@ -295,6 +357,10 @@ services:
       CREATE_ADMIN: "1"
       ADMIN_USERNAME: ${MINIFLUX_ADMIN_USER:-admin}
       ADMIN_PASSWORD: ${MINIFLUX_ADMIN_PASSWORD:-}
+      # Discovery is fetched lazily (verified): with the client unminted the
+      # OIDC button just fails and the break-glass admin login still works —
+      # that is localhost-dev mode. sso-setup.sh mints the real client.
+      # NB: provider must be set or ABSENT — miniflux rejects empty string.
       OAUTH2_PROVIDER: oidc
       OAUTH2_CLIENT_ID: ${MINIFLUX_OIDC_CLIENT_ID:-}
       OAUTH2_CLIENT_SECRET: ${MINIFLUX_OIDC_CLIENT_SECRET:-}

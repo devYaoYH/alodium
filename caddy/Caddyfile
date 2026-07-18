@@ -76,6 +76,19 @@ feeds.{$NODE_DOMAIN} {
 	reverse_proxy miniflux:8080
 }
 
+# Ring 1 — notes, the Keep-clone (profile: apps; Memos has its own accounts)
+notes.{$NODE_DOMAIN} {
+	import ring1
+	reverse_proxy memos:5230
+}
+
+# Ring 0 — chat with the assistant (profile: chat). It spends the assistant's
+# budget on every message; the operator's surface, not the household's.
+chat.{$NODE_DOMAIN} {
+	import ring0
+	reverse_proxy open-webui:8080
+}
+
 # Ring 1 — the apex lands on the dashboard. If the apex ever goes public
 # (ring 2 below), move this redirect to a path or drop it deliberately.
 {$NODE_DOMAIN} {

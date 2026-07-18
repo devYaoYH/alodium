@@ -25,3 +25,6 @@ services:
   miniflux:     { container_name: !reset "" }
   miniflux-db:  { container_name: !reset "" }
   gog-bridge:   { container_name: !reset "" }
+  memos:        { container_name: !reset "" }
+  open-webui:   { container_name: !reset "" }
+  docker-proxy: { container_name: !reset "" }

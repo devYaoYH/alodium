@@ -8,12 +8,16 @@ layout:
   Node:
     style: row
     columns: 3
+  Apps:
+    style: row
+    columns: 4
   Operating:
     style: row
     columns: 4
+  Services (docker):
+    style: row
+    columns: 6
+    initiallyCollapsed: true
   Tenants:
     style: row
-    columns: 3
-  Coming up:
-    style: row
-    columns: 3
+    columns: 4
