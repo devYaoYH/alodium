@@ -14,8 +14,8 @@ htpasswd_encryption = md5
 filesystem_folder = /data/collections
 
 [web]
-# Lightweight built-in HTML UI on /
-type = builtin
+# Lightweight built-in HTML UI on / ("internal" is the module name)
+type = internal
 
 [rights]
 # Enforce per-user ownership; rules file minted/owned at /data/rights
