@@ -35,6 +35,9 @@ close() { A -X PATCH "$GAPI/issues/$1" -d '{"state":"closed"}' >/dev/null; }
 
 mkdir -p .task-dispatch    # per-brief cooldown stamps (gitignored host state)
 
+OPERATOR_LOGIN="${OPERATOR_LOGIN:-${FORGEJO_ADMIN_USER:-operator}}"   # the ONLY actor whose assignment authorizes a launch (host env may override)
+AGENT_LOGIN="${AGENT_GIT_USER:-agent-dev}"         # the assignee we dispatch for
+
 A "$GAPI/issues?state=open&labels=task-request&type=issues" \
 | python3 -c 'import json,sys; [print(i["number"], i["title"]) for i in json.load(sys.stdin)]' \
 | while read -r NUM TITLE; do
@@ -69,4 +72,88 @@ $OUT
 The deliverable, if any, is its own issue (label \`digest\`/\`handoff\`)."
   close "$NUM"
 done
+
+# --- assigned-issue mode ----------------------------------------------------
+# Operator assigns a coordination issue to agent-dev (in the web UI, with a
+# passkey) => this pass launches an ephemeral tenant to work it. The trigger
+# (an Actions "doorbell" workflow, or just this cron pass) is only a HINT:
+# every fact below is re-derived from the Forgejo API and the merged checkout,
+# so a forged nudge or a compromised runner cannot cause an unauthorized run.
+#
+# The gate, in order — each is independently sufficient to refuse:
+#   1. agent-dev is actually an assignee (not just a stale mention).
+#   2. NOT already claimed: no `in-progress` label (the cross-instance lock).
+#   3. The assignment was performed BY THE OPERATOR — read from the issue
+#      timeline's assign-event actor. Assistant/agent tokens hold write on
+#      coordination and CAN self-assign (verified), so "assigned" alone is not
+#      authorization; "assigned by the operator" is. This is the anti-
+#      escalation core.
+#   4. The issue number ONLY is handed to the tenant; the body never is. The
+#      agent fetches the body itself, as data, under its own scoped token.
+
+# in-progress label id (the durable claim). Must pre-exist — creating it at
+# runtime is how coordination's other labels got triplicated. Look up, don't create.
+INPROG_ID=$(A "$GAPI/labels" \
+  | python3 -c 'import json,sys; ids=[l["id"] for l in json.load(sys.stdin) if l["name"]=="in-progress"]; print(ids[0] if ids else "")')
+
+assign_by_operator() {   # $1=issue number → prints operator login iff operator made the latest agent-dev assignment
+  A "$GAPI/issues/$1/timeline?limit=100" | python3 -c '
+import json,sys
+op,agent=sys.argv[1],sys.argv[2]
+ev=[e for e in json.load(sys.stdin)
+    if e.get("type")=="assignees" and not e.get("removed")
+    and (e.get("assignee") or {}).get("login")==agent]
+ev.sort(key=lambda e: e.get("created_at",""))
+print((ev[-1].get("user") or {}).get("login","") if ev else "")' "$OPERATOR_LOGIN" "$AGENT_LOGIN"
+}
+
+if [[ -z "$INPROG_ID" ]]; then
+  echo "[dispatch] assigned-issue mode DISABLED: no 'in-progress' label in $COORDINATION_REPO (operator must create it once)"
+else
+  A "$GAPI/issues?state=open&type=issues&limit=50" | python3 -c '
+import json,sys
+agent=sys.argv[1]
+for i in json.load(sys.stdin):
+    assignees={(a or {}).get("login") for a in (i.get("assignees") or [])}
+    labels={(l or {}).get("name") for l in (i.get("labels") or [])}
+    if agent in assignees and "in-progress" not in labels:
+        print(i["number"])' "$AGENT_LOGIN" \
+  | while read -r NUM; do
+    echo "[assign] #$NUM assigned to $AGENT_LOGIN, unclaimed — checking authorization"
+
+    ACTOR=$(assign_by_operator "$NUM")
+    if [[ "$ACTOR" != "$OPERATOR_LOGIN" ]]; then
+      echo "[assign] #$NUM REFUSED: latest assignment actor='${ACTOR:-none}' != operator='$OPERATOR_LOGIN'"
+      [[ "$DRY" == "--dry-run" ]] || say "$NUM" "Not dispatched: this issue was assigned to \`$AGENT_LOGIN\` by \`${ACTOR:-someone other than the operator}\`, not the operator. Auto-dispatch only honors operator assignments — an agent cannot task another agent by self-assigning. If this is real work, the operator should (re)assign it."
+      continue
+    fi
+
+    if [[ "$DRY" == "--dry-run" ]]; then
+      echo "[assign] #$NUM WOULD LAUNCH issue-work (operator-authorized, unclaimed)"
+      continue
+    fi
+
+    # Claim FIRST (add in-progress label), then launch — the label is the
+    # visible lock so a second pass/instance skips it at the filter above.
+    A -X POST "$GAPI/issues/$NUM/labels" -d "{\"labels\":[$INPROG_ID]}" >/dev/null
+    echo "[assign] #$NUM claimed (in-progress); launching issue-work"
+    say "$NUM" "Dispatched to an ephemeral \`$AGENT_LOGIN\` tenant (operator-authorized). Claimed with \`in-progress\`. Deliverable will be a node-config PR + a comment here; if I'm blocked I'll say so."
+
+    OUT=$(./scripts/run-task.sh tasks/issue-work.md --issue "$NUM" 2>&1 | tail -15 || true)
+    say "$NUM" "Ephemeral run finished. Tail:
+
+\`\`\`
+$OUT
+\`\`\`
+If a PR was opened it's linked above; if I hit a wall the comment says BLOCKED. The \`in-progress\` label stays until the work lands or the operator clears it."
+  done
+fi
+
+# Consume doorbell markers: they are wake signals only (this pass already
+# re-derived everything authoritatively), so clearing them just stops relaunch
+# churn. Optional — only if the operator mapped the spool to a host path.
+if [[ -n "${DISPATCH_SPOOL:-}" && -d "$DISPATCH_SPOOL" ]]; then
+  rm -f "$DISPATCH_SPOOL"/*.nudge 2>/dev/null || true
+fi
+
 echo "[dispatch] pass complete: $(date '+%Y-%m-%dT%H:%M:%S%z')"

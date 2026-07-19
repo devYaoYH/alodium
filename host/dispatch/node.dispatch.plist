@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- launchd job for the host dispatcher (this node runs on macOS/darwin).
+     Two wake sources, both pointing at ONE idempotent pass:
+       - WatchPaths on the doorbell spool → near-instant wake when a marker
+         lands (the Actions doorbell just wrote one).
+       - StartInterval heartbeat → the safety net if the runner/doorbell is
+         down entirely; the dispatcher still finds operator-assigned issues by
+         polling, exactly as the task-request path always has.
+     The pass re-derives all trust from the Forgejo API, so a spurious wake is
+     harmless: worst case it lists issues and launches nothing.
+
+     Install:  cp host/dispatch/node.dispatch.plist ~/Library/LaunchAgents/
+               launchctl load ~/Library/LaunchAgents/node.dispatch.plist
+     EDIT the two absolute paths below to your checkout + spool mountpoint. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>            <string>node.dispatch</string>
+  <key>WorkingDirectory</key> <string>/REPLACE/with/abs/path/to/geth</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/REPLACE/with/abs/path/to/geth/scripts/task-dispatcher.sh</string>
+  </array>
+  <key>WatchPaths</key>
+  <array>
+    <!-- the host-side view of the doorbell_spool volume; docker cp / a bind
+         mount exposes it here. If you bind-mount the volume to a host dir,
+         point WatchPaths at that dir. -->
+    <string>/REPLACE/with/abs/path/to/spool</string>
+  </array>
+  <key>StartInterval</key>    <integer>600</integer>   <!-- 10-min heartbeat fallback -->
+  <key>StandardOutPath</key>  <string>/REPLACE/with/abs/path/to/geth/.task-dispatch/dispatch.log</string>
+  <key>StandardErrorPath</key><string>/REPLACE/with/abs/path/to/geth/.task-dispatch/dispatch.log</string>
+  <key>ProcessType</key>      <string>Background</string>
+</dict>
+</plist>

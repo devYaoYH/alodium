@@ -1,0 +1,17 @@
+# forgejo-runner config for the powerless doorbell runner.
+# Host execution, no docker — the runner CANNOT start containers.
+log:
+  level: info
+runner:
+  file: /data/.runner
+  capacity: 1
+  timeout: 30s          # the doorbell job is an echo; anything slow is wrong
+  labels:
+    - "doorbell:host"   # host executor — jobs run in THIS container, no DinD
+container:
+  # no docker socket is mounted, so container jobs are impossible regardless;
+  # this stanza is left explicit so a future edit can't quietly enable DinD.
+  network: ""
+  privileged: false
+  options: ""
+  valid_volumes: []     # nothing may be bind-mounted into a job

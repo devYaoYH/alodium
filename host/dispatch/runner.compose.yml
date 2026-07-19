@@ -1,0 +1,46 @@
+# The doorbell runner — a DELIBERATELY POWERLESS forgejo-runner.
+#
+# Not part of the node's docker-compose.yml core plane: it is operator-run
+# host infrastructure (like the dispatcher cron/launchd), started separately so
+# its blast radius is obvious and it never rides a node `up`. Bring it up with:
+#   docker compose -f host/dispatch/runner.compose.yml up -d
+# after registering it (see README.md — needs an operator-minted, REPO-SCOPED
+# token for the coordination repo only).
+#
+# Why it is safe to let it execute agent-pushable workflow YAML:
+#   - HOST execution mode, NO docker socket mounted → it cannot spawn a
+#     privileged container, cannot reach the daemon, cannot become ring-0.
+#   - Holds NO node secrets (no master key, no .env) — only its own runner
+#     registration token, which authorizes registration, not inference.
+#   - Network = a single internal net to Forgejo ONLY. It cannot reach LiteLLM,
+#     Pocket ID, the apps, or the internet. A hostile pushed workflow is boxed
+#     into: write /spool markers (dispatcher rejects forged ones) and use its
+#     repo-scoped job token on coordination (mischief already within any
+#     agent's existing write — no new authority).
+#   - The one job it is meant to run writes a bare integer to /spool. That's it.
+
+services:
+  doorbell-runner:
+    image: code.forgejo.org/forgejo/runner:6.0.1
+    container_name: doorbell-runner
+    restart: unless-stopped
+    # host mode: jobs run as this container's unprivileged user, no DinD.
+    command: ["forgejo-runner", "daemon", "--config", "/config.yml"]
+    environment:
+      # registration is done once, out of band (register.sh), producing
+      # /data/.runner; no token lives in this file.
+      GITEA_INSTANCE_URL: https://git.${NODE_DOMAIN}
+    volumes:
+      - ./host/dispatch/runner-config.yml:/config.yml:ro
+      - doorbell_runner_data:/data
+      - doorbell_spool:/spool          # the ONLY writable channel out
+    networks: [doorbell_net]
+    user: "10002:10002"                # unprivileged; not the agent uid
+
+networks:
+  doorbell_net:
+    internal: true                     # Forgejo is reachable via the shared net alias; no egress
+
+volumes:
+  doorbell_runner_data:
+  doorbell_spool:

@@ -23,9 +23,23 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 set -a; source .env; set +a
 
-BRIEF="${1:?usage: run-task.sh <tasks/brief.md> [--keep-key]}"
-KEEP_KEY="${2:-}"    # --keep-key: drill mode — let expiry, not revocation, kill it
+BRIEF="${1:?usage: run-task.sh <tasks/brief.md> [--keep-key] [--issue N]}"
 [[ -f "$BRIEF" ]] || { echo "no such brief: $BRIEF"; exit 1; }
+shift
+KEEP_KEY=""      # --keep-key: drill mode — let expiry, not revocation, kill it
+ISSUE=""         # --issue N: substitute {ISSUE} in the brief with a bare number.
+                 #   ONLY the integer crosses into the tenant — never issue text;
+                 #   the agent fetches the body itself with its own scoped token,
+                 #   so a hostile issue body can't smuggle instructions via us.
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --keep-key) KEEP_KEY="--keep-key" ;;
+    --issue)    ISSUE="${2:-}"; shift
+                [[ "$ISSUE" =~ ^[0-9]+$ ]] || { echo "run-task: --issue must be an integer, got '$ISSUE'"; exit 2; } ;;
+    *) echo "run-task: unknown arg '$1'"; exit 2 ;;
+  esac
+  shift
+done
 
 front() { awk -v k="$2" 'NR>1 && /^---$/{exit} $1==k":"{sub(/^[^:]*: */,""); sub(/[[:space:]]*#.*$/,""); sub(/[[:space:]]+$/,""); print}' "$1"; }
 TASK=$(front "$BRIEF" task);         TASK=${TASK:-$(basename "$BRIEF" .md)}
@@ -35,6 +49,8 @@ BUDGET=$(front "$BRIEF" budget_usd); BUDGET=${BUDGET:-0.50}
 EXPIRES=$(front "$BRIEF" expires);   EXPIRES=${EXPIRES:-2h}
 RUN="task-$TASK-$(date +%Y%m%d-%H%M%S)"
 PROMPT=$(awk 'NR>1 && /^---$/{f=1; next} f' "$BRIEF")
+# {ISSUE} placeholder → the validated integer (empty if not an issue-work run).
+PROMPT="${PROMPT//\{ISSUE\}/$ISSUE}"
 
 LLM=(/usr/bin/curl -sk --resolve "llm.${NODE_DOMAIN}:443:127.0.0.1" \
      -H "Authorization: Bearer $LITELLM_MASTER_KEY" -H "Content-Type: application/json")

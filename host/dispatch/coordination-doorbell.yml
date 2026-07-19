@@ -1,0 +1,31 @@
+# INSTALL TARGET: the coordination repo, at .forgejo/workflows/dispatch-doorbell.yml
+# (NOT node-config — issue-assignment events fire on coordination, the notebook).
+#
+# The doorbell. Fires when an issue is assigned and does ONE thing: write an
+# untrusted "look at issue N" marker into a spool the host dispatcher watches.
+# It holds NO secrets and needs NO docker socket. Everything that decides
+# whether a tenant actually launches — is the assignee really agent-dev, did
+# the OPERATOR assign it, is it already claimed — is re-derived host-side by
+# scripts/task-dispatcher.sh from the Forgejo API. So this file is convenience,
+# not trust: agents hold write on coordination and CAN push a branch with a
+# hostile edit to this workflow, but the worst that buys them is forging a
+# marker, and the dispatcher rejects a forged marker exactly as it rejects a
+# self-assignment (re-derivation, not marker-trust, is the gate).
+on:
+  issues:
+    types: [assigned]
+
+jobs:
+  ring:
+    runs-on: doorbell   # label of the powerless, repo-scoped runner
+    steps:
+      - name: drop spool marker
+        run: |
+          # github.event.issue.number is a forge-controlled integer, not user
+          # free-text. Write only that; the dispatcher re-reads everything else.
+          n="${{ github.event.issue.number }}"
+          case "$n" in
+            ''|*[!0-9]*) echo "non-numeric issue ref, ignoring"; exit 0 ;;
+          esac
+          echo "$n" > "/spool/issue-$n.nudge"
+          echo "doorbell: nudged dispatcher for issue #$n"
