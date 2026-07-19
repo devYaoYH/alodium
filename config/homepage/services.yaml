@@ -74,6 +74,13 @@
         server: sovereign-node
         container: miniflux
         siteMonitor: http://miniflux:8080/healthcheck
+    - Snake:
+        icon: mdi-gamepad-variant-outline
+        href: https://game.{{HOMEPAGE_VAR_NODE_DOMAIN}}
+        description: take a playful five-minute break
+        server: sovereign-node
+        container: snake
+        siteMonitor: http://snake:8080/
     - Assistant:
         icon: open-webui.png
         href: https://chat.{{HOMEPAGE_VAR_NODE_DOMAIN}}
