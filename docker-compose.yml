@@ -226,8 +226,11 @@ services:
       HOMEPAGE_VAR_ASSISTANT_LLM_KEY: ${ASSISTANT_LLM_KEY:-}
       HOMEPAGE_VAR_DASH_GIT_TOKEN: ${ASSISTANT_FORGEJO_TOKEN:-}
       HOMEPAGE_VAR_POCKET_ID_API_KEY: ${POCKET_ID_API_KEY:-}
+      HOMEPAGE_VAR_MINIFLUX_TOKEN: ${MINIFLUX_TASK_TOKEN:-}
     volumes:
       - ./config/homepage:/app/config
+      # Generated scenery backgrounds, served from the node itself at /images/*
+      - ./config/homepage/images:/app/public/images:ro
     networks: [edge, dockerwatch, front]   # front: health-pings the egress-less apps
 
   # Read-only docker status for the dashboard: the proxy exposes ONLY
@@ -266,12 +269,14 @@ services:
       # OpenAI-compatible to LiteLLM — model FAMILIES are a `:model <alias>`
       # switch, bounded by the key's allowlist, never a harness change.
       AGENT_HARNESS: ${AGENT_HARNESS:-forge}
+      AGENT_MODEL: ${AGENT_MODEL:-}                  # harness-agnostic model knob; entrypoint translates
       OPENAI_URL: http://litellm:4000/v1
       OPENAI_API_KEY: ${AGENT_LLM_KEY:-}             # same virtual key, both harnesses
       ANTHROPIC_BASE_URL: http://litellm:4000
       ANTHROPIC_AUTH_TOKEN: ${AGENT_LLM_KEY:-}       # virtual key — never a provider key
-      ANTHROPIC_MODEL: ${AGENT_MODEL:-claude-sonnet}             # LiteLLM alias
-      ANTHROPIC_SMALL_FAST_MODEL: ${AGENT_FAST_MODEL:-claude-haiku}
+      # Unconfigured default = the cheap model (deepseek-flash), never premium.
+      ANTHROPIC_MODEL: ${AGENT_MODEL:-deepseek-flash}            # LiteLLM alias
+      ANTHROPIC_SMALL_FAST_MODEL: ${AGENT_FAST_MODEL:-deepseek-flash}
       AGENT_FORGEJO_TOKEN: ${AGENT_FORGEJO_TOKEN:-}  # scope: node-config + apps/* + issues
       NODE_CONFIG_REPO: ${NODE_CONFIG_REPO:-}
       COORDINATION_REPO: ${COORDINATION_REPO:-}      # the shared notebook (skills/coordination)

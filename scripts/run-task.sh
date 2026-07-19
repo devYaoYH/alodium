@@ -29,7 +29,8 @@ KEEP_KEY="${2:-}"    # --keep-key: drill mode — let expiry, not revocation, ki
 
 front() { awk -v k="$2" 'NR>1 && /^---$/{exit} $1==k":"{sub(/^[^:]*: */,""); sub(/[[:space:]]*#.*$/,""); sub(/[[:space:]]+$/,""); print}' "$1"; }
 TASK=$(front "$BRIEF" task);         TASK=${TASK:-$(basename "$BRIEF" .md)}
-MODEL=$(front "$BRIEF" model);       MODEL=${MODEL:-${AGENT_FAST_MODEL:-claude-haiku}}
+MODEL=$(front "$BRIEF" model);       MODEL=${MODEL:-${AGENT_FAST_MODEL:-deepseek-flash}}
+HARNESS=$(front "$BRIEF" harness);   HARNESS=${HARNESS:-claude}
 BUDGET=$(front "$BRIEF" budget_usd); BUDGET=${BUDGET:-0.50}
 EXPIRES=$(front "$BRIEF" expires);   EXPIRES=${EXPIRES:-2h}
 RUN="task-$TASK-$(date +%Y%m%d-%H%M%S)"
@@ -64,19 +65,26 @@ done
 
 # No agent_workspace mount: the resident tenant's memory is not this tenant's
 # inheritance. --rm + no volume = the workspace provably dies at teardown.
-docker run --rm --name "$RUN" \
+# Forge refuses to run without a pty (os error 6); -t allocates one inside
+# the container even when this script runs from cron. Claude stays pty-less
+# so its --output-format text pipes stay clean.
+# NB host bash is 3.2: empty-array "${a[@]}" trips set -u — use the
+# ${a[@]+"${a[@]}"} expansion for every maybe-empty array here.
+TTY_ARGS=(); [[ "$HARNESS" == forge ]] && TTY_ARGS=(-t)
+docker run --rm --name "$RUN" ${TTY_ARGS[@]+"${TTY_ARGS[@]}"} \
   --network sovereign-node_agents \
-  -e AGENT_HARNESS=claude \
+  -e AGENT_HARNESS="$HARNESS" \
+  -e AGENT_MODEL="$MODEL" \
   -e ANTHROPIC_BASE_URL=http://litellm:4000 \
   -e ANTHROPIC_AUTH_TOKEN="$RUN_KEY" \
-  -e ANTHROPIC_MODEL="$MODEL" \
-  -e ANTHROPIC_SMALL_FAST_MODEL="$MODEL" \
+  -e OPENAI_URL=http://litellm:4000/v1 \
+  -e OPENAI_API_KEY="$RUN_KEY" \
   -e AGENT_FORGEJO_TOKEN="${AGENT_FORGEJO_TOKEN:-}" \
   -e NODE_CONFIG_REPO="${NODE_CONFIG_REPO:-}" \
   -e COORDINATION_REPO="${COORDINATION_REPO:-}" \
-  "${ENV_ARGS[@]}" \
+  ${ENV_ARGS[@]+"${ENV_ARGS[@]}"} \
   sovereign-node/agent:local \
-  -p "$PROMPT" --output-format text \
+  -p "$PROMPT" $([[ "$HARNESS" == claude ]] && echo "--output-format text") \
   || echo "[$RUN] task exited nonzero — check whether it filed a 'blocked' issue"
 
 echo "[$RUN] done. Deliverable (if any) is an issue in \$COORDINATION_REPO — the artifact, not this transcript."

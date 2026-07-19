@@ -12,6 +12,7 @@ Markdown with a small frontmatter block read by `scripts/run-task.sh`:
     ---
     task: morning-digest          # names the run + the key alias
     model: claude-haiku           # LiteLLM alias; ambient tasks stay cheap
+    harness: claude               # optional: claude (default) | forge
     budget_usd: 0.50              # hard ceiling on the per-run virtual key
     expires: 2h                   # key self-destructs even if teardown fails
     env: [MINIFLUX_TASK_TOKEN]    # .env names passed through — the brief's

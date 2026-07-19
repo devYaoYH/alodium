@@ -26,11 +26,11 @@ RUN useradd -m -u 10001 agent
 # AGENTS.md is the canonical, framework-agnostic operating contract; each
 # tenant image wires it wherever its framework looks. Claude Code: user
 # memory. Forgecode: the AGENTS.md standard (entrypoint links it into the
-# workspace repo, where forge looks). forge.toml: the LiteLLM provider +
-# default model (linked as .forge.toml; key arrives by env var name).
+# workspace repo, where forge looks). Forge's provider/model come from env
+# (OPENAI_URL/OPENAI_API_KEY + FORGE_SESSION__* pins, see entrypoint) —
+# forge 2.13 ignores project .forge.toml [[providers]] despite its docs.
 COPY --chown=agent:agent AGENTS.md /home/agent/.claude/CLAUDE.md
 COPY --chown=agent:agent AGENTS.md /home/agent/AGENTS.md
-COPY --chown=agent:agent forge.toml /home/agent/forge.toml
 USER agent
 WORKDIR /workspace
 

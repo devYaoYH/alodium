@@ -28,14 +28,33 @@ fi
 
 cd /workspace/node-config 2>/dev/null || cd /workspace
 
-# Forge follows the AGENTS.md standard + forge.yaml in the project root;
-# link the jail's copies into whatever repo we landed in, untracked (the
-# contract is the image's business, never a commit in node-config).
+# Forge follows the AGENTS.md standard in the project root; link the
+# jail's copy into whatever repo we landed in, untracked (the contract is
+# the image's business, never a commit in node-config).
 if [ -d .git ]; then
-  [ -e AGENTS.md ]   || { ln -s "$HOME/AGENTS.md" AGENTS.md; echo "AGENTS.md" >> .git/info/exclude; }
-  [ -e .forge.toml ] || { ln -s "$HOME/forge.toml" .forge.toml; echo ".forge.toml" >> .git/info/exclude; }
+  [ -e AGENTS.md ] || { ln -s "$HOME/AGENTS.md" AGENTS.md; echo "AGENTS.md" >> .git/info/exclude; }
+fi
+
+# AGENT_MODEL is the harness-agnostic model knob (a LiteLLM alias). The
+# tenant's virtual-key allowlist is the authority — this is only a request.
+#
+# Forge leg: forge 2.13 IGNORES project .forge.toml [[providers]] (despite
+# its docs); the working non-interactive surface is its figment env layer.
+# Provider auth arrives via forge's startup migration of OPENAI_URL +
+# OPENAI_API_KEY (both point at LiteLLM), and the session pin below skips
+# the interactive provider/model picker. Without the pin, an unpinned forge
+# picks its own model — verified sending deepseek-flash traffic.
+export FORGE_SESSION__PROVIDER_ID="${FORGE_SESSION__PROVIDER_ID:-openai_compatible}"
+# Fallback when nothing is configured = deepseek-flash (operator decision:
+# the unconfigured default should be the cheap model, never a premium one).
+export FORGE_SESSION__MODEL_ID="${FORGE_SESSION__MODEL_ID:-${AGENT_MODEL:-deepseek-flash}}"
+
+# Claude leg: same knob, its native vars. Explicit ANTHROPIC_* env wins.
+if [ -n "${AGENT_MODEL:-}" ]; then
+  export ANTHROPIC_MODEL="${ANTHROPIC_MODEL:-$AGENT_MODEL}"
+  export ANTHROPIC_SMALL_FAST_MODEL="${ANTHROPIC_SMALL_FAST_MODEL:-$AGENT_MODEL}"
 fi
 
 HARNESS="${AGENT_HARNESS:-forge}"
-echo "[jail] harness: $HARNESS (AGENT_HARNESS=forge|claude to switch)"
+echo "[jail] harness: $HARNESS (AGENT_HARNESS=forge|claude), model: ${AGENT_MODEL:-image default} (AGENT_MODEL=<litellm alias>)"
 exec "$HARNESS" "$@"
