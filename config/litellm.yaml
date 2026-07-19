@@ -45,6 +45,13 @@ litellm_settings:
   drop_params: true
   num_retries: 2
   request_timeout: 120
+  # GLOBAL spend ceiling across ALL keys, resetting monthly. This is the real
+  # spend control for the concurrent-agent swarm: per-run keys cap a single run,
+  # but only this bounds the AGGREGATE across many concurrent + successive runs.
+  # deepseek-flash (the agent default) is cheap — this is a runaway backstop,
+  # not a target. Raise/lower to taste; when hit, all inference 402s until reset.
+  max_budget: 50            # USD per budget_duration
+  budget_duration: 30d
   # Pairs with store_prompts_in_spend_logs below: captures the raw request
   # (the messages) alongside the response in each spend-log row.
   log_raw_request_response: true
