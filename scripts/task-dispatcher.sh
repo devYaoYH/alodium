@@ -149,27 +149,22 @@ for i in json.load(sys.stdin):
 
     if OUT=$(./scripts/run-task.sh tasks/issue-work.md --issue "$NUM" 2>&1); then
       RC=0; else RC=$?; fi
-    OUT=$(tail -15 <<<"$OUT")
     if [[ "$RC" -eq 0 ]]; then
-      say "$NUM" "Ephemeral run finished. Tail:
-
-\`\`\`
-$OUT
-\`\`\`
-If a PR was opened it's linked above; if I hit a wall the comment says BLOCKED.
-
-**To request changes:** review the PR, leave your feedback as a comment here, then **remove the \`in-progress\` label** — that re-launches a fresh tenant which reads your feedback and revises the same PR. (A comment alone does nothing; removing the label is the 'go again' signal.) Leave \`in-progress\` on and the issue rests until you merge or clear it."
+      # The agent posts its own comment with the PR link + what it did, so
+      # don't echo the (ANSI-noisy) run tail — just the operator contract.
+      say "$NUM" "Run finished — see the agent's comment above for the PR. **To request changes:** leave your feedback as a comment here, then **remove the \`in-progress\` label**; that re-launches a tenant which reads your feedback and revises the same PR. (A comment alone does nothing — removing the label is the 'go again' signal.) Leave \`in-progress\` on and the issue rests until you merge or clear it."
     else
-      # Launch/agent FAILED — release the claim so the issue isn't stranded, and
-      # stamp the cooldown so we don't relaunch on the very next tick.
+      # Launch/agent FAILED — release the claim so the issue isn't stranded,
+      # stamp the cooldown, and show a CLEANED tail (failure = you need it).
       touch "$FSTAMP"
       A -X DELETE "$GAPI/issues/$NUM/labels/$INPROG_ID" >/dev/null || true
-      say "$NUM" "Dispatch FAILED (exit $RC) — released \`in-progress\` so this can be retried (1h cooldown). Tail:
+      CLEAN=$(printf '%s' "$OUT" | sed 's/\x1b\[[0-9;]*[A-Za-z]//g' | tr -d '\r' | grep -viE 'Processing|Reasoning|Ctrl\+C' | grep -v '^[[:space:]]*$' | tail -12)
+      say "$NUM" "Dispatch FAILED (exit $RC) — released \`in-progress\` for retry (1h cooldown). Tail:
 
 \`\`\`
-$OUT
+$CLEAN
 \`\`\`
-Reassign after fixing, or wait for the cooldown to lapse."
+Fix the cause, then re-assign or wait for the cooldown."
     fi
   done
 fi
