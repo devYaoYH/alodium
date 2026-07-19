@@ -51,7 +51,17 @@ Do NOT open a second PR for the same issue. Only open a new PR if none exists.
    (above), otherwise a new branch — never main.
 2. Do the smallest correct change the issue asks for. Follow the
    propose-change skill: branch discipline, blast-radius note, rollback plan.
-3. Open a PR against node-config and REQUEST operator review (an unrequested
+3. **VERIFY BEFORE YOU PUSH.** If your change touches any config
+   (Caddyfile/route.caddy, compose YAML, config/*.yaml) or a shell script,
+   run `./scripts/verify-config.sh` and make it PASS. Your jail carries the
+   real `caddy` binary + `shellcheck` for exactly this — a config that fails
+   `caddy validate` will not load and the operator's deploy refuses it, so a
+   PR that doesn't pass verify-config is a wasted round. If verify-config
+   reports an error, fix it and re-run until PASS; paste the final PASS line
+   into your PR description. (Runtime behavior — does SSO actually inject, does
+   the calendar load — still needs the operator to drive; say so, don't claim
+   it. But syntax/structure you CAN and MUST verify yourself now.)
+4. Open a PR against node-config and REQUEST operator review (an unrequested
    PR is invisible in the dashboard). Link the PR in an issue comment.
 4. If you're blocked (need a secret, a scope, a decision), comment on the
    issue with exactly what you need, labeled by saying "BLOCKED:", and stop —
