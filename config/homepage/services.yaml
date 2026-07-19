@@ -43,6 +43,12 @@
         server: sovereign-node
         container: miniflux
         siteMonitor: http://miniflux:8080/healthcheck
+    - Game (Snake):
+        href: https://game.{{HOMEPAGE_VAR_NODE_DOMAIN}}
+        description: canvas snake game · ring 1
+        server: sovereign-node
+        container: snake
+        siteMonitor: http://snake:8080/
     - Chat (assistant):
         href: https://chat.{{HOMEPAGE_VAR_NODE_DOMAIN}}
         description: the assistant's brain in a browser · spends its budget · ring 0
