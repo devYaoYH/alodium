@@ -13,14 +13,7 @@ cal.{$NODE_DOMAIN} {
 	@webui path / /.web /.web/*
 	handle @webui {
 		import authed
-		# Inject the Basic auth header so Radicale's htpasswd check passes
-		# without a second login form. The value is base64 of
-		# "operator:<RADICALE_TOOL_PASSWORD>" (minted host-side into
-		# secrets/radicale.env). Every SSO-authed human acts as "operator"
-		# on the web UI — acceptable on today's single-user node.
-		reverse_proxy radicale:5232 {
-			header_up Authorization "Basic {env.RADICALE_WEB_AUTH}"
-		}
+		reverse_proxy radicale:5232
 	}
 	handle {
 		reverse_proxy radicale:5232

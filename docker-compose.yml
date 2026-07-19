@@ -73,10 +73,6 @@ services:
       ACME_EMAIL: ${ACME_EMAIL}
       # default TEST-NET-1 = matches nothing real; set real CIDRs in .env
       EXTRA_TRUSTED_RANGES: ${EXTRA_TRUSTED_RANGES:-192.0.2.0/32}
-      # Injected on web-UI paths to Radicale (apps/radicale/route.caddy)
-      # so the browser never sees the htpasswd login form. Value is base64
-      # of "operator:<RADICALE_TOOL_PASSWORD>"; minted in secrets/radicale.env.
-      RADICALE_WEB_AUTH: ${RADICALE_WEB_AUTH:-}
     volumes:
       - ./caddy:/etc/caddy:ro     # Caddyfile + untracked local/*.caddy overrides
       # app fragments' route.caddy files; /etc/caddy is itself a ro mount, so
