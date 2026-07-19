@@ -1,8 +1,13 @@
 # INSTALL TARGET: the coordination repo, at .forgejo/workflows/dispatch-doorbell.yml
 # (NOT node-config — issue-assignment events fire on coordination, the notebook).
 #
-# The doorbell. Fires when an issue is assigned and does ONE thing: write an
+# The doorbell. Fires on two operator gestures and does ONE thing: write an
 # untrusted "look at issue N" marker into a spool the host dispatcher watches.
+#   - assigned:  operator assigns the issue to agent-dev  → first dispatch
+#   - unlabeled: operator removes the `in-progress` label → REVISION request
+#     (after reviewing the PR, "release the claim, go again"). This is the
+#     operator-facing re-work trigger; a review comment alone does NOT fire
+#     anything (comments aren't a doorbell event).
 # It holds NO secrets and needs NO docker socket. Everything that decides
 # whether a tenant actually launches — is the assignee really agent-dev, did
 # the OPERATOR assign it, is it already claimed — is re-derived host-side by
@@ -13,7 +18,7 @@
 # self-assignment (re-derivation, not marker-trust, is the gate).
 on:
   issues:
-    types: [assigned]
+    types: [assigned, unlabeled]
 
 jobs:
   ring:

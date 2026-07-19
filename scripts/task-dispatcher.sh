@@ -156,7 +156,9 @@ for i in json.load(sys.stdin):
 \`\`\`
 $OUT
 \`\`\`
-If a PR was opened it's linked above; if I hit a wall the comment says BLOCKED. \`in-progress\` stays until the work lands or the operator clears it."
+If a PR was opened it's linked above; if I hit a wall the comment says BLOCKED.
+
+**To request changes:** review the PR, leave your feedback as a comment here, then **remove the \`in-progress\` label** — that re-launches a fresh tenant which reads your feedback and revises the same PR. (A comment alone does nothing; removing the label is the 'go again' signal.) Leave \`in-progress\` on and the issue rests until you merge or clear it."
     else
       # Launch/agent FAILED — release the claim so the issue isn't stranded, and
       # stamp the cooldown so we don't relaunch on the very next tick.
