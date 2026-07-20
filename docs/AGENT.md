@@ -28,10 +28,10 @@ records; deterministic code enforces; the human approves.** Concretely:
    exactly that).
 4. You review the diff in Forgejo and merge. That merge IS the
    authorization moment.
-5. Deploy is a separate, deterministic step the agent cannot trigger: you
-   (for now) run `scripts/deploy.sh` on the host — `git pull` in the
-   node-config checkout + `docker compose up -d`. The M2 change pipeline
-   replaces "you run it" with staging + tests + auto-promote-on-green.
+5. Deploy is a separate, deterministic step the agent cannot trigger: the
+   host deploy watcher (`host/deploy-watch/`) notices the merge within ~2
+   minutes and runs `scripts/deploy.sh` — the same script you can still run
+   by hand. The M2 change pipeline adds staging + tests before promote.
 
 ## Credentials at bring-up (and what it never holds)
 
