@@ -7,7 +7,7 @@
 name = "calino"
 version = "0.22.7"
 description = "CalDAV web client; ring 1 behind the door; upstream: Ivan-Malinovski/calino (MIT)"
-image = "sovereign-node/calino"
+image = "sovereign-node/calino:0.22.7"
 ring = 1
 
 [service]
