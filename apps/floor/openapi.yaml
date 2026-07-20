@@ -1,0 +1,87 @@
+openapi: 3.1.0
+info:
+  title: floor
+  version: 0.1.0
+  description: >
+    Read-only aggregator behind the isometric factory-floor view of the node.
+    Rooms are services, edges are declared data paths, events are observed
+    data movement. Nothing here mutates anything.
+paths:
+  /healthz:
+    get:
+      summary: Liveness
+      responses:
+        "200": { description: ok }
+  /v1/floor:
+    get:
+      summary: The map — rooms, edges, source health
+      responses:
+        "200":
+          description: Current floor snapshot
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  node: { type: string }
+                  generated_at: { type: integer }
+                  running: { type: integer }
+                  total: { type: integer }
+                  rooms:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name: { type: string }
+                        wing: { type: string, enum: [outside, gate, core, ops, bay, apps] }
+                        archetype: { type: string }
+                        size: { type: string, enum: [small, medium, large] }
+                        label: { type: string }
+                        blurb: { type: string }
+                        state: { type: string }
+                        ring: { type: [integer, "null"] }
+                  edges:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        from: { type: string }
+                        to: { type: string }
+                        kind: { type: string }
+                  sources:
+                    type: object
+                    additionalProperties: { type: string }
+  /v1/activity:
+    get:
+      summary: The motion — events since a cursor, plus live container states
+      parameters:
+        - name: since
+          in: query
+          schema: { type: integer }
+          description: Last event id already seen; 0 or absent returns the ring buffer tail.
+      responses:
+        "200":
+          description: Events and states
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  latest_id: { type: integer }
+                  events:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: integer }
+                        ts: { type: integer }
+                        kind: { type: string }
+                        from: { type: string }
+                        to: { type: string }
+                        label: { type: string }
+                  states:
+                    type: object
+                    additionalProperties: { type: string }
+                  sources:
+                    type: object
+                    additionalProperties: { type: string }

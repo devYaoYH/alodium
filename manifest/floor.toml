@@ -1,0 +1,32 @@
+# Floor — the isometric factory-floor view of this node. Read-only
+# aggregator + static site, built locally from apps/floor.
+
+[app]
+name = "floor"
+version = "0.1.0"
+description = "Live isometric factory floor: every service is a room, every data flow a worker"
+image = "sovereign-node/floor"
+ring = 1
+
+[service]
+port = 8080
+api = "openapi.yaml"
+health = "/healthz"
+
+[needs]
+# Declared for the record; every credential is optional and the app
+# degrades honestly without it. All read-only, all weak-grade.
+git = { scope = "read:repository,read:issue", why = "recent commits / PRs / issues animate couriers" }
+llm = { scope = "key self-report only", why = "/key/info spend deltas animate the reactor" }
+
+[resources]
+volumes = []
+database = "none"
+
+[tests]
+command = "python3 tests/smoke.py"
+timeout_seconds = 60
+
+[lifecycle]
+backup = []
+update_policy = "staged"
