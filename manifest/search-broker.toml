@@ -3,8 +3,8 @@
 
 [app]
 name = "search-broker"
-version = "0.3.0"
-description = "Audited, capability-gated Exa web search with an operator dashboard"
+version = "0.4.0"
+description = "Audited Exa search with inspectable operator-only results"
 image = "sovereign-node/search-broker:local"
 ring = 0
 
