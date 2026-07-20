@@ -14,7 +14,9 @@ cd "$(dirname "$0")/.."
 
 # 1. Bring the merged tree into the working checkout FROM FORGEJO (where the PR
 #    merged), fast-forward only — a divergence is an operator decision, not a
-#    silent merge commit from a deploy script.
+#    silent merge commit from a deploy script. Remember where we started: the
+#    OLD_HEAD..HEAD diff drives the config-restart pass in step 5.
+OLD_HEAD=$(git rev-parse HEAD)
 git fetch forgejo main
 if ! git merge --ff-only forgejo/main; then
   echo "deploy: local main and forgejo/main have diverged — reconcile by hand, then re-run." >&2
@@ -29,15 +31,46 @@ git push origin main || echo "deploy: WARN could not push origin (continuing; no
 ./scripts/derive-secrets.sh
 
 # 4. Apply: recreate any service whose spec changed (env/image/etc).
-docker compose --profile apps up -d --remove-orphans
+#    Two passes, because "which profiles are enabled" is the OPERATOR's call,
+#    not this script's: first the core plane (default profile), then every
+#    profile-gated service that is CURRENTLY RUNNING — naming a service
+#    explicitly auto-enables its profile, and `ps --services` lists running
+#    project containers regardless of profile flags. Deploy recreates what
+#    runs; it never starts a profile the operator hasn't enabled. (The old
+#    `--profile apps` here silently skipped feeds/chat/authshim services —
+#    miniflux kept stale env across deploys.)
+docker compose up -d --remove-orphans
+RUNNING=$(docker compose ps --services)
+if [[ -n "$RUNNING" ]]; then
+  # shellcheck disable=SC2086  # word-splitting the service list is the point
+  docker compose up -d $RUNNING
+fi
 
-# 5. Reload Caddy config — route.caddy files are bind-mounted, so a route-only
-#    change won't have recreated the container in step 4. Reload picks it up;
-#    validate first so a bad route never takes the door down.
+# 5. Bind-mounted CONTENT changes don't recreate containers — compose only
+#    diffs the service spec. Caddy gets a validated reload (routes are its
+#    config); any app whose apps/<name>/ files changed beyond compose.yaml/
+#    route.caddy (e.g. radicale's `config` file, read once at startup) gets a
+#    restart so the process actually re-reads what the merge changed.
 if docker compose exec -T caddy caddy validate --config /etc/caddy/Caddyfile >/dev/null 2>&1; then
   docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile && echo "   caddy reloaded"
 else
   echo "deploy: WARN caddy config failed validation — NOT reloading (fix the route, re-run)"
 fi
 
-docker compose --profile apps ps --format 'table {{.Name}}\t{{.Status}}'
+CHANGED=$(git diff --name-only "$OLD_HEAD" HEAD)
+for app in $(printf '%s\n' "$CHANGED" | sed -n 's#^apps/\([^/]*\)/.*#\1#p' | sort -u); do
+  if printf '%s\n' "$CHANGED" | grep -q "^apps/$app/" \
+     && printf '%s\n' "$CHANGED" | grep "^apps/$app/" | grep -qvE "^apps/$app/(compose\.yaml|route\.caddy|env\.example)$"; then
+    for svc in $(printf '%s\n' "$RUNNING" | grep -E "^$app(-|$)" || true); do
+      echo "   restarting $svc (mounted config changed in apps/$app/)"
+      docker compose restart "$svc"
+    done
+  fi
+done
+# Same class, core plane: litellm reads config/litellm* only at startup.
+if printf '%s\n' "$CHANGED" | grep -q "^config/litellm"; then
+  echo "   restarting litellm (config/litellm* changed)"
+  docker compose restart litellm
+fi
+
+docker compose ps --format 'table {{.Name}}\t{{.Status}}'
