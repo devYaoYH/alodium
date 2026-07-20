@@ -184,14 +184,32 @@ for i in json.load(sys.stdin):
     fi
 
     # Claim FIRST (add in-progress) — the durable per-issue lock. Then spawn the
-    # run DETACHED (setsid) so it survives this pass exiting and runs alongside
-    # other issues' tenants. Per-issue exclusivity holds: the claim is visible to
-    # the next pass's scan, and the pass lock serializes claiming.
+    # run DETACHED — its own session, so it survives this pass exiting (launchd
+    # kills the job's process group on exit; the plist sets no
+    # AbandonProcessGroup) and runs alongside other issues' tenants. macOS has
+    # no setsid binary (like no flock — same portability trap), so the detach
+    # is python's start_new_session, a real setsid() on both platforms.
+    # Per-issue exclusivity holds: the claim is visible to the next pass's
+    # scan, and the pass lock serializes claiming. If the SPAWNER ITSELF fails
+    # (the run never starts, so dispatch-run's own failure path can't fire),
+    # release the claim right here — a claim with no process behind it
+    # strands the issue as forever "in-progress".
     A -X POST "$GAPI/issues/$NUM/labels" -d "{\"labels\":[$INPROG_ID]}" >/dev/null
     echo "[assign] #$NUM claimed (in-progress); spawning detached issue-work"
-    say "$NUM" "Dispatched to an ephemeral \`$AGENT_LOGIN\` tenant (operator-authorized). Claimed with \`in-progress\`. Deliverable is a node-config PR + a comment here; if I'm blocked I'll say so."
-    adaudit "$NUM" dispatched "actor=$ACTOR"
-    setsid ./scripts/dispatch-run.sh "$NUM" >>.task-dispatch/dispatch-run.log 2>&1 &
+    if python3 -c '
+import subprocess, sys
+with open(".task-dispatch/dispatch-run.log", "ab") as log:
+    subprocess.Popen(["./scripts/dispatch-run.sh", sys.argv[1]],
+                     stdout=log, stderr=log, start_new_session=True)
+' "$NUM"; then
+      say "$NUM" "Dispatched to an ephemeral \`$AGENT_LOGIN\` tenant (operator-authorized). Claimed with \`in-progress\`. Deliverable is a node-config PR + a comment here; if I'm blocked I'll say so."
+      adaudit "$NUM" dispatched "actor=$ACTOR"
+    else
+      A -X DELETE "$GAPI/issues/$NUM/labels/$INPROG_ID" >/dev/null || true
+      say "$NUM" "Dispatch FAILED before the tenant started (host-side spawn error — see .task-dispatch/dispatch-run.log). Claim released; re-assign or remove/re-add a label to retry once the host is fixed."
+      adaudit "$NUM" spawn-failed "detach spawn returned nonzero"
+      continue
+    fi
     sleep 3   # let the container register before the next cap check
   done
 fi
