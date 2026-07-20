@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Floor</title>
+<style>
+  :root {
+    --ink: #2b2338; --paper: #f4ede4; --brass: #d9a441; --screen: #7ce0d3;
+    --bg0: #1d2231; --bg1: #252c40;
+  }
+  * { margin: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: radial-gradient(ellipse at 50% 30%, var(--bg1), var(--bg0) 75%);
+    color: var(--paper); overflow: hidden;
+    font: 14px/1.45 "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  }
+  canvas { display: block; width: 100vw; height: 100vh; cursor: grab; }
+  canvas.dragging { cursor: grabbing; }
+
+  #hud {
+    position: fixed; top: 14px; left: 18px; pointer-events: none;
+    text-shadow: 0 2px 8px rgba(0,0,0,.6);
+  }
+  #hud h1 { font-size: 19px; letter-spacing: .12em; text-transform: uppercase;
+            color: var(--brass); font-weight: 600; }
+  #hud .sub { font-size: 12px; opacity: .75; }
+
+  #ticker {
+    position: fixed; left: 18px; bottom: 14px; max-width: 46ch;
+    display: flex; flex-direction: column-reverse; gap: 4px; pointer-events: none;
+  }
+  #ticker .ev {
+    font-size: 12px; padding: 4px 10px; border-radius: 6px;
+    background: rgba(29, 34, 49, .82); border-left: 3px solid var(--brass);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    animation: evin .3s ease-out;
+  }
+  #ticker .ev.llm { border-color: #ffd166; }
+  #ticker .ev.git, #ticker .ev.pr { border-color: #ef6461; }
+  #ticker .ev.issue { border-color: #9b5de5; }
+  #ticker .ev.lifecycle { border-color: #4ea8de; }
+  @keyframes evin { from { opacity: 0; transform: translateY(6px); } }
+
+  #sources {
+    position: fixed; right: 18px; bottom: 14px; font-size: 11px;
+    background: rgba(29, 34, 49, .82); border-radius: 8px; padding: 8px 12px;
+    pointer-events: none;
+  }
+  #sources .src { display: flex; align-items: center; gap: 6px; }
+  #sources .dot { width: 7px; height: 7px; border-radius: 50%; background: #8ac926; }
+  #sources .dot.off { background: #5b667e; }
+  #sources .dot.err { background: #ef6461; }
+
+  #tip {
+    position: fixed; display: none; pointer-events: none; z-index: 5;
+    background: rgba(29, 34, 49, .95); border: 1px solid var(--brass);
+    border-radius: 8px; padding: 8px 12px; max-width: 34ch;
+    box-shadow: 0 6px 24px rgba(0,0,0,.5);
+  }
+  #tip b { color: var(--brass); }
+  #tip .state {
+    font-size: 11.5px; color: var(--paper); display: flex; align-items: center;
+    gap: 6px; margin: 3px 0 4px;
+  }
+  #tip .state .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  #tip .blurb { font-size: 12px; opacity: .8; }
+
+  #legend {
+    position: fixed; top: 14px; right: 18px; font-size: 11px; text-align: right;
+    opacity: .7; pointer-events: none; text-shadow: 0 2px 8px rgba(0,0,0,.6);
+  }
+</style>
+</head>
+<body>
+<canvas id="floor"></canvas>
+<div id="hud">
+  <h1>The Floor</h1>
+  <div class="sub" id="nodeline">warming up…</div>
+</div>
+<div id="legend">drag to pan · wheel to zoom · hover a room</div>
+<div id="ticker"></div>
+<div id="sources"></div>
+<div id="tip"></div>
+<script src="iso.js"></script>
+</body>
+</html>

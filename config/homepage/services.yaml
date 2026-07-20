@@ -74,6 +74,13 @@
         server: sovereign-node
         container: miniflux
         siteMonitor: http://miniflux:8080/healthcheck
+    - The Floor:
+        icon: mdi-factory
+        href: https://floor.{{HOMEPAGE_VAR_NODE_DOMAIN}}
+        description: watch your node at work — every service a room, every data flow a worker
+        server: sovereign-node
+        container: floor
+        siteMonitor: http://floor:8080/healthz
     - Snake:
         icon: mdi-gamepad-variant-outline
         href: https://game.{{HOMEPAGE_VAR_NODE_DOMAIN}}

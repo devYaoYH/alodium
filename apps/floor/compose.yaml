@@ -1,0 +1,44 @@
+# floor — an app fragment, merged into the node stack by the root
+# docker-compose.yml `include:` list. This file owns everything floor:
+# service, the networks it joins. Secrets arrive BY NAME from
+# secrets/floor.env (the include's env_file) — all optional; the floor
+# degrades to registry + container status when none are set.
+
+services:
+  # --- apps ring 1: floor -------------------------------------------------------
+  # The factory floor: an isometric, animated view of every service on this
+  # node and the data moving between them. Read-only aggregator over the
+  # registry (topology), docker-proxy (who is running), and — when the
+  # operator mints weak read credentials — Forgejo events and LiteLLM spend.
+  # Built locally from this directory (stdlib only; no internet needed).
+  floor:
+    profiles: [apps]
+    build: .
+    image: sovereign-node/floor:local
+    container_name: floor
+    restart: unless-stopped
+    environment:
+      NODE_DOMAIN: ${NODE_DOMAIN:-}
+      # Weak, read-only credentials by NAME — operator mints values into
+      # secrets/floor.env after merge, never before. Empty = that signal is
+      # simply absent from the floor; nothing breaks.
+      FLOOR_GIT_TOKEN: ${FLOOR_GIT_TOKEN:-}             # read-only Forgejo token (assistant-grade)
+      FLOOR_AGENT_LLM_KEY: ${FLOOR_AGENT_LLM_KEY:-}     # budgeted tenant key, /key/info self-report only
+      FLOOR_ASSISTANT_LLM_KEY: ${FLOOR_ASSISTANT_LLM_KEY:-}
+      FLOOR_NODE_CONFIG_REPO: ${FLOOR_NODE_CONFIG_REPO:-operator/node-config}
+      FLOOR_COORDINATION_REPO: ${FLOOR_COORDINATION_REPO:-operator/coordination}
+    networks: [front, agents, dockerwatch]
+
+networks:
+  # Caddy routes in; no internet egress from any of these — the floor
+  # watches the node, it never talks to the world.
+  front:
+    internal: true
+  # The spur: read the registry, Forgejo events, LiteLLM key self-reports —
+  # the same three listeners agent tenants see, consumed read-only.
+  agents:
+    internal: true
+  # Read-only container status from docker-proxy (CONTAINERS=1), the same
+  # feed the homepage dashboard uses.
+  dockerwatch:
+    internal: true

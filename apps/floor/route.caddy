@@ -1,0 +1,8 @@
+# floor's door — imported by the root Caddyfile (import apps/*/route.caddy),
+# so ring guards are already defined when this loads.
+# Ring 1 — the factory floor: watch your node at work (profile: apps)
+
+floor.{$NODE_DOMAIN} {
+	import ring1
+	reverse_proxy floor:8080
+}

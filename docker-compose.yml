@@ -30,6 +30,8 @@ include:
     env_file: secrets/snake.env
   - path: apps/search-broker/compose.yaml
     env_file: secrets/search-broker.env
+  - path: apps/floor/compose.yaml
+    env_file: secrets/floor.env
 
 networks:
   edge:
@@ -42,8 +44,8 @@ networks:
     internal: true
   litellm:
   dockerwatch:
-    # homepage <-> docker-proxy ONLY: read-only container status for the
-    # dashboard. The raw socket never enters a routed container.
+    # docker-proxy's read-only container-status feed, consumed by homepage
+    # and the floor. The raw socket never enters a routed container.
     internal: true
   agents:
     # internal: agents get NO direct internet. The only egress from the spur
