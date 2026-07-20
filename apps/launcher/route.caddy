@@ -1,7 +1,8 @@
 # launcher's door — imported by the root Caddyfile (import apps/*/route.caddy),
 # so ring guards are already defined when this loads. On-demand app lifecycle
 # API, behind ring1. Agent-network callers cannot reach this route.
-# Launched via the on-demand profile (docker compose --profile on-demand up -d).
+# Always-on: the launcher is the controller for on-demand apps, so it runs with
+# the default stack (no profile) — it must be up before any app can be launched.
 
 launch.{$NODE_DOMAIN} {
 	import ring1

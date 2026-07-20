@@ -158,10 +158,14 @@
 
   // --- on-demand app tile: snake -------------------------------------------
   // The snake tile is rendered by Homepage from services.yaml with id=snake-tile.
-  // We replace its href-based link with a custom launch/stop button that calls
-  // the launcher API at launch.<domain>, behind ring1.
+  // On-demand apps warm up "invisibly": the tile looks like any other app, with
+  // a single status dot in the card's top-right corner — red asleep, amber
+  // warming, green live. Hover the dot to reveal the action ("Launch" / "Stop");
+  // it, and the card while asleep, drive the launcher API at launch.<domain>
+  // (behind ring1). No inline button clutters the card.
 
   const LAUNCHER_BASE = `https://launch.${domain}`;
+  const GAME_URL = `https://game.${domain}`;
 
   const snakeTile = () => document.getElementById('snake-tile');
 
@@ -188,91 +192,102 @@
     } catch { return false; }
   };
 
+  let readyPoll = null;
+
+  // Poll the launcher until snake is up (or we give up), then flip to running
+  // and — if the launch came from a click — open the game in a new tab.
+  const waitUntilRunning = (openWhenReady) => {
+    clearInterval(readyPoll);
+    let tries = 0;
+    readyPoll = setInterval(async () => {
+      tries += 1;
+      const s = await snakeStatus();
+      if (s === 'running') {
+        clearInterval(readyPoll);
+        readyPoll = null;
+        renderSnakeTile('running');
+        if (openWhenReady) window.open(GAME_URL, '_blank');
+      } else if (tries > 20) { // ~30s ceiling
+        clearInterval(readyPoll);
+        readyPoll = null;
+        renderSnakeTile(s === 'starting' ? 'starting' : 'stopped');
+      }
+    }, 1500);
+  };
+
+  const doLaunch = async () => {
+    renderSnakeTile('starting');
+    const ok = await snakeLaunch();
+    if (ok) waitUntilRunning(true);
+    else renderSnakeTile('stopped');
+  };
+
+  const doStop = async () => {
+    renderSnakeTile('starting'); // amber while it winds down
+    const ctl = snakeTile()?.querySelector('.geth-ondemand__label');
+    if (ctl) ctl.textContent = 'Stopping…';
+    await snakeStop();
+    setTimeout(async () => renderSnakeTile(await snakeStatus()), 1500);
+  };
+
   const renderSnakeTile = (status) => {
     const tile = snakeTile();
     if (!tile) return;
+    const card = tile.querySelector('.service-card') || tile;
+    card.classList.add('geth-ondemand-card');
 
-    // Remove the anchor link wrapper so we can replace with our own controls
-    const link = tile.querySelector('a');
-    if (link) {
-      const parent = link.parentElement;
-      while (link.firstChild) parent.insertBefore(link.firstChild, link);
-      link.remove();
-    }
-
-    // Find or create the action container
-    let action = tile.querySelector('.snake-action');
-    if (!action) {
-      action = document.createElement('div');
-      action.className = 'snake-action';
-      action.style.cssText = 'margin-top:8px;text-align:center;';
-      tile.appendChild(action);
-    }
-
-    if (status === 'running') {
-      action.innerHTML = '<button class="snake-btn snake-stop" style="background:#ef4444;color:#fff;border:none;border-radius:6px;padding:6px 16px;cursor:pointer;font-size:13px;">Stop ×</button>';
-      action.querySelector('.snake-stop').onclick = async (e) => {
+    // The dot lives in the card's top-right corner, created once and reused.
+    let ctl = card.querySelector('.geth-ondemand');
+    if (!ctl) {
+      ctl = document.createElement('button');
+      ctl.type = 'button';
+      ctl.className = 'geth-ondemand';
+      ctl.innerHTML = '<span class="geth-ondemand__label"></span><span class="geth-ondemand__dot"></span>';
+      card.appendChild(ctl);
+      // The dot is its own control; never let its click bubble to the card link.
+      ctl.addEventListener('click', (e) => {
         e.preventDefault();
-        action.innerHTML = '<span style="color:#9aa4b2;font-size:13px;">Stopping…</span>';
-        await snakeStop();
-        // Wait briefly then re-check
-        setTimeout(async () => renderSnakeTile(await snakeStatus()), 2000);
-      };
-      // Also make the tile navigate to the game
-      tile.style.cursor = 'pointer';
-      tile.onclick = (e) => {
-        if (e.target.closest('.snake-stop')) return;
-        window.open(`https://game.${domain}`, '_blank');
-      };
-      tile.title = 'Click to open the game';
-    } else if (status === 'starting') {
-      action.innerHTML = '<span style="color:#f59e0b;font-size:13px;">⟳ Starting…</span>';
-      // Poll until running
-      setTimeout(async () => {
-        const s = await snakeStatus();
-        if (s === 'running' || s === 'starting') {
-          renderSnakeTile(s);
-        } else {
-          renderSnakeTile('stopped');
-        }
-      }, 2000);
-    } else {
-      action.innerHTML = '<button class="snake-btn snake-play" style="background:#22c55e;color:#fff;border:none;border-radius:6px;padding:6px 16px;cursor:pointer;font-size:13px;">Play Snake</button>';
-      action.querySelector('.snake-play').onclick = async (e) => {
-        e.preventDefault();
-        renderSnakeTile('starting');
-        const ok = await snakeLaunch();
-        if (ok) {
-          // Poll for readiness
-          const poll = setInterval(async () => {
-            const s = await snakeStatus();
-            if (s === 'running') {
-              clearInterval(poll);
-              renderSnakeTile('running');
-              window.open(`https://game.${domain}`, '_blank');
-            }
-          }, 1500);
-          // Timeout after 30s
-          setTimeout(() => clearInterval(poll), 30000);
-        } else {
-          renderSnakeTile('stopped');
-        }
-      };
-      tile.style.cursor = '';
-      tile.onclick = null;
-      tile.title = '';
+        e.stopPropagation();
+        const st = ctl.dataset.state;
+        if (st === 'running') doStop();
+        else if (st === 'stopped') doLaunch();
+      });
     }
+
+    // While asleep, a click anywhere on the card launches (rather than following
+    // the href to a dead game). Once running, the native link opens the game.
+    if (!card.dataset.gethBound) {
+      card.dataset.gethBound = '1';
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('.geth-ondemand')) return;
+        const c = card.querySelector('.geth-ondemand');
+        if (!c || c.dataset.state === 'running') return; // let the game open
+        e.preventDefault();
+        e.stopPropagation();
+        if (c.dataset.state === 'stopped') doLaunch();
+      }, true);
+    }
+
+    const state = status === 'running' ? 'running'
+      : status === 'starting' ? 'starting' : 'stopped';
+    ctl.dataset.state = state;
+    ctl.disabled = state === 'starting';
+    const label = ctl.querySelector('.geth-ondemand__label');
+    if (state === 'running') { label.textContent = 'Stop'; ctl.setAttribute('aria-label', 'Stop Snake'); }
+    else if (state === 'starting') { label.textContent = 'Starting…'; ctl.setAttribute('aria-label', 'Snake is starting'); }
+    else { label.textContent = 'Launch'; ctl.setAttribute('aria-label', 'Launch Snake'); }
   };
 
   const initSnakeTile = async () => {
     const tile = snakeTile();
     if (!tile) return;
-    const status = await snakeStatus();
-    renderSnakeTile(status);
-    // Re-check every 30s
+    renderSnakeTile(await snakeStatus());
+    // Refresh in the background, but never stomp on an in-flight launch/stop.
     setInterval(async () => {
-      const s = await snakeStatus();
-      renderSnakeTile(s);
+      if (readyPoll) return;
+      const ctl = snakeTile()?.querySelector('.geth-ondemand');
+      if (ctl && ctl.dataset.state === 'starting') return;
+      renderSnakeTile(await snakeStatus());
     }, 30000);
   };
 

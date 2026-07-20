@@ -5,10 +5,14 @@
 #
 # Reachable via Caddy at launch.<domain>, behind ring1.
 # Agent-network callers cannot reach this service.
-
+#
+# ALWAYS-ON: the launcher is the controller that starts on-demand apps, so it
+# must outlive them — it carries NO on-demand profile itself (only the apps it
+# manages, e.g. snake, do). If it were profile-gated it would be down during
+# normal operation, and launch.<domain> would return Caddy's 502 (no CORS
+# headers), which the browser reports as a CORS failure on the Home dashboard.
 services:
   launcher:
-    profiles: [on-demand]
     build: .
     image: sovereign-node/launcher:local
     container_name: launcher
