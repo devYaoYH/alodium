@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- launchd job for the deploy watcher (this node runs on macOS/darwin).
+     A plain 2-minute heartbeat — no WatchPaths, because the thing being
+     watched (forgejo/main) lives inside a container, not on a host path; a
+     poll against the on-host Forgejo is effectively free and needs no new
+     trust surface (no webhook listener, no Actions runner on node-config).
+     Each firing is one idempotent deploy-watch.sh pass: almost always a quiet
+     "up to date" exit; after an operator merge, it runs scripts/deploy.sh.
+
+     Install:  ./host/deploy-watch/install-launchd.sh   (fills the paths below)
+     Or by hand: cp + edit + launchctl load, exactly like node.dispatch.plist. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>            <string>node.deploywatch</string>
+  <key>WorkingDirectory</key> <string>/REPLACE/with/abs/path/to/geth</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/REPLACE/with/abs/path/to/geth/scripts/deploy-watch.sh</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <!-- launchd's default PATH lacks docker (deploy.sh shells out to compose);
+         install-launchd.sh sets this to include the real docker dir. -->
+    <key>PATH</key> <string>/REPLACE/with/docker/dir:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+  <key>StartInterval</key>    <integer>120</integer>   <!-- merge→deploy latency ceiling -->
+  <key>StandardOutPath</key>  <string>/REPLACE/with/abs/path/to/geth/.task-dispatch/deploy-watch.log</string>
+  <key>StandardErrorPath</key><string>/REPLACE/with/abs/path/to/geth/.task-dispatch/deploy-watch.log</string>
+  <key>ProcessType</key>      <string>Background</string>
+</dict>
+</plist>
