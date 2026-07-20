@@ -1,12 +1,18 @@
-# Geth — Personal sovereign cloud assistant
+# Alodium — Personal sovereign cloud assistant
 
-Geth is a personal cloud that works for you instead of extracting from you:
+Alodium is a personal cloud that works for you instead of extracting from you:
 your data, work, and digital life stay on hardware you control, while an
 assistant helps you pull in only what you choose and shape software around how
 you actually live. It makes personal tools cheap to adapt or create, without
 asking you to trade away ownership or trust an agent with the keys to your
 house—security comes from explicit identity, scoped credentials, and hard
 network boundaries.
+
+> [!NOTE]
+> An [alodium](https://www.merriam-webster.com/dictionary/alodium) is land held in absolute ownership:
+> free of a superior lord, and freely saleable or inheritable. The name expresses
+> this project’s premise—a personal cloud should be yours outright, not a tenancy
+> contingent on a platform’s terms.
 
 This is the **Tier 3 MVP** — the compute-box profile for people who already have a
 domain and are comfortable with Docker. See `docs/PHILOSOPHY.md` for why this exists,
