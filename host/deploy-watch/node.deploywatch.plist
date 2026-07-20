@@ -12,11 +12,11 @@
 <plist version="1.0">
 <dict>
   <key>Label</key>            <string>node.deploywatch</string>
-  <key>WorkingDirectory</key> <string>/REPLACE/with/abs/path/to/geth</string>
+  <key>WorkingDirectory</key> <string>/REPLACE/with/abs/path/to/alodium</string>
   <key>ProgramArguments</key>
   <array>
     <string>/bin/bash</string>
-    <string>/REPLACE/with/abs/path/to/geth/scripts/deploy-watch.sh</string>
+    <string>/REPLACE/with/abs/path/to/alodium/scripts/deploy-watch.sh</string>
   </array>
   <key>EnvironmentVariables</key>
   <dict>
@@ -25,8 +25,8 @@
     <key>PATH</key> <string>/REPLACE/with/docker/dir:/usr/bin:/bin:/usr/sbin:/sbin</string>
   </dict>
   <key>StartInterval</key>    <integer>120</integer>   <!-- merge→deploy latency ceiling -->
-  <key>StandardOutPath</key>  <string>/REPLACE/with/abs/path/to/geth/.task-dispatch/deploy-watch.log</string>
-  <key>StandardErrorPath</key><string>/REPLACE/with/abs/path/to/geth/.task-dispatch/deploy-watch.log</string>
+  <key>StandardOutPath</key>  <string>/REPLACE/with/abs/path/to/alodium/.task-dispatch/deploy-watch.log</string>
+  <key>StandardErrorPath</key><string>/REPLACE/with/abs/path/to/alodium/.task-dispatch/deploy-watch.log</string>
   <key>ProcessType</key>      <string>Background</string>
 </dict>
 </plist>

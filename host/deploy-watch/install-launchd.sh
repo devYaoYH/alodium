@@ -14,9 +14,9 @@ mkdir -p "$HOME/Library/LaunchAgents"
 DOCKER_BIN="$(command -v docker || true)"
 DOCKER_DIR="$(dirname "${DOCKER_BIN:-/usr/local/bin/docker}")"
 
-sed -e "s#/REPLACE/with/abs/path/to/geth/scripts/deploy-watch.sh#$ROOT/scripts/deploy-watch.sh#g" \
-    -e "s#/REPLACE/with/abs/path/to/geth/.task-dispatch/deploy-watch.log#$ROOT/.task-dispatch/deploy-watch.log#g" \
-    -e "s#/REPLACE/with/abs/path/to/geth#$ROOT#g" \
+sed -e "s#/REPLACE/with/abs/path/to/alodium/scripts/deploy-watch.sh#$ROOT/scripts/deploy-watch.sh#g" \
+    -e "s#/REPLACE/with/abs/path/to/alodium/.task-dispatch/deploy-watch.log#$ROOT/.task-dispatch/deploy-watch.log#g" \
+    -e "s#/REPLACE/with/abs/path/to/alodium#$ROOT#g" \
     -e "s#/REPLACE/with/docker/dir#$DOCKER_DIR#g" \
     host/deploy-watch/node.deploywatch.plist > "$DST"
 

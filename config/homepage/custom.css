@@ -1,23 +1,23 @@
-/* Geth home: calm scenery behind, glass surfaces in front, one floating
+/* Alodium home: calm scenery behind, glass surfaces in front, one floating
    composer. Quiet at rest, vivid when there is an action to take. */
 :root {
-  --geth-surface: rgba(13, 20, 34, 0.58);
-  --geth-border: rgba(148, 163, 184, 0.16);
-  --geth-accent: #67e8c3;
+  --alodium-surface: rgba(13, 20, 34, 0.58);
+  --alodium-border: rgba(148, 163, 184, 0.16);
+  --alodium-accent: #67e8c3;
 }
 
 /* --- rotating scenery backdrop (layers injected by custom.js) -------------- */
 
 #__next, #page_wrapper, body, html { background: transparent !important; }
 
-.geth-bg {
+.alodium-bg {
   position: fixed;
   inset: 0;
   z-index: -1;
   overflow: hidden;
 }
 
-.geth-bg__layer {
+.alodium-bg__layer {
   position: absolute;
   inset: 0;
   background-position: center;
@@ -26,11 +26,11 @@
   transition: opacity 2400ms ease-in-out;
 }
 
-.geth-bg__layer.is-visible { opacity: 1; }
+.alodium-bg__layer.is-visible { opacity: 1; }
 
 /* Scrim: keeps text readable over any scene, heavier toward the bottom
    where the composer floats. */
-.geth-bg::after {
+.alodium-bg::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -50,7 +50,7 @@
 }
 
 /* Room for the global floating composer on every tab. */
-html.geth-chatbar-open #page_container { padding-bottom: 11rem; }
+html.alodium-chatbar-open #page_container { padding-bottom: 11rem; }
 
 /* Homepage's tab controls are compact by default. Turn them into comfortable,
    icon-labelled targets without changing their native focus/selection state. */
@@ -62,7 +62,7 @@ html.geth-chatbar-open #page_container { padding-bottom: 11rem; }
   padding: 0.72rem 1rem !important;
 }
 
-.geth-tab-icon {
+.alodium-tab-icon {
   display: inline-flex;
   flex: 0 0 auto;
   width: 1.12rem;
@@ -70,16 +70,16 @@ html.geth-chatbar-open #page_container { padding-bottom: 11rem; }
   opacity: 0.82;
 }
 
-.geth-tab-icon svg { width: 100%; height: 100%; }
+.alodium-tab-icon svg { width: 100%; height: 100%; }
 
-[role="tab"][aria-selected="true"] .geth-tab-icon {
-  color: var(--geth-accent);
+[role="tab"][aria-selected="true"] .alodium-tab-icon {
+  color: var(--alodium-accent);
   opacity: 1;
 }
 
 /* --- floating composer ----------------------------------------------------- */
 
-#geth-chatbar {
+#alodium-chatbar {
   position: fixed;
   left: 50%;
   bottom: clamp(2.25rem, 7vh, 4.5rem);
@@ -88,9 +88,9 @@ html.geth-chatbar-open #page_container { padding-bottom: 11rem; }
   width: min(44rem, calc(100vw - 2rem));
 }
 
-#geth-chatbar[hidden] { display: none; }
+#alodium-chatbar[hidden] { display: none; }
 
-.geth-chatbar__composer {
+.alodium-chatbar__composer {
   display: flex;
   align-items: center;
   gap: 0.7rem;
@@ -104,13 +104,13 @@ html.geth-chatbar-open #page_container { padding-bottom: 11rem; }
   transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
 }
 
-.geth-chatbar__composer:focus-within {
+.alodium-chatbar__composer:focus-within {
   border-color: rgba(103, 232, 195, 0.68);
   background: rgba(9, 14, 26, 0.8);
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.07), 0 0 0 3px rgba(45, 212, 191, 0.12), 0 20px 52px rgba(2, 6, 23, 0.55);
 }
 
-.geth-chatbar__composer textarea {
+.alodium-chatbar__composer textarea {
   box-sizing: border-box;
   min-height: 2.8rem;
   max-height: 9rem;
@@ -126,9 +126,9 @@ html.geth-chatbar-open #page_container { padding-bottom: 11rem; }
   padding: 0.66rem 0;
 }
 
-.geth-chatbar__composer textarea::placeholder { color: #94a3b8; opacity: 1; }
+.alodium-chatbar__composer textarea::placeholder { color: #94a3b8; opacity: 1; }
 
-.geth-chatbar__composer select {
+.alodium-chatbar__composer select {
   align-self: center;
   border: 1px solid rgba(148, 163, 184, 0.24);
   border-radius: 0.68rem;
@@ -141,16 +141,16 @@ html.geth-chatbar-open #page_container { padding-bottom: 11rem; }
   transition: border-color 160ms ease, color 160ms ease;
 }
 
-.geth-chatbar__composer select:hover,
-.geth-chatbar__composer select:focus-visible {
+.alodium-chatbar__composer select:hover,
+.alodium-chatbar__composer select:focus-visible {
   border-color: rgba(103, 232, 195, 0.5);
   color: #f8fafc;
   outline: 0;
 }
 
-.geth-chatbar__composer select option { background: #0f172a; color: #f8fafc; }
+.alodium-chatbar__composer select option { background: #0f172a; color: #f8fafc; }
 
-.geth-chatbar__composer button {
+.alodium-chatbar__composer button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -169,27 +169,27 @@ html.geth-chatbar-open #page_container { padding-bottom: 11rem; }
   transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
 }
 
-.geth-chatbar__composer button:hover:not(:disabled) {
-  border-color: var(--geth-accent);
+.alodium-chatbar__composer button:hover:not(:disabled) {
+  border-color: var(--alodium-accent);
   background: rgba(20, 184, 166, 0.32);
   transform: translateY(-1px);
 }
 
-.geth-chatbar__composer button:disabled { cursor: wait; opacity: 0.8; }
+.alodium-chatbar__composer button:disabled { cursor: wait; opacity: 0.8; }
 
-.geth-chatbar__spinner {
+.alodium-chatbar__spinner {
   display: none;
   width: 0.86rem;
   height: 0.86rem;
   border: 2px solid rgba(236, 253, 245, 0.32);
   border-top-color: #ecfdf5;
   border-radius: 50%;
-  animation: geth-spin 700ms linear infinite;
+  animation: alodium-spin 700ms linear infinite;
 }
 
-.is-sending .geth-chatbar__spinner { display: block; }
+.is-sending .alodium-chatbar__spinner { display: block; }
 
-.geth-chatbar__hint {
+.alodium-chatbar__hint {
   margin: 0.45rem 0 0;
   text-align: center;
   color: rgba(203, 213, 225, 0.75);
@@ -197,7 +197,7 @@ html.geth-chatbar-open #page_container { padding-bottom: 11rem; }
   text-shadow: 0 1px 8px rgba(2, 6, 23, 0.8);
 }
 
-.geth-visually-hidden {
+.alodium-visually-hidden {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -209,7 +209,7 @@ html.geth-chatbar-open #page_container { padding-bottom: 11rem; }
   border: 0;
 }
 
-@keyframes geth-spin { to { transform: rotate(360deg); } }
+@keyframes alodium-spin { to { transform: rotate(360deg); } }
 
 /* --- glass cards over scenery ----------------------------------------------
    Style the INNER .service-card, not the outer li: grid rows stretch the li
@@ -227,9 +227,9 @@ html.geth-chatbar-open #page_container { padding-bottom: 11rem; }
 
 .service .service-card {
   height: calc(100% - 0.5rem);   /* fill the stretched row, minus its mb-2 */
-  border: 1px solid var(--geth-border);
+  border: 1px solid var(--alodium-border);
   border-radius: 0.8rem;
-  background: var(--geth-surface);
+  background: var(--alodium-surface);
   backdrop-filter: blur(14px) saturate(1.15);
   -webkit-backdrop-filter: blur(14px) saturate(1.15);
   box-shadow: 0 8px 24px rgba(2, 6, 23, 0.22);
@@ -245,19 +245,19 @@ html.geth-chatbar-open #page_container { padding-bottom: 11rem; }
 .service-description { line-height: 1.35; }
 
 /* Apps on Home: a fluid grid of square, icon-forward tiles (group tagged by
-   custom.js as .geth-tile-group). Card DOM: .service-card > .service-title
+   custom.js as .alodium-tile-group). Card DOM: .service-card > .service-title
    (icon anchor + name anchor in a row) — restack it into a centred column. */
-.geth-tile-group .services-list {
+.alodium-tile-group .services-list {
   /* wide enough that the expanded CPU + MEM stat blocks fit side by side */
   grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)) !important;
   gap: 0.8rem !important;
 }
-.geth-tile-group .service .service-card {
+.alodium-tile-group .service .service-card {
   aspect-ratio: 1 / 1;
   height: auto;
   margin-bottom: 0;
 }
-.geth-tile-group .service-title {
+.alodium-tile-group .service-title {
   flex-direction: column;
   align-items: center;
   justify-content: center;
@@ -265,17 +265,17 @@ html.geth-chatbar-open #page_container { padding-bottom: 11rem; }
   height: 100%;
   padding: 0.6rem;
 }
-.geth-tile-group .service-icon { width: auto; }
-.geth-tile-group .service-icon img { width: 48px !important; height: 48px !important; }
-.geth-tile-group .service-title-text { flex: none; }
-.geth-tile-group .service-name { text-align: center; padding: 0; font-size: 0.92rem; }
-.geth-tile-group .service-description { display: none; }
+.alodium-tile-group .service-icon { width: auto; }
+.alodium-tile-group .service-icon img { width: 48px !important; height: 48px !important; }
+.alodium-tile-group .service-title-text { flex: none; }
+.alodium-tile-group .service-name { text-align: center; padding: 0; font-size: 0.92rem; }
+.alodium-tile-group .service-description { display: none; }
 
 /* One dot per tile: keep only the container-stats button (clicking it opens
    the stats panel); the separate site-monitor dot is redundant here. The
    stats panel itself shows just CPU + MEM — blocks 3+ are RX/TX. */
-.geth-tile-group .service-site-monitor { display: none; }
-.geth-tile-group .service-container .service-block:nth-child(n+3) { display: none; }
+.alodium-tile-group .service-site-monitor { display: none; }
+.alodium-tile-group .service-container .service-block:nth-child(n+3) { display: none; }
 
 /* --- on-demand app control: a status dot in the card's top-right corner -----
    Red when the app is asleep, amber while it warms up, green when it's live.
@@ -285,13 +285,13 @@ html.geth-chatbar-open #page_container { padding-bottom: 11rem; }
    light: it replaces Homepage's own container/stats dot (hidden just below),
    so there is exactly one indicator — and it can show the amber "warming up"
    state that the native docker dot cannot. */
-.geth-ondemand-card { position: relative; }
+.alodium-ondemand-card { position: relative; }
 
 /* Suppress Homepage's native container status/stats toggle on the on-demand
    tile — the launcher dot above is the single source of truth here. */
 #snake-tile .service-container { display: none; }
 
-.geth-ondemand {
+.alodium-ondemand {
   position: absolute;
   top: 0.5rem;
   right: 0.55rem;
@@ -307,9 +307,9 @@ html.geth-chatbar-open #page_container { padding-bottom: 11rem; }
   font: inherit;
   line-height: 1;
 }
-.geth-ondemand:disabled { cursor: progress; }
+.alodium-ondemand:disabled { cursor: progress; }
 
-.geth-ondemand__dot {
+.alodium-ondemand__dot {
   flex: 0 0 auto;
   width: 0.62rem;
   height: 0.62rem;
@@ -317,25 +317,25 @@ html.geth-chatbar-open #page_container { padding-bottom: 11rem; }
   background: #6b7280;
   transition: background 160ms ease, box-shadow 160ms ease;
 }
-.geth-ondemand[data-state="stopped"] .geth-ondemand__dot {
+.alodium-ondemand[data-state="stopped"] .alodium-ondemand__dot {
   background: #ef4444;
   box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.16);
 }
-.geth-ondemand[data-state="running"] .geth-ondemand__dot {
+.alodium-ondemand[data-state="running"] .alodium-ondemand__dot {
   background: #22c55e;
   box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.16);
 }
-.geth-ondemand[data-state="starting"] .geth-ondemand__dot {
+.alodium-ondemand[data-state="starting"] .alodium-ondemand__dot {
   background: #f59e0b;
-  animation: geth-pulse 1200ms ease-out infinite;
+  animation: alodium-pulse 1200ms ease-out infinite;
 }
-@keyframes geth-pulse {
+@keyframes alodium-pulse {
   0%   { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.5); }
   100% { box-shadow: 0 0 0 7px rgba(245, 158, 11, 0); }
 }
 
 /* The action word, tucked to the left of the dot; revealed on hover/focus. */
-.geth-ondemand__label {
+.alodium-ondemand__label {
   max-width: 0;
   overflow: hidden;
   white-space: nowrap;
@@ -346,17 +346,17 @@ html.geth-chatbar-open #page_container { padding-bottom: 11rem; }
   text-shadow: 0 1px 6px rgba(2, 6, 23, 0.85);
   transition: max-width 200ms ease, opacity 160ms ease;
 }
-.geth-ondemand:hover .geth-ondemand__label,
-.geth-ondemand:focus-visible .geth-ondemand__label {
+.alodium-ondemand:hover .alodium-ondemand__label,
+.alodium-ondemand:focus-visible .alodium-ondemand__label {
   max-width: 6rem;
   opacity: 1;
 }
 
 @media (max-width: 640px) {
-  #geth-chatbar { bottom: 1.25rem; }
-  .geth-chatbar__composer { align-items: stretch; flex-direction: column; padding: 0.55rem; }
-  .geth-chatbar__composer textarea { padding: 0.45rem; }
-  .geth-chatbar__composer button { width: 100%; }
-  html.geth-chatbar-open #page_container { padding-bottom: 13rem; }
+  #alodium-chatbar { bottom: 1.25rem; }
+  .alodium-chatbar__composer { align-items: stretch; flex-direction: column; padding: 0.55rem; }
+  .alodium-chatbar__composer textarea { padding: 0.45rem; }
+  .alodium-chatbar__composer button { width: 100%; }
+  html.alodium-chatbar-open #page_container { padding-bottom: 13rem; }
   [role="tab"] { min-height: 3.45rem; padding: 0.78rem 0.85rem !important; }
 }

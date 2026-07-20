@@ -14,9 +14,9 @@ mkdir -p "$HOME/Library/LaunchAgents"
 DOCKER_BIN="$(command -v docker || true)"
 DOCKER_DIR="$(dirname "${DOCKER_BIN:-/usr/local/bin/docker}")"
 
-sed -e "s#/REPLACE/with/abs/path/to/geth/scripts/task-dispatcher.sh#$ROOT/scripts/task-dispatcher.sh#g" \
-    -e "s#/REPLACE/with/abs/path/to/geth/.task-dispatch/dispatch.log#$ROOT/.task-dispatch/dispatch.log#g" \
-    -e "s#/REPLACE/with/abs/path/to/geth#$ROOT#g" \
+sed -e "s#/REPLACE/with/abs/path/to/alodium/scripts/task-dispatcher.sh#$ROOT/scripts/task-dispatcher.sh#g" \
+    -e "s#/REPLACE/with/abs/path/to/alodium/.task-dispatch/dispatch.log#$ROOT/.task-dispatch/dispatch.log#g" \
+    -e "s#/REPLACE/with/abs/path/to/alodium#$ROOT#g" \
     -e "s#/REPLACE/with/abs/path/to/spool#$SPOOL#g" \
     -e "s#/REPLACE/with/docker/dir#$DOCKER_DIR#g" \
     host/dispatch/node.dispatch.plist > "$DST"

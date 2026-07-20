@@ -2,7 +2,7 @@
   // Homepage loads custom.js from <head>, before <body> exists — defer until
   // the DOM is ready, and guard against the double-inclusion re-running us.
   const boot = () => {
-  if (document.getElementById('geth-bg') || document.getElementById('geth-chatbar')) return;
+  if (document.getElementById('alodium-bg') || document.getElementById('alodium-chatbar')) return;
 
   const domain = window.location.hostname.split('.').slice(1).join('.') || window.location.hostname;
 
@@ -22,12 +22,12 @@
   if (sceneIndex === -1) sceneIndex = 0;
 
   const bg = document.createElement('div');
-  bg.id = 'geth-bg';
-  bg.className = 'geth-bg';
+  bg.id = 'alodium-bg';
+  bg.className = 'alodium-bg';
   bg.setAttribute('aria-hidden', 'true');
   const layers = [document.createElement('div'), document.createElement('div')];
   layers.forEach((layer) => {
-    layer.className = 'geth-bg__layer';
+    layer.className = 'alodium-bg__layer';
     bg.appendChild(layer);
   });
   document.body.prepend(bg);
@@ -49,22 +49,22 @@
 
   // --- floating composer, centred and lifted off the bottom ----------------
   const chatbar = document.createElement('section');
-  chatbar.id = 'geth-chatbar';
+  chatbar.id = 'alodium-chatbar';
   chatbar.innerHTML = `
-    <form class="geth-chatbar__composer">
-      <label class="geth-visually-hidden" for="geth-request">Ask your engineering org</label>
-      <textarea id="geth-request" name="prompt" rows="1" maxlength="12000" placeholder="What would you like to make happen?"></textarea>
-      <label class="geth-visually-hidden" for="geth-model">Answering model</label>
-      <select id="geth-model" name="model">
+    <form class="alodium-chatbar__composer">
+      <label class="alodium-visually-hidden" for="alodium-request">Ask your engineering org</label>
+      <textarea id="alodium-request" name="prompt" rows="1" maxlength="12000" placeholder="What would you like to make happen?"></textarea>
+      <label class="alodium-visually-hidden" for="alodium-model">Answering model</label>
+      <select id="alodium-model" name="model">
         <option value="claude-sonnet">Sonnet · deep</option>
         <option value="claude-haiku">Haiku · quick</option>
       </select>
-      <button type="submit"><span>Send</span><span class="geth-chatbar__spinner" aria-hidden="true"></span></button>
+      <button type="submit"><span>Send</span><span class="alodium-chatbar__spinner" aria-hidden="true"></span></button>
     </form>
-    <p class="geth-chatbar__hint">Enter to send · Shift + Enter for a new line</p>`;
+    <p class="alodium-chatbar__hint">Enter to send · Shift + Enter for a new line</p>`;
   document.body.appendChild(chatbar);
 
-  const composer = chatbar.querySelector('.geth-chatbar__composer');
+  const composer = chatbar.querySelector('.alodium-chatbar__composer');
   const prompt = composer?.elements.prompt;
   const modelSelect = composer?.elements.model;
   const sendButton = composer?.querySelector('button[type="submit"]');
@@ -73,11 +73,18 @@
   // haiku — see config/litellm.yaml and the key minted by sso-setup.sh).
   // Remember the last choice; Open WebUI otherwise defaults to whichever
   // model LiteLLM lists first.
-  const savedModel = localStorage.getItem('geth-chat-model');
+  const MODEL_STORAGE_KEY = 'alodium-chat-model';
+  const LEGACY_MODEL_STORAGE_KEY = 'geth-chat-model';
+  const storedModel = localStorage.getItem(MODEL_STORAGE_KEY);
+  const savedModel = storedModel ?? localStorage.getItem(LEGACY_MODEL_STORAGE_KEY);
   if (savedModel && modelSelect && [...modelSelect.options].some((o) => o.value === savedModel)) {
     modelSelect.value = savedModel;
+    if (!storedModel) {
+      localStorage.setItem(MODEL_STORAGE_KEY, savedModel);
+      localStorage.removeItem(LEGACY_MODEL_STORAGE_KEY);
+    }
   }
-  modelSelect?.addEventListener('change', () => localStorage.setItem('geth-chat-model', modelSelect.value));
+  modelSelect?.addEventListener('change', () => localStorage.setItem(MODEL_STORAGE_KEY, modelSelect.value));
 
   // Multiline input grows the bar upward (the composer is anchored by
   // `bottom`, so extra height extends toward the top) until the CSS
@@ -128,9 +135,9 @@
   const decorateTabs = () => {
     document.querySelectorAll('[role="tab"]').forEach((tab) => {
       const label = tab.textContent.trim();
-      if (!tabIcons[label] || tab.querySelector('.geth-tab-icon')) return;
+      if (!tabIcons[label] || tab.querySelector('.alodium-tab-icon')) return;
       const icon = document.createElement('span');
-      icon.className = 'geth-tab-icon';
+      icon.className = 'alodium-tab-icon';
       icon.setAttribute('aria-hidden', 'true');
       icon.innerHTML = tabIcons[label];
       tab.prepend(icon);
@@ -139,12 +146,12 @@
 
   const syncChrome = () => {
     chatbar.hidden = false;
-    document.documentElement.classList.add('geth-chatbar-open');
+    document.documentElement.classList.add('alodium-chatbar-open');
     decorateTabs();
 
     document.querySelectorAll('.services-group').forEach((group) => {
       const heading = group.querySelector('h1, h2, h3')?.textContent.trim();
-      group.classList.toggle('geth-tile-group', heading === 'Apps');
+      group.classList.toggle('alodium-tile-group', heading === 'Apps');
     });
 
   };
@@ -224,7 +231,7 @@
 
   const doStop = async () => {
     renderSnakeTile('starting'); // amber while it winds down
-    const ctl = snakeTile()?.querySelector('.geth-ondemand__label');
+    const ctl = snakeTile()?.querySelector('.alodium-ondemand__label');
     if (ctl) ctl.textContent = 'Stopping…';
     await snakeStop();
     setTimeout(async () => renderSnakeTile(await snakeStatus()), 1500);
@@ -234,15 +241,15 @@
     const tile = snakeTile();
     if (!tile) return;
     const card = tile.querySelector('.service-card') || tile;
-    card.classList.add('geth-ondemand-card');
+    card.classList.add('alodium-ondemand-card');
 
     // The dot lives in the card's top-right corner, created once and reused.
-    let ctl = card.querySelector('.geth-ondemand');
+    let ctl = card.querySelector('.alodium-ondemand');
     if (!ctl) {
       ctl = document.createElement('button');
       ctl.type = 'button';
-      ctl.className = 'geth-ondemand';
-      ctl.innerHTML = '<span class="geth-ondemand__label"></span><span class="geth-ondemand__dot"></span>';
+      ctl.className = 'alodium-ondemand';
+      ctl.innerHTML = '<span class="alodium-ondemand__label"></span><span class="alodium-ondemand__dot"></span>';
       card.appendChild(ctl);
       // The dot is its own control; never let its click bubble to the card link.
       ctl.addEventListener('click', (e) => {
@@ -256,11 +263,11 @@
 
     // While asleep, a click anywhere on the card launches (rather than following
     // the href to a dead game). Once running, the native link opens the game.
-    if (!card.dataset.gethBound) {
-      card.dataset.gethBound = '1';
+    if (!card.dataset.alodiumBound) {
+      card.dataset.alodiumBound = '1';
       card.addEventListener('click', (e) => {
-        if (e.target.closest('.geth-ondemand')) return;
-        const c = card.querySelector('.geth-ondemand');
+        if (e.target.closest('.alodium-ondemand')) return;
+        const c = card.querySelector('.alodium-ondemand');
         if (!c || c.dataset.state === 'running') return; // let the game open
         e.preventDefault();
         e.stopPropagation();
@@ -272,7 +279,7 @@
       : status === 'starting' ? 'starting' : 'stopped';
     ctl.dataset.state = state;
     ctl.disabled = state === 'starting';
-    const label = ctl.querySelector('.geth-ondemand__label');
+    const label = ctl.querySelector('.alodium-ondemand__label');
     if (state === 'running') { label.textContent = 'Stop'; ctl.setAttribute('aria-label', 'Stop Snake'); }
     else if (state === 'starting') { label.textContent = 'Starting…'; ctl.setAttribute('aria-label', 'Snake is starting'); }
     else { label.textContent = 'Launch'; ctl.setAttribute('aria-label', 'Launch Snake'); }
@@ -285,7 +292,7 @@
     // Refresh in the background, but never stomp on an in-flight launch/stop.
     setInterval(async () => {
       if (readyPoll) return;
-      const ctl = snakeTile()?.querySelector('.geth-ondemand');
+      const ctl = snakeTile()?.querySelector('.alodium-ondemand');
       if (ctl && ctl.dataset.state === 'starting') return;
       renderSnakeTile(await snakeStatus());
     }, 30000);

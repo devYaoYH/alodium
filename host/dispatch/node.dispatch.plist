@@ -15,11 +15,11 @@
 <plist version="1.0">
 <dict>
   <key>Label</key>            <string>node.dispatch</string>
-  <key>WorkingDirectory</key> <string>/REPLACE/with/abs/path/to/geth</string>
+  <key>WorkingDirectory</key> <string>/REPLACE/with/abs/path/to/alodium</string>
   <key>ProgramArguments</key>
   <array>
     <string>/bin/bash</string>
-    <string>/REPLACE/with/abs/path/to/geth/scripts/task-dispatcher.sh</string>
+    <string>/REPLACE/with/abs/path/to/alodium/scripts/task-dispatcher.sh</string>
   </array>
   <key>WatchPaths</key>
   <array>
@@ -38,8 +38,8 @@
     <key>PATH</key> <string>/REPLACE/with/docker/dir:/usr/bin:/bin:/usr/sbin:/sbin</string>
   </dict>
   <key>StartInterval</key>    <integer>600</integer>   <!-- 10-min heartbeat fallback -->
-  <key>StandardOutPath</key>  <string>/REPLACE/with/abs/path/to/geth/.task-dispatch/dispatch.log</string>
-  <key>StandardErrorPath</key><string>/REPLACE/with/abs/path/to/geth/.task-dispatch/dispatch.log</string>
+  <key>StandardOutPath</key>  <string>/REPLACE/with/abs/path/to/alodium/.task-dispatch/dispatch.log</string>
+  <key>StandardErrorPath</key><string>/REPLACE/with/abs/path/to/alodium/.task-dispatch/dispatch.log</string>
   <key>ProcessType</key>      <string>Background</string>
 </dict>
 </plist>
