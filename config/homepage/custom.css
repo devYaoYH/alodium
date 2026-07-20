@@ -277,6 +277,81 @@ html.geth-chatbar-open #page_container { padding-bottom: 11rem; }
 .geth-tile-group .service-site-monitor { display: none; }
 .geth-tile-group .service-container .service-block:nth-child(n+3) { display: none; }
 
+/* --- on-demand app control: a status dot in the card's top-right corner -----
+   Red when the app is asleep, amber while it warms up, green when it's live.
+   Hover (or keyboard focus) reveals a one-word action to the dot's left, so
+   the tile stays as clean as any always-on app — no inline launch button.
+   Injected by custom.js onto the snake tile. This dot IS the tile's status
+   light: it replaces Homepage's own container/stats dot (hidden just below),
+   so there is exactly one indicator — and it can show the amber "warming up"
+   state that the native docker dot cannot. */
+.geth-ondemand-card { position: relative; }
+
+/* Suppress Homepage's native container status/stats toggle on the on-demand
+   tile — the launcher dot above is the single source of truth here. */
+#snake-tile .service-container { display: none; }
+
+.geth-ondemand {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.55rem;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0.25rem;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+}
+.geth-ondemand:disabled { cursor: progress; }
+
+.geth-ondemand__dot {
+  flex: 0 0 auto;
+  width: 0.62rem;
+  height: 0.62rem;
+  border-radius: 50%;
+  background: #6b7280;
+  transition: background 160ms ease, box-shadow 160ms ease;
+}
+.geth-ondemand[data-state="stopped"] .geth-ondemand__dot {
+  background: #ef4444;
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.16);
+}
+.geth-ondemand[data-state="running"] .geth-ondemand__dot {
+  background: #22c55e;
+  box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.16);
+}
+.geth-ondemand[data-state="starting"] .geth-ondemand__dot {
+  background: #f59e0b;
+  animation: geth-pulse 1200ms ease-out infinite;
+}
+@keyframes geth-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.5); }
+  100% { box-shadow: 0 0 0 7px rgba(245, 158, 11, 0); }
+}
+
+/* The action word, tucked to the left of the dot; revealed on hover/focus. */
+.geth-ondemand__label {
+  max-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  opacity: 0;
+  font-size: 0.7rem;
+  font-weight: 650;
+  color: #f1f5f9;
+  text-shadow: 0 1px 6px rgba(2, 6, 23, 0.85);
+  transition: max-width 200ms ease, opacity 160ms ease;
+}
+.geth-ondemand:hover .geth-ondemand__label,
+.geth-ondemand:focus-visible .geth-ondemand__label {
+  max-width: 6rem;
+  opacity: 1;
+}
+
 @media (max-width: 640px) {
   #geth-chatbar { bottom: 1.25rem; }
   .geth-chatbar__composer { align-items: stretch; flex-direction: column; padding: 0.55rem; }
