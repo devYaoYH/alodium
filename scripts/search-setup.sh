@@ -47,4 +47,11 @@ else
   echo "   AGENT_SEARCH_TOKEN already exists — retained"
 fi
 
-echo "search capability provisioned; build the app image, then run: docker compose --profile apps up -d search-broker search-egress"
+if [[ -z "${SEARCH_AUDIT_TOKEN:-}" ]]; then
+  upsert SEARCH_AUDIT_TOKEN "$(openssl rand -hex 32)" .env
+  echo "   minted SEARCH_AUDIT_TOKEN (Caddy -> audit dashboard only)"
+else
+  echo "   SEARCH_AUDIT_TOKEN already exists — retained"
+fi
+
+echo "search capability provisioned; build the app image, then run: docker compose --profile apps up -d search-broker search-egress caddy"

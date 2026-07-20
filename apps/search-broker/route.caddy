@@ -1,0 +1,9 @@
+# Ring 0 operator dashboard. Caddy injects the upstream-only credential, so a
+# browser session never learns it. The broker is reachable here only over the
+# dedicated search-admin network, not through the agents spur.
+search.{$NODE_DOMAIN} {
+	import ring0
+	reverse_proxy search-broker:8080 {
+		header_up X-Search-Audit-Token "{env.SEARCH_AUDIT_TOKEN}"
+	}
+}

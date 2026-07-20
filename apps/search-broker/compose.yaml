@@ -3,6 +3,8 @@
 # only from the broker's private network, and its code permits only api.exa.ai.
 # secrets/search-broker.env supplies EXA_API_KEY + SEARCH_EGRESS_TOKEN; the
 # caller capability stays in root .env as AGENT_SEARCH_TOKEN (the caller owns it).
+# SEARCH_AUDIT_TOKEN is shared only with Caddy, which injects it on the Ring 0
+# audit route; neither callers nor the egress companion receive it.
 
 services:
   search-audit-init:
@@ -35,6 +37,7 @@ services:
       SEARCH_ROLE: broker
       PORT: "8080"
       AGENT_SEARCH_TOKEN: ${AGENT_SEARCH_TOKEN:-}
+      SEARCH_AUDIT_TOKEN: ${SEARCH_AUDIT_TOKEN:-}
       SEARCH_EGRESS_TOKEN: ${SEARCH_EGRESS_TOKEN:-}
       SEARCH_CAPABILITY_ID: agent-dev
       SEARCH_EGRESS_URL: http://search-egress:8081
@@ -45,7 +48,7 @@ services:
     cap_drop: [ALL]
     volumes:
       - search_audit:/audit
-    networks: [agents, search-private]
+    networks: [agents, search-private, search-admin]
 
   search-egress:
     profiles: [apps]
@@ -68,6 +71,9 @@ networks:
     internal: true
   edge:
   search-private:
+    internal: true
+  search-admin:
+    # Caddy <-> broker only: operator dashboard traffic never enters agents.
     internal: true
 
 volumes:

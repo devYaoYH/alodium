@@ -55,6 +55,10 @@ networks:
     # The broker and its egress companion meet here. Agents cannot join this
     # network, and the egress companion is the only search service on edge.
     internal: true
+  search-admin:
+    # The Ring 0 audit route joins this with Caddy and the broker only. Neither
+    # agent tenants nor the egress companion can read the persistent audit log.
+    internal: true
 
 volumes:
   caddy_data:
@@ -88,6 +92,9 @@ services:
       # Pocket ID email. Any other SSO user falls through to Radicale's own
       # login. Sentinel default = fail closed (nobody matches) when unset.
       RADICALE_OPERATOR_EMAIL: ${RADICALE_OPERATOR_EMAIL:-nobody@node.invalid}
+      # Shared only with search-broker. Caddy injects this upstream credential
+      # for the Ring 0 audit dashboard; browsers and agents never receive it.
+      SEARCH_AUDIT_TOKEN: ${SEARCH_AUDIT_TOKEN:-}
     volumes:
       - ./caddy:/etc/caddy:ro     # Caddyfile + untracked local/*.caddy overrides
       # app fragments' route.caddy files; /etc/caddy is itself a ro mount, so
@@ -102,6 +109,7 @@ services:
         # egress-less apps still complete server-side OIDC (token/userinfo)
         # by hairpinning through the door — with the real certificate.
         aliases: ["auth.${NODE_DOMAIN}"]
+      search-admin:
 
   litellm:
     # Digest-pinned (as is every image here). To update: scripts/pin-images.sh,

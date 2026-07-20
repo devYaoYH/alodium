@@ -194,6 +194,12 @@
         server: sovereign-node
         container: pocket-id
         siteMonitor: http://pocket-id:1411/healthz
+    - Agent web search audit:
+        icon: mdi-magnify-scan
+        href: https://search.{{HOMEPAGE_VAR_NODE_DOMAIN}}
+        description: operator dashboard for logged Exa searches
+        server: sovereign-node
+        container: search-broker
 
 - Services (Docker):
     - registry:
@@ -242,12 +248,6 @@
         description: ring 0 · only you merge, deploy, mint, and change policy
 
 - Identity & audit:
-    - Agent web search audit:
-        icon: mdi-magnify-scan
-        href: https://git.{{HOMEPAGE_VAR_NODE_DOMAIN}}/{{HOMEPAGE_VAR_NODE_CONFIG_REPO}}/src/branch/main/docs/SEARCH.md
-        description: Exa broker · persistent, protected JSONL audit trail
-        server: sovereign-node
-        container: search-broker
     - Identity admin:
         icon: pocket-id.png
         href: https://auth.{{HOMEPAGE_VAR_NODE_DOMAIN}}/settings/admin

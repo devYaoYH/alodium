@@ -25,7 +25,7 @@ and start the capability:
 git clone https://git.<domain>/apps/search-broker /srv/sovereign-apps/search-broker
 docker build -t sovereign-node/search-broker:local /srv/sovereign-apps/search-broker
 ./scripts/search-setup.sh
-docker compose --profile apps up -d search-broker search-egress
+docker compose --profile apps up -d search-broker search-egress caddy
 ```
 
 `search-setup.sh` copies the `EXA_API_KEY` you placed in `.env` into the
@@ -33,6 +33,12 @@ host-only `secrets/search-broker.env`, mints the broker-to-egress token there,
 and mints a separate caller token in `.env`. It never prints those values.
 After verifying the service, remove the legacy `EXA_API_KEY` line from `.env`;
 the per-app secret file is the authoritative location.
+
+`search-setup.sh` also mints `SEARCH_AUDIT_TOKEN`. Only Caddy and the broker
+receive that value; Caddy injects it over the dedicated internal
+`search-admin` network for `https://search.<domain>`. This Ring 0 dashboard
+lists safe, newest-first search-event summaries. It intentionally excludes raw
+queries, API keys, and bearer tokens, and agents cannot reach its network.
 
 An agent calls `http://search-broker:8080/v1/search` with
 `Authorization: Bearer $AGENT_SEARCH_TOKEN`. Search results are untrusted
