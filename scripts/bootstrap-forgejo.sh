@@ -5,9 +5,10 @@
 #   1. operator admin account            (password -> .env, break-glass only)
 #   2. agent-dev user + scoped token     (-> AGENT_FORGEJO_TOKEN in .env)
 #   3. operator API token                (-> FORGEJO_TOKEN in .env, for mirror.sh)
-#   4. node-config repo, current git history pushed
-#   5. coordination repo — the agents' shared notebook (issues + board)
-#   6. assistant user + weaker token   (-> ASSISTANT_FORGEJO_TOKEN in .env)
+#   4. SUT watcher token                (-> SUT_FORGEJO_TOKEN in .env)
+#   5. node-config repo, current git history pushed
+#   6. coordination repo — the agents' shared notebook (issues + board)
+#   7. assistant user + weaker token   (-> ASSISTANT_FORGEJO_TOKEN in .env)
 #
 # Re-running skips anything that already exists. Humans run this once;
 # everything after flows through git and the agents.
@@ -46,7 +47,7 @@ else
   echo "   FORGEJO_TOKEN already set — skip"
 fi
 
-echo "== 3/6 agent-dev user + scoped token =="
+echo "== 3/7 agent-dev user + scoped token =="
 # Scopes: write:repository (clone/branch/push/PR) + write:issue (the M3
 # coordination surface — agents track work and leave notes as issues/boards).
 # Widening this line IS the jail-widening moment: it ships as a reviewed diff.
@@ -68,7 +69,20 @@ else
   echo "   AGENT_FORGEJO_TOKEN already set — skip"
 fi
 
-echo "== 4/6 node-config repo =="
+echo "== 4/7 isolated SUT watcher token =="
+# The host SUT controller clones PR heads and source snapshots, then reads and
+# comments on PRs. It deliberately cannot write code, administer Forgejo, or
+# access secrets inside the test VM.
+if [[ -z "${SUT_FORGEJO_TOKEN:-}" ]]; then
+  SUT_FORGEJO_TOKEN=$(FJ admin user generate-access-token --username "$ADMIN" \
+      --token-name sut-watch --scopes read:repository,read:issue,write:issue --raw)
+  saveenv SUT_FORGEJO_TOKEN "$SUT_FORGEJO_TOKEN"
+  echo "   minted sut-watch token -> .env SUT_FORGEJO_TOKEN (read:repository,read:issue,write:issue)"
+else
+  echo "   SUT_FORGEJO_TOKEN already set — skip"
+fi
+
+echo "== 5/7 node-config repo =="
 if API "https://git.localhost/api/v1/repos/$ADMIN/node-config" | grep -q '"full_name"'; then
   echo "   repo exists — skip create"
 else
@@ -85,7 +99,7 @@ docker run --rm -v "$PWD:/src" -w /src --network "$EDGE_NET" \
   alpine/git -c safe.directory=/src push --all \
   "http://$ADMIN:$FORGEJO_TOKEN@forgejo:3000/$ADMIN/node-config.git" 2>&1 | tail -1
 
-echo "== 5/6 coordination repo (the agents' shared notebook) =="
+echo "== 6/7 coordination repo (the agents' shared notebook) =="
 # Issues + the project board here are how tenants track work and hand off:
 # resident sessions file what they left unfinished, ephemeral tenants record
 # their artifact (or their failure) before teardown, the operator reads one
@@ -124,7 +138,7 @@ done
 saveenv COORDINATION_REPO "$ADMIN/coordination"
 echo "   labels seeded; COORDINATION_REPO -> .env"
 
-echo "== 6/6 assistant user + weaker token =="
+echo "== 7/7 assistant user + weaker token =="
 # The front-door assistant (agent/ASSISTANT.md): converses, reads, files
 # issues. Deliberately weaker than agent-dev — read:repository (docs, skills,
 # clones) + write:issue (the notebook). No code-write scope: it has no PR

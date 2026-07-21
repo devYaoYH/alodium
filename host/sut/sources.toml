@@ -1,0 +1,18 @@
+# The SUT source allowlist. A node-config PR can control Compose, but it may
+# not cause the host controller to clone arbitrary private Forgejo repositories
+# into its test VM. Add a source here in the same reviewed PR that introduces
+# a new locally-built image.
+
+[[source]]
+name = "search-broker"
+image = "sovereign-node/search-broker:local"
+repo = "apps/search-broker"
+ref = "74e88ee9fda322ed1c3324448b06f24c053cb23d"
+
+[[source]]
+name = "calino"
+image = "sovereign-node/calino:0.22.7"
+repo = "mirrors/calino"
+ref = "8e21e96ec842a426e714f78ff1f9cfa3e297c03b"
+args.VITE_SITE_URL = "https://calino.sut.invalid"
+args.CALINO_SELF_HOSTED = "true"
