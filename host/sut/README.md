@@ -23,10 +23,12 @@ KVM worker.
 
 ## Install on macOS
 
-1. Bring up the node and run `./scripts/bootstrap-forgejo.sh`; this supplies
-   the local-only `SUT_FORGEJO_TOKEN`, `NODE_DOMAIN`, and `NODE_CONFIG_REPO`
-   used by the watcher. The SUT token is limited to source/PR reads and PR
-   evidence comments; it is separate from the node-operations token.
+1. On a dedicated development machine, opt into the development plane with
+   `ENABLE_SUT=1 ./scripts/bootstrap-forgejo.sh`. This supplies the local-only
+   `SUT_FORGEJO_TOKEN`, `NODE_DOMAIN`, and `NODE_CONFIG_REPO` used by the
+   watcher. The stable/default node does not provision this token. It is
+   limited to source/PR reads and PR evidence comments, separate from the
+   node-operations token.
 2. Install Colima, then run:
 
    ```sh

@@ -36,11 +36,12 @@ second passkey before relying on the node.
 
 ### 2. Enable the development plane
 
-The development plane is a core Geth capability, but its isolated test worker
-is provisioned lazily: it consumes disk and virtual-machine resources only on
-machines that will develop the node. `./scripts/bootstrap-forgejo.sh` mints a
-separate `SUT_FORGEJO_TOKEN` with only source/PR-read and PR-comment scopes.
-Then run `host/sut/sutctl.sh doctor`, `host/sut/sutctl.sh init`, and
+The development plane is deliberately **off** in the stable/hackathon install.
+Its isolated test worker consumes virtual-machine resources and its watcher
+holds a separate Forgejo credential, neither of which belongs on a simple
+daily-use node. On a dedicated development machine, opt in later with
+`ENABLE_SUT=1 ./scripts/bootstrap-forgejo.sh`, then run
+`host/sut/sutctl.sh doctor`, `host/sut/sutctl.sh init`, and
 `host/sut/install-launchd.sh`.
 
 On macOS this creates a stopped, dedicated Colima profile such as

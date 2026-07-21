@@ -5,7 +5,7 @@
 #   1. operator admin account            (password -> .env, break-glass only)
 #   2. agent-dev user + scoped token     (-> AGENT_FORGEJO_TOKEN in .env)
 #   3. operator API token                (-> FORGEJO_TOKEN in .env, for mirror.sh)
-#   4. SUT watcher token                (-> SUT_FORGEJO_TOKEN in .env)
+#   4. optional SUT watcher token       (-> SUT_FORGEJO_TOKEN in .env)
 #   5. node-config repo, current git history pushed
 #   6. coordination repo — the agents' shared notebook (issues + board)
 #   7. assistant user + weaker token   (-> ASSISTANT_FORGEJO_TOKEN in .env)
@@ -69,11 +69,16 @@ else
   echo "   AGENT_FORGEJO_TOKEN already set — skip"
 fi
 
-echo "== 4/7 isolated SUT watcher token =="
-# The host SUT controller clones PR heads and source snapshots, then reads and
-# comments on PRs. It deliberately cannot write code, administer Forgejo, or
-# access secrets inside the test VM.
-if [[ -z "${SUT_FORGEJO_TOKEN:-}" ]]; then
+echo "== 4/7 isolated SUT watcher token (optional) =="
+# The hackathon/default node deliberately does not provision the development
+# test plane. Opt in only on a machine that will run isolated Colima/KVM SUT
+# workers; this token is useless without that separate host capability.
+if [[ "${ENABLE_SUT:-0}" != "1" ]]; then
+  echo "   ENABLE_SUT=0 — skipped (opt in later with ENABLE_SUT=1 ./scripts/bootstrap-forgejo.sh)"
+elif [[ -z "${SUT_FORGEJO_TOKEN:-}" ]]; then
+  # The host SUT controller clones PR heads and source snapshots, then reads
+  # and comments on PRs. It cannot write code, administer Forgejo, or access
+  # secrets inside the test VM.
   SUT_FORGEJO_TOKEN=$(FJ admin user generate-access-token --username "$ADMIN" \
       --token-name sut-watch --scopes read:repository,read:issue,write:issue --raw)
   saveenv SUT_FORGEJO_TOKEN "$SUT_FORGEJO_TOKEN"

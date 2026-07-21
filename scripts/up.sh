@@ -93,4 +93,9 @@ cat <<EOF
 Everything else — users, tokens, OIDC clients, labels, the dispatch runner,
 auto-deploy — is already provisioned. Re-run ./scripts/up.sh any time to
 reconcile. Merged PRs deploy themselves within ~2 minutes.
+
+The isolated SUT development plane is intentionally disabled by default for
+this stable build. Enable it later only on a development machine:
+   ENABLE_SUT=1 ./scripts/bootstrap-forgejo.sh
+Then follow host/sut/README.md to provision its separate worker.
 EOF
