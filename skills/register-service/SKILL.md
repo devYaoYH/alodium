@@ -39,6 +39,15 @@ files. Checklist:
 - **Manifest** (`manifest/<name>.toml`): present and truthful; every volume
   that must survive the box listed under `[lifecycle] backup` — the restic
   include list is generated from it.
+- **Build provenance (first-party apps only)**: If the app builds from its own
+  Dockerfile (a `build:` line in the compose fragment or a `[build]` section
+  in the manifest), the manifest MUST include a `[build]` section with
+  `repo` pointing to the Forgejo app repo and `ref` set to the full 40-char
+  commit SHA. The image tag in the manifest MUST be versioned (e.g.
+  `:0.1.0`), NOT `:local` — a floating `:local` tag never triggers a
+  rebuild when the source changes. See `manifest/calino.toml` and
+  `manifest/search-broker.toml` for the correct pattern. The
+  `verify-config.sh` script enforces this at PR time.
 - **Dashboard** (`config/homepage/services.yaml`): add it if ring 1 humans
   should see it.
 - **Chat tools** (`docs/CHAT-TOOLS.md`): if the operator's chat should be
