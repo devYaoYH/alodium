@@ -339,6 +339,59 @@
     }
   }, true);
   window.addEventListener('hashchange', () => switchToHashTab(window.location.hash));
+
+  // --- deploy-info: last-deployed timestamp + commit link in the lower-left ---
+  // Fetches /static/deploy-info.json (written by deploy.sh after each successful
+  // deploy) and renders a small indicator showing the deployed commit hash
+  // (hyperlinked to Forgejo) and the deploy timestamp. Silently absent if the
+  // artifact doesn't exist yet (first install / pre-deploy).
+  const DEPLOY_INFO_URL = '/static/deploy-info.json';
+  const DEPLOY_STORAGE_KEY = 'alodium-deploy-info';
+
+  const renderDeployInfo = (info) => {
+    // Remove any stale widget first
+    const existing = document.getElementById('alodium-deploy-info');
+    if (existing) existing.remove();
+
+    if (!info || !info.commit) return;
+
+    const el = document.createElement('div');
+    el.id = 'alodium-deploy-info';
+    el.className = 'alodium-deploy-info';
+
+    const ts = info.timestamp
+      ? new Date(info.timestamp).toLocaleString(undefined, {
+          year: 'numeric', month: 'short', day: 'numeric',
+          hour: '2-digit', minute: '2-digit',
+        })
+      : 'unknown';
+
+    el.innerHTML = `
+      <span class="alodium-deploy-info__label">deployed</span>
+      <a class="alodium-deploy-info__commit" href="${info.url || '#'}"
+         target="_blank" rel="noopener" title="${info.commit || ''}">
+        ${info.short_hash || info.commit?.slice(0, 7) || '?'}
+      </a>
+      <span class="alodium-deploy-info__ts">${ts}</span>
+    `;
+    document.body.appendChild(el);
+  };
+
+  const fetchDeployInfo = async () => {
+    try {
+      const r = await fetch(DEPLOY_INFO_URL, { cache: 'no-cache' });
+      if (!r.ok) return;
+      const info = await r.json();
+      renderDeployInfo(info);
+    } catch {
+      // Not yet deployed — that's fine, stay silent.
+    }
+  };
+
+  // Fetch immediately and re-check every 2 minutes (catches the first deploy
+  // on a fresh install / after the artifact is created by deploy-watch).
+  fetchDeployInfo();
+  setInterval(fetchDeployInfo, 120000);
   };
 
   if (document.body) boot();

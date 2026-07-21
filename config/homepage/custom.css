@@ -391,3 +391,60 @@ html.alodium-chatbar-open #page_container { padding-bottom: 11rem; }
   [role="tab"] { min-height: 3.45rem; padding: 0.78rem 0.85rem !important; }
   [role="tablist"] { display: flex; }
 }
+
+/* --- deploy-info widget: lower-left corner ---------------------------------
+   A small, unobtrusive indicator showing the currently-deployed commit and
+   timestamp. Positioned at the very bottom-left of the viewport, below the
+   composer area, so it's visible but never in the way. */
+.alodium-deploy-info {
+  position: fixed;
+  left: 0.75rem;
+  bottom: 0.6rem;
+  z-index: 30;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 0.4rem;
+  background: rgba(4, 8, 18, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  font-size: 0.65rem;
+  line-height: 1.4;
+  color: rgba(148, 163, 184, 0.85);
+  pointer-events: auto;
+  user-select: none;
+}
+
+.alodium-deploy-info__label {
+  font-weight: 500;
+  color: rgba(148, 163, 184, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.alodium-deploy-info__commit {
+  font-weight: 650;
+  font-family: ui-monospace, 'SF Mono', 'Cascadia Code', 'Roboto Mono', 'Consolas', monospace;
+  color: #67e8c3;
+  text-decoration: none;
+  transition: color 140ms ease;
+}
+
+.alodium-deploy-info__commit:hover {
+  color: #a7f3d0;
+  text-decoration: underline;
+}
+
+.alodium-deploy-info__ts {
+  color: rgba(148, 163, 184, 0.65);
+}
+
+@media (max-width: 640px) {
+  .alodium-deploy-info {
+    left: 0.5rem;
+    bottom: 0.4rem;
+    font-size: 0.58rem;
+    padding: 0.15rem 0.45rem;
+  }
+}

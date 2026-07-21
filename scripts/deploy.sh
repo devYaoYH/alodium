@@ -124,3 +124,23 @@ if printf '%s\n' "$CHANGED" | grep -q "^config/homepage/"; then
 fi
 
 docker compose ps --format 'table {{.Name}}\t{{.Status}}'
+
+# 7. Record deployment info for the homepage deploy-info widget.
+#     Writes a JSON artifact that the homepage serves at /static/deploy-info.json
+#     containing the current timestamp and deployed commit hash, hyperlinked to
+#     the commit in the node-config Forgejo repo.
+DEPLOY_INFO="config/homepage/static/deploy-info.json"
+mkdir -p "$(dirname "$DEPLOY_INFO")"
+NODE_DOMAIN="${NODE_DOMAIN:-localhost}"
+NODE_CONFIG_REPO="${NODE_CONFIG_REPO:-operator/node-config}"
+COMMIT=$(git rev-parse HEAD)
+SHORT=$(git rev-parse --short HEAD)
+cat > "$DEPLOY_INFO" <<DEPLOY_EOF
+{
+  "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "commit": "${COMMIT}",
+  "short_hash": "${SHORT}",
+  "url": "https://git.${NODE_DOMAIN}/${NODE_CONFIG_REPO}/commit/${COMMIT}"
+}
+DEPLOY_EOF
+echo "   deploy-info recorded (${SHORT} at $(date -u +%Y-%m-%dT%H:%M:%SZ))"
