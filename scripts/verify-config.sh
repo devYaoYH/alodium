@@ -96,7 +96,19 @@ else
   note "SKIP: no config/dispatch-tiers.yaml (not yet deployed)"
 fi
 
-# --- 4. Shell lint ----------------------------------------------------------
+# --- 4. Label definitions valid (quoting/encoding) -------------------------
+sec "label definitions"
+if [[ -f "scripts/ensure-tier-labels.sh" ]]; then
+  if bash "scripts/ensure-tier-labels.sh" --verify >/tmp/vc_labels.log 2>&1; then
+    note "OK: all label definitions parse correctly"
+  else
+    note "FAIL: label definition errors —"; sed 's/^/    /' /tmp/vc_labels.log; FAIL=1
+  fi
+else
+  note "SKIP: no scripts/ensure-tier-labels.sh"
+fi
+
+# --- 5. Shell lint ----------------------------------------------------------
 sec "shellcheck"
 if ! command -v shellcheck >/dev/null 2>&1; then
   note "SKIP: no shellcheck here (present in the jail image)"
