@@ -155,6 +155,7 @@
         widget:
           type: customapi
           url: http://litellm:4000/key/info
+          refreshInterval: 30000
           headers:
             Authorization: Bearer {{HOMEPAGE_VAR_AGENT_LLM_KEY}}
           mappings:
@@ -171,6 +172,7 @@
         widget:
           type: customapi
           url: http://litellm:4000/key/info
+          refreshInterval: 30000
           headers:
             Authorization: Bearer {{HOMEPAGE_VAR_ASSISTANT_LLM_KEY}}
           mappings:
