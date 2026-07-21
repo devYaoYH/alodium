@@ -1,0 +1,14 @@
+# Difficulty tier -> execution profile for issue-work dispatch.
+# Change via PR + merge + deploy. Every tier model must also exist in
+# config/litellm.yaml as a model_name (verify-config.sh enforces this).
+#
+# Operator workflow: apply a difficulty:trivial|easy|moderate|hard label to
+# a coordination issue. The dispatcher resolves the label to a model + budget
+# and passes them to run-task.sh. No label = default tier (moderate).
+# Agent-applied difficulty labels are ignored (anti-escalation).
+default: moderate
+tiers:
+  trivial:  { model: deepseek-flash, budget_usd: 0.50 }
+  easy:     { model: deepseek-flash, budget_usd: 1.00 }
+  moderate: { model: claude-haiku,   budget_usd: 2.00 }
+  hard:     { model: claude-sonnet,  budget_usd: 4.00 }

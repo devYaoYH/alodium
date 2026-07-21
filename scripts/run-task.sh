@@ -23,7 +23,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 set -a; source .env; set +a
 
-BRIEF="${1:?usage: run-task.sh <tasks/brief.md> [--keep-key] [--issue N]}"
+BRIEF="${1:?usage: run-task.sh <tasks/brief.md> [--keep-key] [--issue N] [--model <name>] [--budget <usd>]}"
 [[ -f "$BRIEF" ]] || { echo "no such brief: $BRIEF"; exit 1; }
 shift
 KEEP_KEY=""      # --keep-key: drill mode — let expiry, not revocation, kill it
@@ -31,11 +31,17 @@ ISSUE=""         # --issue N: substitute {ISSUE} in the brief with a bare number
                  #   ONLY the integer crosses into the tenant — never issue text;
                  #   the agent fetches the body itself with its own scoped token,
                  #   so a hostile issue body can't smuggle instructions via us.
+OVERRIDE_MODEL=""   # --model <name>: override the brief's model (from dispatch-run.sh)
+OVERRIDE_BUDGET=""  # --budget <usd>: override the brief's budget (from dispatch-run.sh)
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --keep-key) KEEP_KEY="--keep-key" ;;
     --issue)    ISSUE="${2:-}"; shift
                 [[ "$ISSUE" =~ ^[0-9]+$ ]] || { echo "run-task: --issue must be an integer, got '$ISSUE'"; exit 2; } ;;
+    --model)    OVERRIDE_MODEL="${2:-}"; shift
+                [[ -n "$OVERRIDE_MODEL" ]] || { echo "run-task: --model needs a value"; exit 2; } ;;
+    --budget)   OVERRIDE_BUDGET="${2:-}"; shift
+                [[ "$OVERRIDE_BUDGET" =~ ^[0-9]+(\.[0-9]+)?$ ]] || { echo "run-task: --budget must be a number, got '$OVERRIDE_BUDGET'"; exit 2; } ;;
     *) echo "run-task: unknown arg '$1'"; exit 2 ;;
   esac
   shift
@@ -46,6 +52,10 @@ TASK=$(front "$BRIEF" task);         TASK=${TASK:-$(basename "$BRIEF" .md)}
 MODEL=$(front "$BRIEF" model);       MODEL=${MODEL:-${AGENT_FAST_MODEL:-deepseek-flash}}
 HARNESS=$(front "$BRIEF" harness);   HARNESS=${HARNESS:-claude}
 BUDGET=$(front "$BRIEF" budget_usd); BUDGET=${BUDGET:-0.50}
+# Override from dispatch-run.sh (--model/--budget args) if provided.
+# These take precedence over the brief frontmatter.
+[[ -n "$OVERRIDE_MODEL" ]] && MODEL="$OVERRIDE_MODEL"
+[[ -n "$OVERRIDE_BUDGET" ]] && BUDGET="$OVERRIDE_BUDGET"
 EXPIRES=$(front "$BRIEF" expires);   EXPIRES=${EXPIRES:-2h}
 RUN="task-$TASK-$(date +%Y%m%d-%H%M%S)"
 PROMPT=$(awk 'NR>1 && /^---$/{f=1; next} f' "$BRIEF")

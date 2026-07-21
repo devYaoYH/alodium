@@ -71,9 +71,42 @@ new trust surface.
    Set `DISPATCH_SPOOL` in the environment if you bind the spool to a host dir
    (lets the pass clear consumed markers).
 
-## Test it
+## Difficulty tiers — model routing per issue
+
+Every issue-work run carries a **difficulty estimate** (a label, not a model
+name) that the dispatcher resolves to a model + budget. This keeps the model
+choice as *policy* that can be retuned without changing labels or wiring.
+
+### How it works
+
+1. The operator applies a `difficulty:trivial|easy|moderate|hard` label to a
+   coordination issue.
+2. `dispatch-run.sh` reads the issue timeline, finds the label, and verifies
+   the actor is the operator (agent self-labeling is **ignored** — same
+   anti-escalation as assignment).
+3. The label is resolved through `config/dispatch-tiers.yaml`:
+   - `trivial`  → `deepseek-flash` @ $0.50
+   - `easy`     → `deepseek-flash` @ $1.00
+   - `moderate` → `claude-haiku`   @ $2.00 (this is the **default** — no label = moderate)
+   - `hard`     → `claude-sonnet`  @ $4.00
+4. Before launch, `dispatch-run.sh` checks that the resolved model is live in
+   LiteLLM. If not, it falls back to `deepseek-flash` + a loud comment.
+5. At PR time, `verify-config.sh` enforces that every tier model exists in
+   `config/litellm.yaml` — catches table/LiteLLM drift before it can reach a run.
+
+### One-time setup
+
+Run `scripts/ensure-tier-labels.sh` once to create the four `difficulty:*`
+labels in the coordination repo. The operator's token must have `write` on
+coordination (the same scope the agent holds). Safe to re-run — Forgejo
+deduplicates label creation by name.
+
+### Test it
 
 - `./scripts/task-dispatcher.sh --dry-run` — reports what it *would* launch,
   launches nothing. Assign an issue to agent-dev as the operator, run dry-run,
   confirm it says "would launch". Have a non-operator assign one, confirm it
   refuses with the actor mismatch.
+- Apply a `difficulty:hard` label as the operator, run dry-run, confirm the
+  dispatch log shows the resolved model and budget. Apply an agent label,
+  confirm it's ignored.

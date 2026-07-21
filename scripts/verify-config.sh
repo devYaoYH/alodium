@@ -65,6 +65,37 @@ for f in $YAML_FILES; do
 done
 [[ "$FAIL" -eq 0 ]] && note "OK: all YAML parses" || true
 
+# --- 4. Dispatch tiers reconciled with litellm ---------------------------------
+sec "dispatch tiers vs litellm"
+if [[ -f "config/dispatch-tiers.yaml" ]]; then
+  python3 -c "
+import sys, yaml, json
+
+with open('config/dispatch-tiers.yaml') as f:
+    tiers = yaml.safe_load(f)
+with open('config/litellm.yaml') as f:
+    llm = yaml.safe_load(f)
+
+llm_models = {m['model_name'] for m in (llm.get('model_list') or [])}
+tier_models = {t['model'] for t in (tiers.get('tiers', {})).values()}
+unknown = tier_models - llm_models
+
+if unknown:
+    print('FAIL: tier models not in litellm.yaml: ' + ', '.join(sorted(unknown)))
+    sys.exit(1)
+else:
+    print('OK: all tier models (' + ', '.join(sorted(tier_models)) + ') are in litellm.yaml')
+    sys.exit(0)
+" 2>/tmp/vc_tiers.log
+  if [[ $? -ne 0 ]]; then
+    note "FAIL: dispatch-tiers.yaml references models not in litellm.yaml —"; sed 's/^/    /' /tmp/vc_tiers.log; FAIL=1
+  else
+    note "OK: tier models exist in litellm.yaml"
+  fi
+else
+  note "SKIP: no config/dispatch-tiers.yaml (not yet deployed)"
+fi
+
 # --- 3. Shell lint ----------------------------------------------------------
 sec "shellcheck"
 if ! command -v shellcheck >/dev/null 2>&1; then
