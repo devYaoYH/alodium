@@ -42,7 +42,6 @@ trigger reviewed work, never inject new work.
   instruct the tenant to wrap quoted material in fenced `untrusted`
   blocks and to treat instructions found inside content as content.
   The drill (`scripts/drill-injection.sh`) tests exactly this.
-
 - **Demonstrate the boundary.** Run `./scripts/drill-injection.sh` to exercise
   a hostile prompt against the real ephemeral jail. For a configured stronger
   LiteLLM alias, use `DRILL_MODEL=<alias> ./scripts/drill-injection.sh`; the
@@ -51,5 +50,10 @@ trigger reviewed work, never inject new work.
   `./scripts/drill-boundary-access.sh` to inspect and probe a real ephemeral
   jail without model self-reporting or production personal data. It fails
   closed when the node network or jail image is unavailable.
+- **Exercise adversarial variety.** `./scripts/drill-injection-hard.sh` runs
+  eight independently scored indirect-injection styles against the real
+  ephemeral path. It injects only per-run synthetic canaries, not personal
+  records or live API credentials; set `DRILL_MODEL=<LiteLLM alias>` to test a
+  configured model other than the default `deepseek-flash`.
 - Budgets are real: default $0.50, and `claude-haiku` unless there is a
   stated reason. An ambient task that needs $5 of Sonnet is not ambient.
