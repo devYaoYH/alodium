@@ -259,7 +259,7 @@
         icon: mdi-timer-sand
         description: short-lived runs · per-task key, budget, expiry, and artifact
     - operator (you):
-        icon: mdi-account-crown-outline
+        icon: mdi-crown-outline
         description: ring 0 · only you merge, deploy, mint, and change policy
 
 - Identity & audit:
