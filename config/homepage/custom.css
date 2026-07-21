@@ -62,12 +62,13 @@ html.alodium-chatbar-open #page_container { padding-bottom: 11rem; }
   padding: 0.72rem 1rem !important;
 }
 
-/* The tab bar container must stretch to cover the full height of the tallest
-   tab button — otherwise the background div ends short and the bottom of each
-   tab bleeds through as a transparent strip. */
+/* The tab bar container uses flexbox so it naturally expands to the height
+   of the tallest tab button — no hardcoded min-height needed. Without this the
+   background div ends short and the bottom of each tab bleeds through as a
+   transparent strip. */
 [role="tablist"] {
   align-items: stretch;
-  min-height: 4.64rem;
+  display: flex;
 }
 
 .alodium-tab-icon {
@@ -380,5 +381,5 @@ html.alodium-chatbar-open #page_container { padding-bottom: 11rem; }
   .alodium-chatbar__composer button { width: 100%; }
   html.alodium-chatbar-open #page_container { padding-bottom: 13rem; }
   [role="tab"] { min-height: 3.45rem; padding: 0.78rem 0.85rem !important; }
-  [role="tablist"] { min-height: 5.01rem; }
+  [role="tablist"] { display: flex; }
 }
