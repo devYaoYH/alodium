@@ -21,6 +21,7 @@ Surface:
 """
 import json
 import os
+import re
 import threading
 import time
 import urllib.error
@@ -400,6 +401,80 @@ MIME = {".html": "text/html", ".js": "text/javascript", ".css": "text/css",
         ".svg": "image/svg+xml", ".md": "text/plain", ".png": "image/png",
         ".json": "application/json"}
 
+# Braille / Braille-adjacent spinner runes that appear as the first character
+# of progress lines emitted by AI tool frameworks.  We treat a line as a
+# "spinner frame" if its first character is one of these — and skip it when
+# the previous kept line had the same body (everything after char 0).
+_SPINNER_CHARS = frozenset(
+    "⠁⠂⠃⠄⠅⠆⠇⠈⠉⠊⠋⠌⠍⠎⠏"
+    "⠐⠑⠒⠓⠔⠕⠖⠗⠘⠙⠚⠛⠜⠝⠞⠟"
+    "⠠⠡⠢⠣⠤⠥⠦⠧⠨⠩⠪⠫⠬⠭⠮⠯"
+    "⠰⠱⠲⠳⠴⠵⠶⠷⠸⠹⠺⠻⠼⠽⠾⠿"
+    "-\\|/"           # ASCII spinner set too
+)
+
+
+def _is_spinner(line: str) -> bool:
+    """Return True when line is a pure spinner frame (should be filtered)."""
+    stripped = line.rstrip("\r\n")
+    return bool(stripped) and stripped[0] in _SPINNER_CHARS
+
+
+def _stream_container_logs(container: str, tail: int = 200):
+    """Generator: yields filtered log lines from docker-proxy.
+
+    Docker's multiplexed log stream prefixes every frame with an 8-byte
+    header: [stream_type(1), 0,0,0, size(4)]. We strip that header and
+    re-yield complete lines, skipping repetitive spinner frames.
+    """
+    url = (f"{DOCKER_URL}/containers/{container}/logs"
+           f"?stdout=1&stderr=1&follow=1&tail={tail}")
+    try:
+        req = urllib.request.Request(url)
+        resp = urllib.request.urlopen(req, timeout=2)
+    except (urllib.error.URLError, OSError) as exc:
+        yield f"[floor] cannot reach docker-proxy for {container}: {exc}\n"
+        return
+
+    buf = b""
+    last_spinner_body: str = ""
+    try:
+        while True:
+            chunk = resp.read(4096)
+            if not chunk:
+                break
+            buf += chunk
+            # Docker multiplexed stream: consume complete frames.
+            # Frame layout: 8-byte header then <size> bytes of payload.
+            while True:
+                if len(buf) < 8:
+                    break
+                size = int.from_bytes(buf[4:8], "big")
+                if len(buf) < 8 + size:
+                    break
+                payload = buf[8: 8 + size]
+                buf = buf[8 + size:]
+                text = payload.decode("utf-8", errors="replace")
+                # Split into individual lines; keep the newline for SSE fidelity.
+                for line in text.splitlines(keepends=True):
+                    if _is_spinner(line):
+                        body = line.rstrip("\r\n")[1:]   # drop spinner char
+                        if body == last_spinner_body:
+                            continue                      # duplicate frame
+                        last_spinner_body = body
+                        # emit the first frame of a new spinner message
+                        yield line
+                    else:
+                        last_spinner_body = ""
+                        yield line
+    except (OSError, urllib.error.URLError):
+        pass
+    finally:
+        try:
+            resp.close()
+        except OSError:
+            pass
+
 
 class Handler(BaseHTTPRequestHandler):
     server_version = "sovereign-floor/0"
@@ -439,8 +514,42 @@ class Handler(BaseHTTPRequestHandler):
                           for r in STATE.snapshot.get("rooms", [])}
             self._json(200, {"events": events[-100:], "latest_id": latest,
                              "sources": sources, "states": states})
+        elif path.startswith("/v1/logs/"):
+            self._stream_logs(path[len("/v1/logs/"):])
         else:
             self._static(path)
+
+    def _stream_logs(self, container: str):
+        """Stream filtered container logs as plain text (chunked transfer)."""
+        # The container name may include only alphanumeric, dash, underscore,
+        # or dot characters; reject anything else before touching docker-proxy.
+        if not re.fullmatch(r"[a-zA-Z0-9._-]{1,128}", container):
+            self._json(400, {"error": "invalid container name"})
+            return
+
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Transfer-Encoding", "chunked")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Accel-Buffering", "no")   # tell Caddy not to buffer
+        self.end_headers()
+
+        try:
+            for line in _stream_container_logs(container):
+                encoded = line.encode("utf-8", errors="replace")
+                # HTTP chunked encoding: <hex-len>\r\n<data>\r\n
+                self.wfile.write(
+                    f"{len(encoded):x}\r\n".encode() + encoded + b"\r\n"
+                )
+                self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+        finally:
+            try:
+                self.wfile.write(b"0\r\n\r\n")   # terminal chunk
+                self.wfile.flush()
+            except (BrokenPipeError, ConnectionResetError):
+                pass
 
     def _static(self, path):
         rel = path.lstrip("/") or "index.html"
