@@ -40,7 +40,11 @@ for l in labels:
     echo "label '$name' already exists (as '$EXISTING'); skipping"
   else
     A -X POST "$GAPI/labels" \
-      -d "$(python3 -c 'import json,sys; print(json.dumps({"name":"'$name'","color":"'$color'","description":"'$desc'"}))')" \
+      -d "$(python3 -c '
+import json,sys
+name, color, desc = sys.argv[1], sys.argv[2], sys.argv[3]
+print(json.dumps({"name": name, "color": color, "description": desc}))
+' "$name" "$color" "$desc")" \
       >/dev/null
     echo "created label '$name'"
   fi
