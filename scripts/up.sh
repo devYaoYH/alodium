@@ -16,7 +16,7 @@ CHECK="${1:-}"
 step() { printf '\n\033[1m== %s ==\033[0m\n' "$1"; }
 
 # 1. .env + manifest + validate (install.sh is the scribe; --check is CI-safe)
-step "1/7 install (scaffold + validate)"
+step "1/8 install (scaffold + validate)"
 if [[ "$CHECK" == "--check" ]]; then ./scripts/install.sh --check; else ./scripts/install.sh; fi
 
 if [[ "$CHECK" == "--check" ]]; then
@@ -28,11 +28,11 @@ fi
 set -a; source .env; set +a
 
 # 2. the stack
-step "2/7 docker compose up"
+step "2/8 docker compose up"
 docker compose up -d
 
 # 3. wait for the identity + git + llm plane to answer before bootstrapping them
-step "3/7 wait for core plane"
+step "3/8 wait for core plane"
 wait_for() { local url="$1" name="$2"; for _ in $(seq 1 60); do
     curl -skf --resolve "${url#https://}:443:127.0.0.1" "$url" >/dev/null 2>&1 && { echo "   $name ready"; return 0; }
     sleep 2; done; echo "   WARN: $name not ready after 120s (continuing)"; }
@@ -41,16 +41,20 @@ wait_for "https://auth.${NODE_DOMAIN}/healthz"     pocket-id
 wait_for "https://llm.${NODE_DOMAIN}/health/liveliness" litellm
 
 # 4. git plane: agent user, coordination repo, labels (idempotent, dedup-safe now)
-step "4/7 bootstrap-forgejo"
+step "4/8 bootstrap-forgejo"
 ./scripts/bootstrap-forgejo.sh
 
 # 5. one passkey at every door (per-app OIDC clients; reruns = all-skips)
-step "5/7 sso-setup"
+step "5/8 sso-setup"
 ./scripts/sso-setup.sh
 
-# 6. assigned-issue dispatch: register the powerless runner (repo-scoped token
+# 6. chat tool surface: reconcile declared toolshims + Open WebUI registration
+step "6/8 chat-tools-setup (reconcile tool surface)"
+./scripts/chat-tools-setup.sh || echo "   WARN: chat-tools-setup.sh failed (non-fatal; re-run up.sh to retry)"
+
+# 7. assigned-issue dispatch: register the powerless runner (repo-scoped token
 #    minted via admin API — no UI), start it, install the host dispatcher.
-step "6/7 dispatch (doorbell runner + host gate)"
+step "7/8 dispatch (doorbell runner + host gate)"
 if [[ "${ENABLE_DISPATCH:-1}" == "1" ]]; then
   # One spool path shared by the runner (writes) and the dispatcher (watches).
   export DISPATCH_SPOOL="${DISPATCH_SPOOL:-$PWD/.task-dispatch/spool}"
@@ -72,7 +76,7 @@ fi
 # 7. auto-deploy: merged PRs apply themselves — a launchd heartbeat polls
 #    forgejo/main every 2 minutes and runs scripts/deploy.sh on change. Merge
 #    stays the authorization moment; this removes the manual keystroke after it.
-step "7/7 auto-deploy watcher"
+step "8/8 auto-deploy watcher"
 if [[ "${ENABLE_AUTODEPLOY:-1}" == "1" ]]; then
   if [[ "$(uname)" == "Darwin" ]]; then
     ./host/deploy-watch/install-launchd.sh || echo "   (launchd install skipped — see host/deploy-watch/README.md)"
