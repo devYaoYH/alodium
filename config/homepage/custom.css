@@ -71,6 +71,14 @@ html.alodium-chatbar-open #page_container { padding-bottom: 11rem; }
   display: flex;
 }
 
+/* Homepage hardcodes a fixed h-10 on the tab list's parent div, which no
+   longer matches the taller comfortable tab buttons above (see [role="tab"]
+   rule above) and leaves a transparent gap below them. Swap it for h-full
+   so it tracks the tab row's actual (flex-stretched) height instead. */
+#tabs .h-10 {
+  height: 100% !important;
+}
+
 .alodium-tab-icon {
   display: inline-flex;
   flex: 0 0 auto;
