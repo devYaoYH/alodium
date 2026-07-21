@@ -3,9 +3,11 @@
 
 [app]
 name = "search-broker"
-version = "0.5.0"
+version = "0.6.0"
 description = "Concurrent Exa search with a structured, operator-only audit database"
-image = "sovereign-node/search-broker:local"
+# Versioned tag (not :local) so a version/ref bump makes the image "missing" and
+# scripts/build-mirrored.sh rebuilds it — a fixed :local tag would never rebuild.
+image = "sovereign-node/search-broker:0.6.0"
 ring = 0
 
 [service]
@@ -30,7 +32,18 @@ timeout_seconds = 60
 # search_audit_db is a live Postgres data directory; it is pg_dump-ed by
 # scripts/backup.sh instead of file-copied (see Consistent DB snapshots there).
 backup = ["search_audit"]
-update_policy = "staged"
+update_policy = "pinned"    # pinned to the [build].ref below; update by bumping
+                            # version + ref together (same pattern as calino)
+
+[build]
+# First-party app source lives in Forgejo at apps/search-broker (seeded from
+# app-skeleton). scripts/build-mirrored.sh clones this repo at the pinned commit
+# and builds its Dockerfile on the host at deploy time. All four search-* services
+# share this one image via ${SEARCH_BROKER_IMAGE}. No build args — the broker
+# takes all config via runtime env, not build-time args.
+# ref = HEAD of apps/search-broker with the CHAT_SEARCH_TOKEN capability fix (PR #2).
+repo = "apps/search-broker"
+ref = "12a297eefd959e742a4fc44022d256ea71d2f0b1"
 
 [expose.chat]
 # Chat tool surface for Open WebUI: the toolshim sits on the private `chat-tools`

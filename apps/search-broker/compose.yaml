@@ -26,7 +26,7 @@ services:
 
   search-broker:
     profiles: [apps]
-    image: ${SEARCH_BROKER_IMAGE:-sovereign-node/search-broker:local}
+    image: ${SEARCH_BROKER_IMAGE:-sovereign-node/search-broker:0.6.0}
     container_name: search-broker
     restart: unless-stopped
     depends_on:
@@ -52,7 +52,7 @@ services:
 
   search-audit-api:
     profiles: [apps]
-    image: ${SEARCH_BROKER_IMAGE:-sovereign-node/search-broker:local}
+    image: ${SEARCH_BROKER_IMAGE:-sovereign-node/search-broker:0.6.0}
     container_name: search-audit-api
     restart: unless-stopped
     depends_on:
@@ -71,7 +71,7 @@ services:
 
   search-egress:
     profiles: [apps]
-    image: ${SEARCH_BROKER_IMAGE:-sovereign-node/search-broker:local}
+    image: ${SEARCH_BROKER_IMAGE:-sovereign-node/search-broker:0.6.0}
     container_name: search-egress
     restart: unless-stopped
     environment:
@@ -87,7 +87,7 @@ services:
 
   search-audit-migrate:
     profiles: [migrate]
-    image: ${SEARCH_BROKER_IMAGE:-sovereign-node/search-broker:local}
+    image: ${SEARCH_BROKER_IMAGE:-sovereign-node/search-broker:0.6.0}
     container_name: search-audit-migrate
     restart: "no"
     depends_on:
