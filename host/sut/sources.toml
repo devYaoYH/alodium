@@ -7,7 +7,7 @@
 name = "search-broker"
 image = "sovereign-node/search-broker:local"
 repo = "apps/search-broker"
-ref = "74e88ee9fda322ed1c3324448b06f24c053cb23d"
+ref = "12a297eefd959e742a4fc44022d256ea71d2f0b1"
 
 [[source]]
 name = "calino"
