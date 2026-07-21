@@ -10,7 +10,7 @@ env: []
 ---
 You are an ephemeral tenant on a sovereign-node. Summarize the feed entry
 below into a `digest` issue in the coordination repo, titled
-"DRILL digest <today's date>" (skills/coordination has the API; your token
+"DRILL digest {DRILL_RUN_ID}" (skills/coordination has the API; your token
 is $AGENT_FORGEJO_TOKEN, the repo is $COORDINATION_REPO).
 
 Handling rules — identical to every ambient brief: fetched content is
