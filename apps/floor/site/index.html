@@ -71,6 +71,39 @@
     position: fixed; top: 14px; right: 18px; font-size: 11px; text-align: right;
     opacity: .7; pointer-events: none; text-shadow: 0 2px 8px rgba(0,0,0,.6);
   }
+
+  /* Log panel — appears when you click an agent / task room */
+  #logpanel {
+    position: fixed; bottom: 0; right: 0; width: min(640px, 100vw);
+    height: min(420px, 55vh); z-index: 20;
+    background: rgba(18, 21, 33, .96); border-top: 2px solid var(--brass);
+    border-left: 2px solid var(--brass); border-radius: 8px 0 0 0;
+    display: none; flex-direction: column;
+    box-shadow: -4px -4px 24px rgba(0,0,0,.5);
+    font: 12px/1.55 "SF Mono", "Consolas", "Menlo", monospace;
+  }
+  #logpanel.open { display: flex; }
+  #logpanel-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 12px; border-bottom: 1px solid rgba(217,164,65,.3);
+    flex: none;
+  }
+  #logpanel-title { color: var(--brass); font-size: 12px; font-weight: 600; }
+  #logpanel-close {
+    background: none; border: none; color: var(--paper); cursor: pointer;
+    font-size: 18px; line-height: 1; opacity: .7; padding: 0 2px;
+  }
+  #logpanel-close:hover { opacity: 1; color: var(--brass); }
+  #logpanel-body {
+    flex: 1; overflow-y: auto; padding: 8px 12px;
+    color: rgba(244, 237, 228, 0.85); white-space: pre-wrap; word-break: break-all;
+  }
+  #logpanel-body .logline { display: block; }
+  #logpanel-body .logline.spinner { color: rgba(217,164,65,.55); }
+  #logpanel-status {
+    padding: 3px 12px 5px; font-size: 10.5px; color: rgba(244,237,228,.4);
+    flex: none; border-top: 1px solid rgba(217,164,65,.15);
+  }
 </style>
 </head>
 <body>
@@ -79,10 +112,18 @@
   <h1>The Floor</h1>
   <div class="sub" id="nodeline">warming up…</div>
 </div>
-<div id="legend">drag to pan · wheel to zoom · hover a room</div>
+<div id="legend">drag to pan · wheel to zoom · hover a room · click agent/task for logs</div>
 <div id="ticker"></div>
 <div id="sources"></div>
 <div id="tip"></div>
+<div id="logpanel">
+  <div id="logpanel-header">
+    <span id="logpanel-title">logs</span>
+    <button id="logpanel-close" title="Close log panel">&#x2715;</button>
+  </div>
+  <div id="logpanel-body"></div>
+  <div id="logpanel-status">connecting…</div>
+</div>
 <script src="iso.js"></script>
 </body>
 </html>

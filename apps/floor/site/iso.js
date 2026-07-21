@@ -48,6 +48,11 @@ const LEVEL_HEIGHT = 78;   // screen px per level at zoom 1 — the "floor above
 const canvas = document.getElementById("floor");
 const ctx = canvas.getContext("2d");
 const tip = document.getElementById("tip");
+const logPanel = document.getElementById("logpanel");
+const logTitle = document.getElementById("logpanel-title");
+const logBody = document.getElementById("logpanel-body");
+const logStatus = document.getElementById("logpanel-status");
+const logClose = document.getElementById("logpanel-close");
 
 let cam = { x: 0, y: 0, zoom: 1 };
 let rooms = new Map();                     // name -> room (+layout gx,gy)
@@ -432,17 +437,85 @@ canvas.addEventListener("pointermove", e => {
       + `${stateLabel}${hovered.status ? " · " + hovered.status : ""}</div>`
       + `<div class="blurb">${hovered.blurb || ""}</div>`
       + (hovered.ring != null ? `<div class="blurb">ring ${hovered.ring}</div>` : "")
-      + (hovered.level > 0 ? `<div class="blurb">sub-level: task yard</div>` : "");
+      + (hovered.level > 0 ? `<div class="blurb">sub-level: task yard</div>` : "")
+      + (isLoggable(hovered) ? `<div class="blurb" style="color:#d9a441;margin-top:4px">click to view logs</div>` : "");
   } else tip.style.display = "none";
 });
 canvas.addEventListener("pointerup", e => {
+  const wasDrag = drag && (Math.abs(e.clientX - drag.x) > 5 || Math.abs(e.clientY - drag.y) > 5);
   drag = null; canvas.classList.remove("dragging");
   canvas.releasePointerCapture(e.pointerId);
+  // A click (not a pan drag) on a loggable room opens the log panel.
+  if (!wasDrag && hovered && isLoggable(hovered)) openLogPanel(hovered);
 });
 canvas.addEventListener("wheel", e => {
   e.preventDefault();
   cam.zoom = Math.min(2.4, Math.max(0.45, cam.zoom * (e.deltaY < 0 ? 1.1 : 0.9)));
 }, { passive: false });
+
+// --- log panel ----------------------------------------------------------------
+// Rooms that can show logs: agent-dev instances, task yard containers, and
+// any bay or ops container (things that run code the operator cares about).
+const LOGGABLE_WINGS = new Set(["bay", "yard"]);
+const LOGGABLE_NAMES = new Set(["agent", "doorbell-runner"]);
+
+// Spinner runes (Braille + ASCII) — matches the server-side _SPINNER_CHARS.
+// Used to visually dim spinner frames in the log panel.
+const _SPINNER_RE = /^[⠁-⠿\-\\|\/]/;
+
+let logReader = null;   // active ReadableStreamDefaultReader, if any
+
+function isLoggable(room) {
+  return LOGGABLE_WINGS.has(room.wing) || LOGGABLE_NAMES.has(room.name);
+}
+
+function closeLogPanel() {
+  logPanel.classList.remove("open");
+  if (logReader) { try { logReader.cancel(); } catch (_) {} logReader = null; }
+}
+
+async function openLogPanel(room) {
+  closeLogPanel();              // cancel any previous stream first
+  logTitle.textContent = `logs · ${room.label} (${room.name})`;
+  logBody.innerHTML = "";
+  logStatus.textContent = "connecting…";
+  logPanel.classList.add("open");
+
+  try {
+    const resp = await fetch(`/v1/logs/${encodeURIComponent(room.name)}`);
+    if (!resp.ok) {
+      logStatus.textContent = `error ${resp.status}`;
+      return;
+    }
+    logStatus.textContent = "streaming · spinner frames deduplicated";
+    logReader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let partial = "";
+    const MAX_LINES = 500;
+
+    while (true) {
+      const { done, value } = await logReader.read();
+      if (done) { logStatus.textContent = "stream ended"; break; }
+      partial += decoder.decode(value, { stream: true });
+      const lines = partial.split("\n");
+      partial = lines.pop();          // last fragment, may be incomplete
+      for (const line of lines) {
+        const span = document.createElement("span");
+        span.className = "logline" + (_SPINNER_RE.test(line) ? " spinner" : "");
+        span.textContent = line;
+        logBody.appendChild(span);
+        // keep the body from growing forever
+        while (logBody.children.length > MAX_LINES) logBody.firstChild.remove();
+      }
+      // auto-scroll to bottom
+      logBody.scrollTop = logBody.scrollHeight;
+    }
+  } catch (err) {
+    if (err.name !== "AbortError") logStatus.textContent = `disconnected: ${err.message}`;
+  }
+}
+
+logClose.addEventListener("click", closeLogPanel);
 
 // --- go -----------------------------------------------------------------------
 resize();

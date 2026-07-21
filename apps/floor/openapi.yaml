@@ -51,6 +51,29 @@ paths:
                   sources:
                     type: object
                     additionalProperties: { type: string }
+  /v1/logs/{container}:
+    get:
+      summary: Stream filtered container logs (chunked transfer)
+      description: >
+        Proxies docker-proxy container logs for agent/task rooms. Spinner frames
+        (lines whose first character is a Braille or ASCII spinner rune and whose
+        body is identical to the previous spinner line) are deduplicated before
+        streaming. Container name must match [a-zA-Z0-9._-]{1,128}.
+      parameters:
+        - name: container
+          in: path
+          required: true
+          schema: { type: string }
+          description: Docker container name (e.g. "agent", "task-issue-23-1721...")
+      responses:
+        "200":
+          description: Filtered log stream (text/plain, chunked transfer encoding)
+          content:
+            text/plain:
+              schema: { type: string }
+        "400":
+          description: Invalid container name
+
   /v1/activity:
     get:
       summary: The motion — events since a cursor, plus live container states
