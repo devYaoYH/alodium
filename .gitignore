@@ -13,6 +13,7 @@ docker-compose.override.yml
 *~
 __pycache__/
 .task-dispatch/
+.task-sut/
 
 # The skill-discovery symlink IS tracked (global gitignores often exclude
 # .claude); everything else under .claude (session state, local settings)

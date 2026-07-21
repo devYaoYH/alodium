@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Host-owned PR poller. No webhooks, and no Actions runner on node-config. -->
+<plist version="1.0"><dict>
+  <key>Label</key><string>node.sutwatch</string>
+  <key>WorkingDirectory</key><string>/REPLACE/with/abs/path/to/alodium</string>
+  <key>ProgramArguments</key><array><string>/bin/bash</string><string>/REPLACE/with/abs/path/to/alodium/host/sut/sut-watch.sh</string></array>
+  <key>EnvironmentVariables</key><dict><key>PATH</key><string>/REPLACE/with/command/dir:/usr/bin:/bin:/usr/sbin:/sbin</string></dict>
+  <key>StartInterval</key><integer>120</integer>
+  <key>StandardOutPath</key><string>/REPLACE/with/abs/path/to/alodium/.task-sut/sut-watch.log</string>
+  <key>StandardErrorPath</key><string>/REPLACE/with/abs/path/to/alodium/.task-sut/sut-watch.log</string>
+</dict></plist>
