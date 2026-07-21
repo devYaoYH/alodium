@@ -109,6 +109,14 @@ EOF
     echo "Colima is installed, but the SUT worker is not initialized. Run: host/sut/sutctl.sh init"
     exit 2
   fi
+  # `install-launchd.sh` calls doctor, so validate the capability that makes a
+  # test result useful before a periodic job can be enabled. A repository-only
+  # node-ops token is intentionally insufficient: Forgejo separates issue
+  # read/write scopes from repository scopes.
+  load_node_env
+  api "https://git.${NODE_DOMAIN}/api/v1/repos/${NODE_CONFIG_REPO}" >/dev/null
+  api "https://git.${NODE_DOMAIN}/api/v1/repos/${NODE_CONFIG_REPO}/pulls?state=open&limit=1" >/dev/null
+  echo "SUT Forgejo prerequisites ready: dedicated token can read repository and PR metadata"
 }
 
 init() {
@@ -131,8 +139,9 @@ load_node_env() {
   : "${NODE_DOMAIN:?NODE_DOMAIN is required}"
   : "${NODE_CONFIG_REPO:?NODE_CONFIG_REPO is required}"
   # The watcher needs only repository reads plus PR read/comment access. Its
-  # dedicated token keeps it separate from the broader node-operations token.
-  SUT_FORGEJO_TOKEN="${SUT_FORGEJO_TOKEN:-${FORGEJO_TOKEN:-}}"
+  # dedicated token keeps it separate from the broader node-operations token;
+  # never fall back, because that fallback may test successfully but lose the
+  # evidence comment that gates the operator's decision.
   : "${SUT_FORGEJO_TOKEN:?SUT_FORGEJO_TOKEN is required}"
 }
 

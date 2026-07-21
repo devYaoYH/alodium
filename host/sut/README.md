@@ -46,6 +46,11 @@ The launchd job invokes it every two minutes. Evidence lives only under the
 gitignored `.task-sut/results/` directory (JSON result, controller log, and
 worker Compose/test log) and as a compact Forgejo PR comment.
 
+`doctor` also verifies the dedicated SUT token against both the repository and
+PR-read APIs. Bootstrap mints that token with the additional `write:issue`
+scope used solely to attach evidence comments; a failed comment remains
+fail-closed and the PR SHA is not marked as tested.
+
 For a manual reproduction from a clean checkout, pass the three node values as
 process environment instead of creating an `.env` there:
 
