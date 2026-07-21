@@ -38,6 +38,8 @@ services:
       SEARCH_ROLE: broker
       PORT: "8080"
       AGENT_SEARCH_TOKEN: ${AGENT_SEARCH_TOKEN:-}
+      CHAT_SEARCH_TOKEN: ${CHAT_SEARCH_TOKEN:-}
+      CHAT_SEARCH_CAPABILITY_ID: chat
       SEARCH_AUDIT_DATABASE_URL: postgresql://search_audit_writer:${SEARCH_AUDIT_DB_WRITER_PASSWORD:-}@search-audit-db:5432/search_audit
       SEARCH_EGRESS_TOKEN: ${SEARCH_EGRESS_TOKEN:-}
       SEARCH_CAPABILITY_ID: agent-dev
@@ -46,7 +48,7 @@ services:
     tmpfs: [/tmp]
     security_opt: [no-new-privileges:true]
     cap_drop: [ALL]
-    networks: [agents, search-private, search-data]
+    networks: [agents, search-private, search-data, search-chat]
 
   search-audit-api:
     profiles: [apps]
@@ -104,10 +106,28 @@ services:
       - search_audit:/legacy:ro
     networks: [search-data]
 
+  search-broker-toolshim:
+    profiles: [apps, chat]
+    build: ./toolshim
+    image: sovereign-node/search-broker-toolshim:local
+    container_name: search-broker-toolshim
+    restart: unless-stopped
+    environment:
+      SEARCH_BROKER_URL: http://search-broker:8080
+      CHAT_SEARCH_TOKEN: ${CHAT_SEARCH_TOKEN:-}
+      PORT: "8101"
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    networks: [chat-tools, search-chat]
+
 networks:
   agents:
     internal: true
   edge:
+  front:
+    internal: true
   search-private:
     internal: true
   search-admin:
@@ -115,6 +135,13 @@ networks:
     internal: true
   search-data:
     # Broker/audit API <-> database only. The database has no edge route.
+    internal: true
+  chat-tools:
+    # Toolshim <-> Open WebUI only: the shim is reachable only by chat sessions,
+    # not by the general `front` network. Open WebUI joins this network.
+    internal: true
+  search-chat:
+    # Toolshim <-> broker only: chat tool traffic never enters the agents spur.
     internal: true
 
 volumes:

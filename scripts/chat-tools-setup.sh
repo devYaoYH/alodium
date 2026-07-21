@@ -107,6 +107,24 @@ print(json.dumps(conns))
 EOF
 )
 
+echo "== 0.5/2 search-broker: mint CHAT_SEARCH_TOKEN =="
+# The chat toolshim authenticates to the search-broker with its own credential,
+# separate from AGENT_SEARCH_TOKEN used by agent-dev. This ensures the audit
+# trail distinguishes chat searches from agent-dev searches, and credentials
+# can be revoked independently.
+if ! grep -q "^CHAT_SEARCH_TOKEN=" secrets/search-broker.env 2>/dev/null; then
+  CHAT_TOKEN=$(openssl rand -hex 32)
+  printf 'CHAT_SEARCH_TOKEN=%s\n' "$CHAT_TOKEN" >> secrets/search-broker.env
+  echo "   minted CHAT_SEARCH_TOKEN -> secrets/search-broker.env"
+elif [[ -z "$(grep -m1 '^CHAT_SEARCH_TOKEN=' secrets/search-broker.env | cut -d= -f2-)" ]]; then
+  CHAT_TOKEN=$(openssl rand -hex 32)
+  sed -i "s|^CHAT_SEARCH_TOKEN=$|CHAT_SEARCH_TOKEN=${CHAT_TOKEN}|" secrets/search-broker.env
+  echo "   minted CHAT_SEARCH_TOKEN (replaced empty) -> secrets/search-broker.env"
+else
+  echo "   CHAT_SEARCH_TOKEN already exists — retained"
+fi
+
+
 echo "== 1/2 toolshim services =="
 for app in $(echo "$DECLARED" | python3 -c 'import json,sys; print(" ".join(c["app"] for c in json.load(sys.stdin)))'); do
   if [[ -d "apps/$app/toolshim" ]] && docker ps --format '{{.Names}}' | grep -qx "$app"; then

@@ -51,10 +51,12 @@ services:
     # `front`, not `edge`: this surface needs no internet egress. Caddy routes
     # in, LiteLLM answers inference, and the IdP resolves to Caddy's alias on
     # the same net — structurally nowhere else to call, like the agents spur.
-    networks: [front]
+    networks: [front, chat-tools]
 
 networks:
   front:
+    internal: true
+  chat-tools:
     internal: true
 
 volumes:
