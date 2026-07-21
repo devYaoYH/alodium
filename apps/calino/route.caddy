@@ -25,10 +25,16 @@ calino.{$NODE_DOMAIN} {
 	redir /dav /dav/ 308
 
 	# Proxy CalDAV requests to Radicale, stripping the /dav prefix so the
-	# upstream receives the canonical path (e.g., /dav/calendars/user/ ->
-	# /calendars/user/). A verified browser session gets the operator credential;
-	# same-origin = zero CORS.
-	handle_path /dav/* {
+	# upstream. We do NOT strip the /dav prefix: Radicale emits root-relative
+	# hrefs (e.g. current-user-principal -> /operator/) during CalDAV discovery,
+	# and the browser resolves those against the origin. If the prefix were
+	# stripped, the discovered href would be /operator/ (no /dav) and the
+	# follow-up request would bypass this proxy and hit Calino's SPA (302 to
+	# SSO), breaking discovery and auto-connect. Instead we keep the full path
+	# and tell Radicale its mount prefix via X-Script-Name, so it strips /dav
+	# itself for routing AND prefixes every generated href with /dav. A verified
+	# browser session gets the operator credential; same-origin = zero CORS.
+	handle /dav/* {
 		@browser header Cookie *_oauth2_proxy=*
 		handle @browser {
 			import authed
@@ -37,19 +43,24 @@ calino.{$NODE_DOMAIN} {
 			handle @operator {
 				reverse_proxy radicale:5232 {
 					header_up Authorization "Basic {env.RADICALE_WEB_AUTH}"
+					header_up X-Script-Name /dav
 				}
 			}
 
 			# Other signed-in people must authenticate as their own Radicale user.
 			handle {
-				reverse_proxy radicale:5232
+				reverse_proxy radicale:5232 {
+					header_up X-Script-Name /dav
+				}
 			}
 		}
 
 		# Native CalDAV clients do not follow OIDC redirects. Preserve their
 		# Radicale Basic challenge-response flow unchanged.
 		handle {
-			reverse_proxy radicale:5232
+			reverse_proxy radicale:5232 {
+				header_up X-Script-Name /dav
+			}
 		}
 	}
 
