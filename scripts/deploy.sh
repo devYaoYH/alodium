@@ -84,5 +84,11 @@ if printf '%s\n' "$CHANGED" | grep -q "^config/litellm"; then
   echo "   restarting litellm (config/litellm* changed)"
   docker compose restart litellm
 fi
+# Same class, core plane: homepage reads config/homepage/* (custom.css/js,
+# services.yaml, etc.) at startup only.
+if printf '%s\n' "$CHANGED" | grep -q "^config/homepage/"; then
+  echo "   restarting homepage (config/homepage/* changed)"
+  docker compose restart homepage
+fi
 
 docker compose ps --format 'table {{.Name}}\t{{.Status}}'
