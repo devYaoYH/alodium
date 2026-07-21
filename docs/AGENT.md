@@ -112,7 +112,11 @@ The first real task, exercising every mechanism above:
   git artifacts only (a `digest`/`handoff` issue in the coordination repo —
   see skills/coordination). The first ambient task is the morning digest
   (`tasks/morning-digest.md`, cron it); the injection drill
-  (`scripts/drill-injection.sh`) proves the containment claim on demand.
+  (`scripts/drill-injection.sh`) exercises hostile instructions, while the
+  deterministic boundary drill (`scripts/drill-boundary-access.sh`) executes
+  real filesystem and network probes inside an ephemeral jail. Neither uses
+  production personal data; synthetic-data canary testing belongs in the
+  isolated SUT lane.
   Tenants coordinate through Forgejo issues, never through shared memory.
   Agents can *request* ephemeral runs without touching docker: a
   `task-request` issue naming a tracked `dispatch: auto` brief, executed
