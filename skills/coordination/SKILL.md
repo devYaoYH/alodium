@@ -64,3 +64,21 @@ Every thread you touched is either: finished (close it, link the PR),
 continuing (a `handoff` with the three parts above), or stuck (a
 `blocked`). An ephemeral run that ends without filing its artifact or
 its failure has failed — teardown destroys everything else you know.
+
+When finishing work on an assigned issue, **update the label** to reflect
+the outcome so the operator and future tenants can see the status at a
+glance:
+
+- **PR opened** (work done, needs review) → add the `handoff` label
+- **Blocked** (need a secret, scope, or decision) → add the `blocked` label
+
+Add the label (POST adds, it does not replace):
+
+    LID=$(curl -s -H "$AUTH" "$API/labels" \
+      | python3 -c 'import json,sys; print([l["id"] for l in json.load(sys.stdin) if l["name"]=="handoff"][0])')
+    curl -s -H "$AUTH" -H 'Content-Type: application/json' \
+      -X POST "$API/issues/<NUM>/labels" \
+      -d "{\"labels\":[$LID]}"
+
+The `in-progress` label stays on — the operator removes it to signal
+"review done, proceed" or "retry."

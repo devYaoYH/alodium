@@ -63,9 +63,26 @@ Do NOT open a second PR for the same issue. Only open a new PR if none exists.
    it. But syntax/structure you CAN and MUST verify yourself now.)
 4. Open a PR against node-config and REQUEST operator review (an unrequested
    PR is invisible in the dashboard). Link the PR in an issue comment.
-4. If you're blocked (need a secret, a scope, a decision), comment on the
-   issue with exactly what you need, labeled by saying "BLOCKED:", and stop —
-   do not thrash.
+5. When you finish, **update the label** on the coordination issue to reflect
+   the outcome:
+   - **PR opened** (work done, needs review) → add the `handoff` label
+   - **Blocked** (need a secret, scope, or decision) → add the `blocked` label
+
+   Look up the label ID and add it:
+
+       LID=$(curl -s -H "Authorization: token $AGENT_FORGEJO_TOKEN" \
+         "http://forgejo:3000/api/v1/repos/$COORDINATION_REPO/labels" \
+         | python3 -c 'import json,sys; print([l["id"] for l in json.load(sys.stdin) if l["name"]=="handoff"][0])')
+       curl -s -H "Authorization: token $AGENT_FORGEJO_TOKEN" \
+         -H 'Content-Type: application/json' \
+         -X POST "http://forgejo:3000/api/v1/repos/$COORDINATION_REPO/issues/{ISSUE}/labels" \
+         -d "{\"labels\":[$LID]}"
+
+   The `in-progress` label stays on — the operator removes it to signal
+   "review done, proceed" or "retry."
+
+   If you're blocked (cannot open a PR), comment on the issue with exactly
+   what you need, labeled by saying "BLOCKED:", and stop — do not thrash.
 
 Your deliverable is the PR + the issue comment. File them before you finish or
 this run did not happen.
