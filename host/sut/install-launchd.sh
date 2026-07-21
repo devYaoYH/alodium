@@ -8,8 +8,9 @@ ROOT="$PWD"
 mkdir -p "$ROOT/.task-sut" "$HOME/Library/LaunchAgents"
 DST="$HOME/Library/LaunchAgents/node.sutwatch.plist"
 BIN_DIR="$(dirname "$(command -v colima)")"
+DOCKER_BIN_DIR="$(dirname "$(command -v docker)")"
 sed -e "s#/REPLACE/with/abs/path/to/alodium#$ROOT#g" \
-    -e "s#/REPLACE/with/command/dir#$BIN_DIR#g" \
+    -e "s#/REPLACE/with/command/dir#$BIN_DIR:$DOCKER_BIN_DIR#g" \
     host/sut/node.sutwatch.plist > "$DST"
 launchctl unload "$DST" 2>/dev/null || true
 launchctl load "$DST"

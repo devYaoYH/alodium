@@ -61,6 +61,9 @@ NODE_DOMAIN=localhost NODE_CONFIG_REPO=operator/node-config SUT_FORGEJO_TOKEN=..
 
 To exercise the full Forgejo-comment loop for one `agent-dev` PR without
 marking any other open PR as seen, use `SUT_PR=42 ./host/sut/sutctl.sh watch`.
+To intentionally repeat an already-recorded head SHA—for example after fixing
+the host SUT controller—add `SUT_FORCE=1`. This posts a new evidence comment;
+normal launchd runs never repeat an unchanged head.
 
 ## What a test does
 

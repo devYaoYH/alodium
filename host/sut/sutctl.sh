@@ -213,7 +213,6 @@ run() (
   valid_pr "$pr" || die "usage: $0 run <pr-number> <head-sha>"
   valid_sha "$sha" || die "invalid head SHA"
   load_node_env
-  start_worker
   run="pr-${pr}-${sha:0:12}"
   checkout="$STATE/work/$run"
   dependencies="$STATE/dependencies/$run"
@@ -223,6 +222,12 @@ run() (
   worker_log="$STATE/results/$run.worker.log"
   mkdir -p "$STATE/work" "$STATE/dependencies" "$STATE/results"
   trap 'rm -rf "$checkout" "$dependencies"; reset_worker' EXIT
+
+  # Capture setup failures in the controller log. The watcher turns any path
+  # that still exits before a worker result into structured PR evidence.
+  if ! start_worker >>"$log" 2>&1; then
+    exit 1
+  fi
 
   candidate_checkout "$pr" "$sha" "$checkout"
   checkout_build_sources "$dependencies"
@@ -268,9 +273,10 @@ comment_result() {
 
 watch() {
   load_node_env
-  mkdir -p "$STATE/seen"
-  local lock="$STATE/watch.lock" rows pr sha actor stamp rc selected_pr="${SUT_PR:-}"
+  mkdir -p "$STATE/seen" "$STATE/results"
+  local lock="$STATE/watch.lock" rows pr sha actor stamp rc result selected_pr="${SUT_PR:-}" force="${SUT_FORCE:-0}"
   [[ -z "$selected_pr" ]] || valid_pr "$selected_pr" || die "SUT_PR must be a positive pull-request number"
+  [[ "$force" == "0" || "$force" == "1" ]] || die "SUT_FORCE must be 0 or 1"
   if ! mkdir "$lock" 2>/dev/null; then note "watch already running"; return 0; fi
   trap 'rmdir "$lock" 2>/dev/null || true' RETURN
   rows=$(api "https://git.${NODE_DOMAIN}/api/v1/repos/${NODE_CONFIG_REPO}/pulls?state=open&limit=50" \
@@ -283,9 +289,20 @@ for p in json.load(sys.stdin):
     [[ -n "${pr:-}" ]] || continue
     valid_pr "$pr" && valid_sha "$sha" || { note "skip malformed PR record"; continue; }
     stamp="$STATE/seen/pr-${pr}-${sha:0:12}"
-    [[ -e "$stamp" ]] && continue
+    [[ -e "$stamp" && "$force" != "1" ]] && continue
     note "testing Forgejo PR #$pr at ${sha:0:12}"
     set +e; run "$pr" "$sha"; rc=$?; set -e
+    result="$STATE/results/pr-${pr}-${sha:0:12}.json"
+    if [[ ! -s "$result" ]]; then
+      python3 - "$result" "$rc" <<'PY'
+import json, sys, time
+open(sys.argv[1], "w").write(json.dumps({
+  "status": "error",
+  "reason": f"SUT controller exited with status {sys.argv[2]} before a worker result; inspect the controller or launchd log",
+  "finished_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+}) + "\n")
+PY
+    fi
     comment_result "$pr" "$sha" "$rc"
     : > "$stamp"
   done <<<"$rows"
