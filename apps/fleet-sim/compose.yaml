@@ -1,0 +1,21 @@
+# fleet-sim — an app fragment, merged into the node stack by the root
+# docker-compose.yml `include:` list. This file owns everything fleet-sim:
+# service, the networks it joins. Secrets would arrive BY NAME from
+# secrets/fleet-sim.env (the include's env_file) — this app has none today.
+# Shared networks re-declare the root's attributes exactly; compose merges.
+
+services:
+  # --- apps ring 1: fleet-sim -------------------------------------------------
+  # A tiny static site (canvas game) served by python http.server. Built
+  # locally from ./site (no internet needed; upstream image already cached).
+  fleet-sim:
+    profiles: [on-demand]
+    build: ./site
+    image: sovereign-node/fleet-sim:local
+    container_name: fleet-sim
+    restart: "no"
+    networks: [front]
+
+networks:
+  front:
+    internal: true

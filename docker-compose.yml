@@ -34,6 +34,7 @@ include:
   - path: apps/floor/compose.yaml
     env_file: secrets/floor.env
   - path: apps/calino/compose.yaml
+  - path: apps/fleet-sim/compose.yaml
 
 networks:
   edge:

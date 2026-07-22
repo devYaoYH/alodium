@@ -1,0 +1,14 @@
+# fleet-sim's door — imported by the root Caddyfile (import apps/*/route.caddy),
+# so ring guards and the (authed) snippet are already defined when this loads.
+# Ring 1 — an on-demand browser game (profile: on-demand). Starts via the
+# launcher at launch.<domain>; when stopped, shows a friendly offline page.
+
+fleet.{$NODE_DOMAIN} {
+	import ring1
+	reverse_proxy fleet-sim:8080
+
+	handle_errors {
+		@fs_offline expression {http.error.status_code} == 502
+		respond @fs_offline "Fleet Simulator is not running. Launch it from the Home dashboard." 503
+	}
+}

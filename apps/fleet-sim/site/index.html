@@ -1,0 +1,631 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fleet Simulator</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --panel: #151924;
+      --fg: #e5e7eb;
+      --muted: #9aa4b2;
+      --accent: #3b82f6;
+      --water: #1a3a4a;
+      --dock: #5c4033;
+      --road: #2a2a2a;
+      --storage: #2d4a2d;
+      --crate: #d4a043;
+      --crate-highlight: #e8c35a;
+      --vehicle: #f97316;
+      --vehicle-selected: #22d3ee;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: var(--bg);
+      color: var(--fg);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, sans-serif;
+      display: grid;
+      place-items: center;
+    }
+    .wrap {
+      width: min(96vw, 960px);
+      padding: 12px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid #202533;
+      border-radius: 12px;
+      padding: 12px 12px 4px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      padding: 0 4px;
+    }
+    h1 {
+      font-size: 15px;
+      margin: 0;
+      letter-spacing: 0.4px;
+      color: var(--muted);
+    }
+    .stats {
+      display: flex;
+      gap: 16px;
+      font-size: 13px;
+    }
+    .stats span { color: var(--muted); }
+    .stats .val { color: var(--fg); font-weight: 600; }
+    canvas {
+      display: block;
+      width: 100%;
+      height: auto;
+      background: var(--bg);
+      border-radius: 10px;
+      border: 1px solid #202533;
+      image-rendering: pixelated;
+    }
+    .controls {
+      display: flex;
+      gap: 8px;
+      padding: 8px 4px 0;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .controls .key {
+      display: inline-block;
+      background: #1f2430;
+      border: 1px solid #2a3142;
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 11px;
+      color: var(--fg);
+    }
+    .btn {
+      background: #1f2430;
+      border: 1px solid #2a3142;
+      color: var(--fg);
+      border-radius: 6px;
+      padding: 4px 12px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .btn:hover { border-color: var(--accent); }
+    #status {
+      color: var(--muted);
+      font-size: 12px;
+      padding: 4px 4px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <header>
+        <h1>Fleet Simulator</h1>
+        <div class="stats">
+          <span>Vehicles <span class="val" id="vehCount">0</span></span>
+          <span>Delivered <span class="val" id="delivered">0</span></span>
+          <span>Pending <span class="val" id="pending">0</span></span>
+        </div>
+      </header>
+      <div style="position: relative">
+        <canvas id="game" width="800" height="600" aria-label="Fleet simulator game canvas"></canvas>
+      </div>
+      <div class="controls">
+        <span>Click a <span class="key">vehicle</span> to select, click <span class="key">destination</span> to move</span>
+        <span class="key">R</span> restart
+        <button class="btn" id="spawnBtn">+ Vehicle</button>
+      </div>
+      <div id="status">Select a vehicle to begin</div>
+    </div>
+  </div>
+
+  <script>
+  (function(){
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const vehCountEl = document.getElementById('vehCount');
+    const deliveredEl = document.getElementById('delivered');
+    const pendingEl = document.getElementById('pending');
+    const statusEl = document.getElementById('status');
+    const spawnBtn = document.getElementById('spawnBtn');
+
+    // --- Wharf generation --------------------------------------------------
+    const COLS = 40;
+    const ROWS = 30;
+    const CELL = 20;
+
+    // Tile types
+    const T = { WATER: 0, DOCK: 1, ROAD: 2, STORAGE: 3, CRATE: 4 };
+
+    // Procedural wharf layout
+    let grid = [];
+    let vehicles = [];
+    let crates = [];
+    let selectedVehicle = null;
+    let delivered = 0;
+    let gameTime = 0;
+
+    function generateWharf() {
+      grid = [];
+      for (let y = 0; y < ROWS; y++) {
+        grid[y] = [];
+        for (let x = 0; x < COLS; x++) {
+          grid[y][x] = T.WATER;
+        }
+      }
+
+      // Main dock platform (left side)
+      for (let y = 4; y < 26; y++) {
+        for (let x = 2; x < 18; x++) {
+          grid[y][x] = T.ROAD;
+        }
+      }
+
+      // Docks (water edge with crates)
+      for (let y = 4; y < 26; y += 3) {
+        for (let x = 0; x < 4; x++) {
+          if (y + (x % 2) < ROWS) grid[y + (x % 2)][x] = T.DOCK;
+        }
+      }
+
+      // Storage area (right side)
+      for (let y = 4; y < 26; y += 3) {
+        for (let x = 28; x < 38; x++) {
+          grid[y][x] = T.STORAGE;
+          grid[y+1][x] = T.STORAGE;
+        }
+      }
+
+      // Roads connecting dock to storage
+      for (let y = 10; y < 20; y++) {
+        for (let x = 18; x < 28; x++) {
+          grid[y][x] = T.ROAD;
+        }
+      }
+
+      // Some extra roads
+      for (let x = 2; x < 18; x++) {
+        if (grid[14][x] === T.WATER) grid[14][x] = T.ROAD;
+      }
+    }
+
+    // --- Crate management --------------------------------------------------
+    function spawnCrate() {
+      const docks = [];
+      for (let y = 0; y < ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
+          if (grid[y][x] === T.DOCK) docks.push({x, y});
+        }
+      }
+      if (docks.length === 0) return;
+      const d = docks[Math.floor(Math.random() * docks.length)];
+      crates.push({ x: d.x, y: d.y, carried: false, carrier: null });
+    }
+
+    function findStorageSpot() {
+      for (let y = 0; y < ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
+          if (grid[y][x] === T.STORAGE || grid[y][x] === T.ROAD) {
+            // Check nothing is already here
+            const occupied = vehicles.some(v => Math.floor(v.x) === x && Math.floor(v.y) === y) ||
+              crates.some(c => Math.floor(c.x) === x && Math.floor(c.y) === y && !c.carried);
+            if (!occupied) return {x, y};
+          }
+        }
+      }
+      return null;
+    }
+
+    // --- Vehicle -----------------------------------------------------------
+    function createVehicle(x, y) {
+      const id = vehicles.length + 1;
+      vehicles.push({
+        id,
+        x, y,
+        targetX: x, targetY: y,
+        speed: 0.08,
+        cargo: null,
+        color: `hsl(${Math.random() * 360}, 70%, 55%)`,
+        path: []
+      });
+    }
+
+    function spawnVehicle() {
+      const roads = [];
+      for (let y = 0; y < ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
+          if (grid[y][x] === T.ROAD) {
+            const occ = vehicles.some(v => Math.floor(v.x) === x && Math.floor(v.y) === y);
+            if (!occ) roads.push({x, y});
+          }
+        }
+      }
+      if (roads.length === 0) return;
+      const r = roads[Math.floor(Math.random() * roads.length)];
+      createVehicle(r.x, r.y);
+    }
+
+    // --- Pathfinding (simple BFS) -----------------------------------------
+    function findPath(sx, sy, tx, ty) {
+      const queue = [{x: sx, y: sy, path: []}];
+      const visited = new Set();
+      visited.add(`${sx},${sy}`);
+
+      while (queue.length > 0) {
+        const cur = queue.shift();
+        if (cur.x === tx && cur.y === ty) {
+          return cur.path;
+        }
+        const dirs = [[0,-1],[0,1],[-1,0],[1,0]];
+        for (const [dx, dy] of dirs) {
+          const nx = cur.x + dx;
+          const ny = cur.y + dy;
+          const key = `${nx},${ny}`;
+          if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) continue;
+          if (visited.has(key)) continue;
+          const tile = grid[ny][nx];
+          if (tile === T.WATER) continue;
+          // Check if tile is occupied by another vehicle
+          const occ = vehicles.some(v => v !== selectedVehicle && Math.floor(v.x) === nx && Math.floor(v.y) === ny);
+          if (occ) continue;
+          visited.add(key);
+          queue.push({x: nx, y: ny, path: [...cur.path, {x: nx, y: ny}]});
+        }
+      }
+      return null; // No path
+    }
+
+    // --- Game state reset --------------------------------------------------
+    function resetGame() {
+      generateWharf();
+      vehicles = [];
+      crates = [];
+      selectedVehicle = null;
+      delivered = 0;
+      gameTime = 0;
+
+      // Spawn initial vehicles
+      for (let i = 0; i < 3; i++) spawnVehicle();
+
+      // Spawn initial crates
+      for (let i = 0; i < 5; i++) spawnCrate();
+
+      // Auto-spawn more crates periodically
+      if (window._crateInterval) clearInterval(window._crateInterval);
+      window._crateInterval = setInterval(() => {
+        if (crates.filter(c => !c.carried).length < 10) {
+          spawnCrate();
+        }
+      }, 4000);
+
+      updateStats();
+      statusEl.textContent = 'Click a vehicle to select it, then click a destination to move it';
+    }
+
+    // --- Update logic ------------------------------------------------------
+    function update() {
+      gameTime++;
+
+      for (const v of vehicles) {
+        // Move along path
+        if (v.path.length > 0) {
+          const next = v.path[0];
+          const dx = next.x - v.x;
+          const dy = next.y - v.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+
+          if (dist < v.speed) {
+            v.x = next.x;
+            v.y = next.y;
+            v.path.shift();
+
+            // Check if we arrived at a crate (pick up)
+            if (!v.cargo) {
+              for (const c of crates) {
+                if (!c.carried && Math.floor(v.x) === c.x && Math.floor(v.y) === c.y) {
+                  c.carried = true;
+                  c.carrier = v;
+                  v.cargo = c;
+                  statusEl.textContent = `Vehicle ${v.id} picked up a crate`;
+                  break;
+                }
+              }
+            }
+
+            // Check if we arrived at storage (deliver)
+            if (v.cargo) {
+              const tile = grid[Math.floor(v.y)][Math.floor(v.x)];
+              if (tile === T.STORAGE) {
+                // Deliver the crate
+                const idx = crates.indexOf(v.cargo);
+                if (idx !== -1) crates.splice(idx, 1);
+                v.cargo.carried = false;
+                v.cargo.carrier = null;
+                v.cargo = null;
+                delivered++;
+                statusEl.textContent = `Vehicle ${v.id} delivered a crate!`;
+                updateStats();
+                // Spawn a new crate to replace
+                spawnCrate();
+              }
+            }
+          } else {
+            v.x += (dx / dist) * v.speed;
+            v.y += (dy / dist) * v.speed;
+          }
+        } else {
+          // Idle behavior: find nearest task
+          if (!v.cargo) {
+            // Find nearest un-carried crate
+            let nearest = null;
+            let nearestDist = Infinity;
+            for (const c of crates) {
+              if (c.carried) continue;
+              const d = Math.abs(c.x - v.x) + Math.abs(c.y - v.y);
+              if (d < nearestDist) {
+                nearestDist = d;
+                nearest = c;
+              }
+            }
+            if (nearest) {
+              const path = findPath(Math.floor(v.x), Math.floor(v.y), nearest.x, nearest.y);
+              if (path) {
+                v.path = path;
+              }
+            }
+          } else {
+            // Find nearest storage
+            let nearest = null;
+            let nearestDist = Infinity;
+            for (let y = 0; y < ROWS; y++) {
+              for (let x = 0; x < COLS; x++) {
+                if (grid[y][x] === T.STORAGE) {
+                  const d = Math.abs(x - v.x) + Math.abs(y - v.y);
+                  if (d < nearestDist) {
+                    nearestDist = d;
+                    nearest = {x, y};
+                  }
+                }
+              }
+            }
+            if (nearest) {
+              const path = findPath(Math.floor(v.x), Math.floor(v.y), nearest.x, nearest.y);
+              if (path) {
+                v.path = path;
+              }
+            }
+          }
+        }
+      }
+
+      updateStats();
+    }
+
+    // --- Drawing -----------------------------------------------------------
+    function draw() {
+      ctx.clearRect(0, 0, COLS * CELL, ROWS * CELL);
+
+      // Draw tiles
+      for (let y = 0; y < ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
+          const t = grid[y][x];
+          const cx = x * CELL;
+          const cy = y * CELL;
+
+          if (t === T.WATER) {
+            ctx.fillStyle = 'var(--water)';
+            ctx.fillRect(cx, cy, CELL, CELL);
+            // Subtle wave animation
+            ctx.fillStyle = `rgba(255,255,255,${0.02 + 0.02 * Math.sin(gameTime * 0.02 + x * 0.5 + y * 0.3)})`;
+            ctx.fillRect(cx, cy + 5, CELL, 2);
+          } else if (t === T.DOCK) {
+            ctx.fillStyle = 'var(--dock)';
+            ctx.fillRect(cx, cy, CELL, CELL);
+            ctx.fillStyle = '#7a5a43';
+            ctx.fillRect(cx + 2, cy + 2, CELL - 4, 2);
+          } else if (t === T.ROAD) {
+            ctx.fillStyle = 'var(--road)';
+            ctx.fillRect(cx, cy, CELL, CELL);
+            ctx.fillStyle = '#3a3a3a';
+            ctx.fillRect(cx + 8, cy, 4, CELL);
+          } else if (t === T.STORAGE) {
+            ctx.fillStyle = 'var(--storage)';
+            ctx.fillRect(cx, cy, CELL, CELL);
+            // Marking lines
+            ctx.strokeStyle = '#4a6a4a';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(cx + 2, cy + 2, CELL - 4, CELL - 4);
+          }
+        }
+      }
+
+      // Draw crates
+      for (const c of crates) {
+        if (c.carried) continue;
+        const cx = c.x * CELL + 2;
+        const cy = c.y * CELL + 2;
+        ctx.fillStyle = 'var(--crate)';
+        ctx.fillRect(cx, cy, CELL - 4, CELL - 4);
+        ctx.strokeStyle = '#b8862d';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(cx, cy, CELL - 4, CELL - 4);
+        // Cross pattern
+        ctx.strokeStyle = '#b8862d';
+        ctx.beginPath();
+        ctx.moveTo(cx + 2, cy + 2);
+        ctx.lineTo(cx + CELL - 6, cy + CELL - 6);
+        ctx.moveTo(cx + CELL - 6, cy + 2);
+        ctx.lineTo(cx + 2, cy + CELL - 6);
+        ctx.stroke();
+      }
+
+      // Draw vehicles
+      for (const v of vehicles) {
+        const cx = v.x * CELL;
+        const cy = v.y * CELL;
+        const isSelected = selectedVehicle === v;
+
+        // Selection glow
+        if (isSelected) {
+          ctx.strokeStyle = 'var(--vehicle-selected)';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(cx + CELL/2, cy + CELL/2, CELL * 0.7, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+
+        // Vehicle body
+        ctx.fillStyle = isSelected ? 'var(--vehicle-selected)' : 'var(--vehicle)';
+        ctx.beginPath();
+        ctx.roundRect(cx + 2, cy + 3, CELL - 4, CELL - 6, 3);
+        ctx.fill();
+
+        // Cab
+        ctx.fillStyle = isSelected ? '#0891b2' : '#c2410c';
+        ctx.fillRect(cx + (v.x === Math.floor(v.x) && v.path.length > 0 ? 2 : 2), cy + 3, 6, 6);
+
+        // Cargo indicator
+        if (v.cargo) {
+          ctx.fillStyle = 'var(--crate-highlight)';
+          ctx.fillRect(cx + 10, cy + 6, 6, 6);
+        }
+
+        // Label
+        ctx.fillStyle = '#fff';
+        ctx.font = '7px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(v.id, cx + CELL/2, cy + 3);
+      }
+    }
+
+    // --- Stats update ------------------------------------------------------
+    function updateStats() {
+      vehCountEl.textContent = vehicles.length;
+      deliveredEl.textContent = delivered;
+      pendingEl.textContent = crates.filter(c => !c.carried).length;
+    }
+
+    // --- Mouse interaction -------------------------------------------------
+    canvas.addEventListener('click', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const mx = (e.clientX - rect.left) * scaleX;
+      const my = (e.clientY - rect.top) * scaleY;
+      const gx = Math.floor(mx / CELL);
+      const gy = Math.floor(my / CELL);
+
+      if (gx < 0 || gx >= COLS || gy < 0 || gy >= ROWS) return;
+
+      // Check if we clicked a vehicle
+      for (const v of vehicles) {
+        if (Math.floor(v.x) === gx && Math.floor(v.y) === gy) {
+          selectedVehicle = v;
+          statusEl.textContent = `Vehicle ${v.id} selected`;
+          return;
+        }
+      }
+
+      // Check if we clicked a crate (with selected vehicle)
+      if (selectedVehicle) {
+        for (const c of crates) {
+          if (!c.carried && c.x === gx && c.y === gy) {
+            const path = findPath(Math.floor(selectedVehicle.x), Math.floor(selectedVehicle.y), gx, gy);
+            if (path) {
+              selectedVehicle.path = path;
+              statusEl.textContent = `Vehicle ${selectedVehicle.id} moving to crate at (${gx}, ${gy})`;
+            } else {
+              statusEl.textContent = 'No path to that crate';
+            }
+            return;
+          }
+        }
+
+        // Otherwise move to clicked tile
+        const tile = grid[gy][gx];
+        if (tile !== T.WATER) {
+          const path = findPath(Math.floor(selectedVehicle.x), Math.floor(selectedVehicle.y), gx, gy);
+          if (path) {
+            selectedVehicle.path = path;
+            statusEl.textContent = `Vehicle ${selectedVehicle.id} moving to (${gx}, ${gy})`;
+          } else {
+            statusEl.textContent = 'No path to that location';
+          }
+        } else {
+          statusEl.textContent = 'Cannot move to water';
+        }
+      } else {
+        statusEl.textContent = 'Click a vehicle first to select it';
+      }
+    });
+
+    // --- Keyboard controls -------------------------------------------------
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'r' || e.key === 'R') {
+        resetGame();
+      }
+    });
+
+    // --- Spawn button ------------------------------------------------------
+    spawnBtn.addEventListener('click', () => {
+      spawnVehicle();
+      updateStats();
+      statusEl.textContent = 'New vehicle spawned';
+    });
+
+    // --- RoundRect polyfill for canvas ------------------------------------
+    if (!CanvasRenderingContext2D.prototype.roundRect) {
+      CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+        if (r > w/2) r = w/2;
+        if (r > h/2) r = h/2;
+        this.moveTo(x + r, y);
+        this.arcTo(x + w, y, x + w, y + h, r);
+        this.arcTo(x + w, y + h, x, y + h, r);
+        this.arcTo(x, y + h, x, y, r);
+        this.arcTo(x, y, x + w, y, r);
+        this.closePath();
+        return this;
+      };
+    }
+
+    // --- HiDPI handling ----------------------------------------------------
+    function resizeForDPR() {
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      const cssW = canvas.clientWidth || canvas.width;
+      const cssH = Math.round(cssW * (ROWS/COLS));
+      canvas.style.height = cssH + 'px';
+      canvas.width = COLS * CELL * dpr;
+      canvas.height = ROWS * CELL * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    window.addEventListener('resize', resizeForDPR);
+    resizeForDPR();
+
+    // --- Game loop ---------------------------------------------------------
+    resetGame();
+    let last = performance.now();
+    let accum = 0;
+
+    function loop(now) {
+      const dt = now - last;
+      last = now;
+      accum += dt;
+      while (accum >= 50) {
+        update();
+        accum -= 50;
+      }
+      draw();
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+  })();
+  </script>
+</body>
+</html>
