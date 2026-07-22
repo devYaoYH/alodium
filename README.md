@@ -24,11 +24,6 @@ domain and are comfortable with Docker. See `docs/PHILOSOPHY.md` for why this ex
 > the development plane, and the reviewed-change workflow). Curious how it was built?
 > Jump to [Built with GPT‑5.6 & Codex](#built-with-gpt56--codex).
 
-> [!NOTE]
-> This project is a submission to the [OpenAI Build Week hackathon](https://openai.devpost.com/).
-> The [Built with GPT‑5.6 & Codex](#built-with-gpt56--codex) section at the bottom
-> describes, honestly, where the models fit in how it was made.
-
 ## What is here now
 
 | Plane | Services | Purpose |
@@ -169,7 +164,7 @@ or an IP range into a tracked file, stop: it goes in `.env`
 
 ## Built with GPT‑5.6 & Codex
 
-**Where Codex/GPT‑5.6 fits — honestly:** Codex is the reviewing agent in my
+**Where Codex/GPT‑5.6 fits:** Codex is the reviewing agent in my
 development loop. The resident **agent-dev** drafts a pull request; I bring Codex
 in to review that PR and leave feedback; agent-dev iterates on that feedback in
 the next pass; then a human merges. Codex is a real second set of eyes in how
