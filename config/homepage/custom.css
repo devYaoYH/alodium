@@ -416,9 +416,11 @@ html.alodium-chatbar-open #page_container { padding-bottom: 11rem; }
   user-select: none;
 }
 
-.alodium-deploy-info {
-  position: relative; /* anchor for the failure popup */
-}
+/* NOTE: do NOT re-declare `position` here — the base rule above sets
+   `position: fixed`, which already establishes the containing block for the
+   absolutely-positioned failure popup. An earlier `position: relative` here
+   silently overrode the fixed positioning and dropped the whole widget out of
+   the lower-left corner. */
 
 .alodium-deploy-info__label {
   font-weight: 500;

@@ -163,159 +163,182 @@
   });
   syncChrome();
 
-  // --- on-demand app tile: snake -------------------------------------------
-  // The snake tile is rendered by Homepage from services.yaml with id=snake-tile.
-  // On-demand apps warm up "invisibly": the tile looks like any other app. We do
-  // NOT add a dot — we REUSE Homepage's own container-status dot (the
-  // .service-container-stats button, whose inner .docker-status .rounded-full is
-  // the coloured light). We repaint that one dot from the launcher's view of the
-  // app — red asleep, amber warming, green live — and hijack its click so the
-  // dot (and, while asleep, the whole card) drives the launcher API at
-  // launch.<domain> (behind ring1) instead of opening Homepage's stats popover.
-  // A hover label reveals the action word. One dot, no overlap.
+  // --- on-demand app tiles ---------------------------------------------------
+  // On-demand apps (profile: on-demand) warm up "invisibly": the tile looks
+  // like any other app. We do NOT add a dot — we REUSE Homepage's own
+  // container-status dot (the .service-container-stats button, whose inner
+  // .docker-status .rounded-full is the coloured light). We repaint that one
+  // dot from the launcher's view of the app — red asleep, amber warming, green
+  // live — and hijack its click so the dot (and, while asleep, the whole card)
+  // drives the launcher API at launch.<domain> (behind ring1) instead of
+  // opening Homepage's stats popover. A hover label reveals the action word.
+  //
+  // One controller instance per on-demand app, keyed by its Homepage tile id,
+  // launcher app name, the URL to open once live, and a display name for
+  // tooltips. Adding another on-demand app is one ON_DEMAND_APPS entry — no new
+  // code. (This was previously hardcoded to snake, which is exactly why
+  // fleet-sim's tile never launched — it had no controller at all.)
 
   const LAUNCHER_BASE = `https://launch.${domain}`;
-  const GAME_URL = `https://game.${domain}`;
 
-  const snakeTile = () => document.getElementById('snake-tile');
+  const ON_DEMAND_APPS = [
+    { app: 'snake',     tileId: 'snake-tile',     openUrl: `https://game.${domain}`,  name: 'Snake' },
+    { app: 'fleet-sim', tileId: 'fleet-sim-tile', openUrl: `https://fleet.${domain}`, name: 'Fleet Simulator' },
+  ];
 
-  const snakeStatus = async () => {
-    try {
-      const r = await fetch(`${LAUNCHER_BASE}/api/status/snake`);
-      if (!r.ok) return 'stopped';
-      const data = await r.json();
-      return data.status;
-    } catch { return 'stopped'; }
-  };
+  const makeOnDemandTile = ({ app, tileId, openUrl, name }) => {
+    const tileEl = () => document.getElementById(tileId);
 
-  const snakeLaunch = async () => {
-    try {
-      const r = await fetch(`${LAUNCHER_BASE}/api/launch/snake`, { method: 'POST' });
-      return r.ok;
-    } catch { return false; }
-  };
+    const status = async () => {
+      try {
+        const r = await fetch(`${LAUNCHER_BASE}/api/status/${app}`);
+        if (!r.ok) return 'stopped';
+        const data = await r.json();
+        return data.status;
+      } catch { return 'stopped'; }
+    };
 
-  const snakeStop = async () => {
-    try {
-      const r = await fetch(`${LAUNCHER_BASE}/api/stop/snake`, { method: 'POST' });
-      return r.ok;
-    } catch { return false; }
-  };
+    const launch = async () => {
+      try {
+        const r = await fetch(`${LAUNCHER_BASE}/api/launch/${app}`, { method: 'POST' });
+        return r.ok;
+      } catch { return false; }
+    };
 
-  let readyPoll = null;
+    const stop = async () => {
+      try {
+        const r = await fetch(`${LAUNCHER_BASE}/api/stop/${app}`, { method: 'POST' });
+        return r.ok;
+      } catch { return false; }
+    };
 
-  // Poll the launcher until snake is up (or we give up), then flip to running
-  // and — if the launch came from a click — open the game in a new tab.
-  const waitUntilRunning = (openWhenReady) => {
-    clearInterval(readyPoll);
-    let tries = 0;
-    readyPoll = setInterval(async () => {
-      tries += 1;
-      const s = await snakeStatus();
-      if (s === 'running') {
-        clearInterval(readyPoll);
-        readyPoll = null;
-        renderSnakeTile('running');
-        if (openWhenReady) window.open(GAME_URL, '_blank');
-      } else if (tries > 20) { // ~30s ceiling
-        clearInterval(readyPoll);
-        readyPoll = null;
-        renderSnakeTile(s === 'starting' ? 'starting' : 'stopped');
-      }
-    }, 1500);
-  };
+    // Per-app poll handle: two on-demand tiles must not share one timer.
+    let readyPoll = null;
 
-  const doLaunch = async () => {
-    renderSnakeTile('starting');
-    const ok = await snakeLaunch();
-    if (ok) waitUntilRunning(true);
-    else renderSnakeTile('stopped');
-  };
-
-  const doStop = async () => {
-    renderSnakeTile('starting'); // amber while it winds down
-    await snakeStop();
-    setTimeout(async () => renderSnakeTile(await snakeStatus()), 1500);
-  };
-
-  // Map a launcher status to our tile state and paint the reused native dot.
-  const renderSnakeTile = (status) => {
-    const tile = snakeTile();
-    if (!tile) return;
-    const card = tile.querySelector('.service-card') || tile;
-    card.classList.add('alodium-ondemand-card');
-
-    const state = status === 'running' ? 'running'
-      : status === 'starting' ? 'starting' : 'stopped';
-    card.dataset.alodiumState = state;
-    // State class paints the native .docker-status dot (see custom.css).
-    card.classList.remove('alodium-asleep', 'alodium-starting', 'alodium-live');
-    card.classList.add(state === 'running' ? 'alodium-live'
-      : state === 'starting' ? 'alodium-starting' : 'alodium-asleep');
-
-    // Hover-reveal action word, tucked left of the reused dot. Created once.
-    let label = card.querySelector('.alodium-ondemand-action');
-    if (!label) {
-      label = document.createElement('span');
-      label.className = 'alodium-ondemand-action';
-      label.setAttribute('aria-hidden', 'true');
-      card.appendChild(label);
-    }
-    label.textContent = state === 'running' ? 'Stop'
-      : state === 'starting' ? 'Starting…' : 'Launch';
-
-    // Give the reused native dot an honest tooltip for its new job.
-    const dotBtn = card.querySelector('.service-container-stats');
-    if (dotBtn) {
-      dotBtn.setAttribute('title', state === 'running' ? 'Stop Snake'
-        : state === 'starting' ? 'Snake is starting…' : 'Launch Snake');
-    }
-
-    // One delegated, capturing click handler owns the whole card: it hijacks
-    // the native dot's click (else Homepage opens its stats popover) and the
-    // card's dead game link while asleep. Bound once; survives Homepage's
-    // re-renders of the inner dot because it lives on the stable card element.
-    if (!card.dataset.alodiumBound) {
-      card.dataset.alodiumBound = '1';
-      card.addEventListener('click', (e) => {
-        const onControl = e.target.closest('.service-container-stats, .alodium-ondemand-action');
-        const st = card.dataset.alodiumState;
-        if (st === 'starting') { if (onControl) { e.preventDefault(); e.stopPropagation(); } return; }
-        if (onControl) {
-          e.preventDefault();
-          e.stopPropagation();
-          if (st === 'running') doStop(); else doLaunch();
-          return;
+    // Poll the launcher until the app is up (or we give up), then flip to
+    // running and — if the launch came from a click — open it in a new tab.
+    const waitUntilRunning = (openWhenReady) => {
+      clearInterval(readyPoll);
+      let tries = 0;
+      readyPoll = setInterval(async () => {
+        tries += 1;
+        const s = await status();
+        if (s === 'running') {
+          clearInterval(readyPoll);
+          readyPoll = null;
+          render('running');
+          if (openWhenReady) window.open(openUrl, '_blank');
+        } else if (tries > 20) { // ~30s ceiling
+          clearInterval(readyPoll);
+          readyPoll = null;
+          render(s === 'starting' ? 'starting' : 'stopped');
         }
-        // A click anywhere else on the card: while asleep, launch (the href
-        // points at a game that isn't up yet); once live, let it open the game.
-        if (st !== 'running') { e.preventDefault(); e.stopPropagation(); doLaunch(); }
-      }, true);
+      }, 1500);
+    };
+
+    const doLaunch = async () => {
+      render('starting');
+      const ok = await launch();
+      if (ok) waitUntilRunning(true);
+      else render('stopped');
+    };
+
+    const doStop = async () => {
+      render('starting'); // amber while it winds down
+      await stop();
+      setTimeout(async () => render(await status()), 1500);
+    };
+
+    // Map a launcher status to our tile state and paint the reused native dot.
+    const render = (st0) => {
+      const tile = tileEl();
+      if (!tile) return;
+      const card = tile.querySelector('.service-card') || tile;
+      card.classList.add('alodium-ondemand-card');
+
+      const state = st0 === 'running' ? 'running'
+        : st0 === 'starting' ? 'starting' : 'stopped';
+      card.dataset.alodiumState = state;
+      // State class paints the native .docker-status dot (see custom.css).
+      card.classList.remove('alodium-asleep', 'alodium-starting', 'alodium-live');
+      card.classList.add(state === 'running' ? 'alodium-live'
+        : state === 'starting' ? 'alodium-starting' : 'alodium-asleep');
+
+      // Hover-reveal action word, tucked left of the reused dot. Created once.
+      let label = card.querySelector('.alodium-ondemand-action');
+      if (!label) {
+        label = document.createElement('span');
+        label.className = 'alodium-ondemand-action';
+        label.setAttribute('aria-hidden', 'true');
+        card.appendChild(label);
+      }
+      label.textContent = state === 'running' ? 'Stop'
+        : state === 'starting' ? 'Starting…' : 'Launch';
+
+      // Give the reused native dot an honest tooltip for its new job.
+      const dotBtn = card.querySelector('.service-container-stats');
+      if (dotBtn) {
+        dotBtn.setAttribute('title', state === 'running' ? `Stop ${name}`
+          : state === 'starting' ? `${name} is starting…` : `Launch ${name}`);
+      }
+
+      // One delegated, capturing click handler owns the whole card: it hijacks
+      // the native dot's click (else Homepage opens its stats popover) and the
+      // card's dead game link while asleep. Bound once; survives Homepage's
+      // re-renders of the inner dot because it lives on the stable card element.
+      if (!card.dataset.alodiumBound) {
+        card.dataset.alodiumBound = '1';
+        card.addEventListener('click', (e) => {
+          const onControl = e.target.closest('.service-container-stats, .alodium-ondemand-action');
+          const st = card.dataset.alodiumState;
+          if (st === 'starting') { if (onControl) { e.preventDefault(); e.stopPropagation(); } return; }
+          if (onControl) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (st === 'running') doStop(); else doLaunch();
+            return;
+          }
+          // A click anywhere else on the card: while asleep, launch (the href
+          // points at an app that isn't up yet); once live, let it open the app.
+          if (st !== 'running') { e.preventDefault(); e.stopPropagation(); doLaunch(); }
+        }, true);
+      }
+    };
+
+    const init = async () => {
+      if (!tileEl()) return;
+      render(await status());
+      // Refresh in the background, but never stomp on an in-flight launch/stop.
+      setInterval(async () => {
+        if (readyPoll) return;
+        if (tileEl()?.querySelector('.service-card')?.dataset.alodiumState === 'starting') return;
+        render(await status());
+      }, 30000);
+    };
+
+    return { tileEl, init };
+  };
+
+  const onDemandTiles = ON_DEMAND_APPS.map(makeOnDemandTile);
+
+  // Init each controller once its tile appears (Homepage renders async), then
+  // stop observing once every tile is wired.
+  const initOnDemand = () => {
+    for (const t of onDemandTiles) {
+      const el = t.tileEl();
+      if (el && !el.dataset.alodiumInit) {
+        el.dataset.alodiumInit = '1';
+        t.init();
+      }
     }
   };
-
-  const initSnakeTile = async () => {
-    const tile = snakeTile();
-    if (!tile) return;
-    renderSnakeTile(await snakeStatus());
-    // Refresh in the background, but never stomp on an in-flight launch/stop.
-    setInterval(async () => {
-      if (readyPoll) return;
-      if (snakeTile()?.querySelector('.service-card')?.dataset.alodiumState === 'starting') return;
-      renderSnakeTile(await snakeStatus());
-    }, 30000);
-  };
-
-  // Wait for the tile to appear (Homepage renders async)
   const observer = new MutationObserver(() => {
-    if (snakeTile()) {
-      observer.disconnect();
-      initSnakeTile();
-    }
+    initOnDemand();
+    if (onDemandTiles.every((t) => t.tileEl()?.dataset.alodiumInit)) observer.disconnect();
   });
   observer.observe(document.body, { subtree: true, childList: true });
-  // Also try immediately in case it's rendered already
-  initSnakeTile();
+  // Also try immediately in case tiles are already rendered.
+  initOnDemand();
 
   // Homepage only honours the hash on a fresh load, and renders every card
   // link with target="_blank". Internal hash links (e.g. the Home "Waiting on
