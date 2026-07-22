@@ -53,6 +53,9 @@ const logTitle = document.getElementById("logpanel-title");
 const logBody = document.getElementById("logpanel-body");
 const logStatus = document.getElementById("logpanel-status");
 const logClose = document.getElementById("logpanel-close");
+const logFullscreen = document.getElementById("logpanel-fullscreen");
+const logResizeHandle = document.getElementById("logpanel-resize");
+const logHeader = document.getElementById("logpanel-header");
 
 let cam = { x: 0, y: 0, zoom: 1 };
 let rooms = new Map();                     // name -> room (+layout gx,gy)
@@ -668,6 +671,85 @@ async function openLogPanel(room) {
     if (err.name !== "AbortError") logStatus.textContent = `disconnected: ${err.message}`;
   }
 }
+
+// --- log panel interactions ---------------------------------------------------
+// Fullscreen toggle
+logFullscreen.addEventListener("click", () => {
+  logPanel.classList.toggle("fullscreen");
+});
+
+// Resizing: drag the bottom-right corner
+let resizeStart = null;
+logResizeHandle.addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  const rect = logPanel.getBoundingClientRect();
+  resizeStart = {
+    startX: e.clientX,
+    startY: e.clientY,
+    startW: rect.width,
+    startH: rect.height,
+  };
+  logResizeHandle.setPointerCapture(e.pointerId);
+});
+
+logResizeHandle.addEventListener("pointermove", (e) => {
+  if (!resizeStart) return;
+  const deltaX = e.clientX - resizeStart.startX;
+  const deltaY = e.clientY - resizeStart.startY;
+  const newW = Math.max(280, resizeStart.startW + deltaX);
+  const newH = Math.max(200, resizeStart.startH + deltaY);
+  logPanel.style.width = newW + "px";
+  logPanel.style.height = newH + "px";
+});
+
+logResizeHandle.addEventListener("pointerup", () => {
+  resizeStart = null;
+});
+
+// Dragging: drag the header to move
+let dragStart = null;
+logHeader.addEventListener("pointerdown", (e) => {
+  // Don't drag if clicking a button
+  if (e.target.tagName === "BUTTON") return;
+  const rect = logPanel.getBoundingClientRect();
+  dragStart = {
+    startX: e.clientX,
+    startY: e.clientY,
+    startL: rect.left,
+    startT: rect.top,
+  };
+  logHeader.setPointerCapture(e.pointerId);
+});
+
+logHeader.addEventListener("pointermove", (e) => {
+  if (!dragStart) return;
+  const deltaX = e.clientX - dragStart.startX;
+  const deltaY = e.clientY - dragStart.startY;
+  const newL = dragStart.startL + deltaX;
+  const newT = dragStart.startT + deltaY;
+  // Clamp to viewport
+  const maxL = window.innerWidth - 100;
+  const maxT = window.innerHeight - 100;
+  logPanel.style.left = Math.max(0, Math.min(newL, maxL)) + "px";
+  logPanel.style.top = Math.max(0, Math.min(newT, maxT)) + "px";
+  logPanel.style.right = "auto";
+  logPanel.style.bottom = "auto";
+});
+
+logHeader.addEventListener("pointerup", () => {
+  dragStart = null;
+});
+
+// Keyboard shortcuts
+addEventListener("keydown", (e) => {
+  if (logPanel.classList.contains("open")) {
+    if (e.key === "f" || e.key === "F") {
+      e.preventDefault();
+      logFullscreen.click();
+    }
+  }
+});
 
 logClose.addEventListener("click", closeLogPanel);
 
