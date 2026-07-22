@@ -39,10 +39,20 @@ def audit(action, app, actor, result, detail=""):
 
 
 def compose_up(service):
-    """Start a compose service by its service name, using the on-demand profile."""
+    """Start a compose service by its service name, using the on-demand profile.
+
+    Never builds. The launcher runs as an unprivileged user (nobody, HOME=
+    /nonexistent) through a scoped socket proxy — it structurally cannot build
+    an image (BuildKit can't write its state under a non-existent HOME, failing
+    with a cryptic `mkdir /nonexistent: permission denied`). On-demand images
+    are pre-built by the deploy (scripts/deploy.sh step 4c) precisely so launch
+    is a pure start. `--pull never --no-build` makes that contract explicit: a
+    missing image fails fast and legibly ("No such image: ...") instead of
+    detouring into an impossible build.
+    """
     return subprocess.run(
         ["docker", "compose", "--project-directory", COMPOSE_DIR, "--project-name", COMPOSE_PROJECT,
-         "--profile", "on-demand", "up", "-d", service],
+         "--profile", "on-demand", "up", "-d", "--pull", "never", "--no-build", service],
         capture_output=True, text=True, timeout=60,
     )
 
@@ -149,6 +159,15 @@ class LauncherHandler(BaseHTTPRequestHandler):
                     self._send_json(200, {"app": app, "status": "starting"})
                 else:
                     detail = r.stderr.strip()[:500]
+                    # A missing image is not a launch bug — it means the deploy
+                    # never pre-built this on-demand app's image (the launcher
+                    # cannot build; see compose_up). Return an actionable hint
+                    # instead of the raw daemon error so the operator knows to
+                    # re-run the deploy rather than debug the launcher.
+                    if "No such image" in detail or "no such image" in detail:
+                        detail = (f"image for '{app}' is not built — on-demand images are "
+                                  f"pre-built by the deploy (scripts/deploy.sh step 4c). "
+                                  f"Re-run the deploy to build it. [{detail}]")
                     audit("launch", app, actor, "failed", detail)
                     self._send_json(500, {"error": "launch failed", "detail": detail})
                 return
