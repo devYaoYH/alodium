@@ -18,6 +18,17 @@ This is the **Tier 3 MVP** — the compute-box profile for people who already ha
 domain and are comfortable with Docker. See `docs/PHILOSOPHY.md` for why this exists,
 `docs/DESIGN.md` for how it fits together, and `docs/ROADMAP.md` for where it goes.
 
+> [!TIP]
+> **New here?** Start with the [Quickstart](#quickstart) below to stand up a node,
+> then `docs/ONBOARDING.md` for the full operator-and-trusted-user journey (identity,
+> the development plane, and the reviewed-change workflow). Curious how it was built?
+> Jump to [Built with GPT‑5.6 & Codex](#built-with-gpt56--codex).
+
+> [!NOTE]
+> This project is a submission to the [OpenAI Build Week hackathon](https://openai.devpost.com/).
+> The [Built with GPT‑5.6 & Codex](#built-with-gpt56--codex) section at the bottom
+> describes, honestly, where the models fit in how it was made.
+
 ## What is here now
 
 | Plane | Services | Purpose |
@@ -155,3 +166,15 @@ or an IP range into a tracked file, stop: it goes in `.env`
   their manifest declares (see manifest/app.example.toml).
 - Search is a capability, not internet access: the Exa key stays behind the
   search egress companion; agents receive only a revocable broker token.
+
+## Built with GPT‑5.6 & Codex
+
+**Where Codex/GPT‑5.6 fits — honestly:** Codex is the reviewing agent in my
+development loop. The resident **agent-dev** drafts a pull request; I bring Codex
+in to review that PR and leave feedback; agent-dev iterates on that feedback in
+the next pass; then a human merges. Codex is a real second set of eyes in how
+this got built — and, by design, it is *not* wired in as an automated gate inside
+the node, because doing so would put an LLM back in the authorization path and
+break the entire thesis. So the division is deliberate: **Codex reviews, humans
+authorize, deterministic code enforces.** (Closing that review-and-iterate loop
+into a tracked automation is what I'm building next.)
