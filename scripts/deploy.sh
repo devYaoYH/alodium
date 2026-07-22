@@ -23,9 +23,17 @@ if ! git merge --ff-only forgejo/main; then
   exit 1
 fi
 
-# 2. Mirror the now-merged main back to GitHub origin so the public template and
-#    local tracking stay consistent (sync-node-config pushes the other way).
-git push origin main || echo "deploy: WARN could not push origin (continuing; node is already at merged main)"
+# 2. Mirror the now-merged main back to GitHub origin, IF an `origin` remote is
+#    configured. The public GitHub repo is frozen for now (hackathon rules), so
+#    `origin` has been removed from local tracking and this step no-ops quietly
+#    rather than WARN-ing on every deploy. Re-add the remote to resume mirroring:
+#    `git remote add origin git@github.com:devYaoYH/alodium.git`.
+#    (sync-node-config pushes the other way; forgejo remains the deploy source.)
+if git remote get-url origin >/dev/null 2>&1; then
+  git push origin main || echo "deploy: WARN could not push origin (continuing; node is already at merged main)"
+else
+  echo "   skipping origin mirror (no 'origin' remote configured)"
+fi
 
 # 3. Refresh derived secrets (e.g. RADICALE_WEB_AUTH) before compose reads .env.
 ./scripts/derive-secrets.sh
