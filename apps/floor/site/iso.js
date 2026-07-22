@@ -620,6 +620,148 @@ const LOGGABLE_NAMES = new Set(["agent", "doorbell-runner"]);
 // Used to visually dim spinner frames in the log panel.
 const _SPINNER_RE = /^[⠁-⠿\-\\|\/]/;
 
+// --- virtual terminal --------------------------------------------------------
+// An in-memory line buffer that interprets ANSI escape codes for cursor
+// control (\r, CUU, CUD, EL, SCP, RCP) so that streaming log output that
+// updates progress in-place renders cleanly instead of concatenating raw
+// control characters into every line.
+const TERM_MAX_LINES = 500;
+let termBuf = [""];        // array of line strings
+let termRow = 0;            // cursor row within buffer
+let termCol = 0;            // cursor column
+let termSavedRow = 0;       // saved cursor row (SCP/RCP)
+let termSavedCol = 0;       // saved cursor col
+let termEscState = "";      // "" | "ESC" | "CSI"
+let termCsiParams = "";
+
+function termEnsureRow(r) {
+  while (r >= termBuf.length) termBuf.push("");
+}
+
+function termWrite(ch) {
+  termEnsureRow(termRow);
+  let line = termBuf[termRow];
+  if (termCol >= line.length) {
+    line = line + ch;
+  } else {
+    line = line.substring(0, termCol) + ch + line.substring(termCol + 1);
+  }
+  termBuf[termRow] = line;
+  termCol++;
+}
+
+function termEraseLine(mode) {
+  termEnsureRow(termRow);
+  if (mode === 2) {
+    termBuf[termRow] = "";
+  } else if (mode === 1) {
+    const line = termBuf[termRow];
+    const pad = " ".repeat(Math.min(termCol, line.length));
+    termBuf[termRow] = pad + line.substring(termCol);
+  } else {
+    termBuf[termRow] = (termBuf[termRow] || "").substring(0, termCol);
+  }
+}
+
+function handleTermEscape(final) {
+  const n = termCsiParams
+    ? parseInt(termCsiParams.replace(/[^0-9;]/g, ""), 10) || 0
+    : 0;
+  switch (final) {
+    case "A": termRow = Math.max(0, termRow - (n || 1)); break;
+    case "B": termRow = termRow + (n || 1); break;
+    case "C": termCol = termCol + (n || 1); break;
+    case "D": termCol = Math.max(0, termCol - (n || 1)); break;
+    case "K": termEraseLine(n); break;
+    case "s": termSavedRow = termRow; termSavedCol = termCol; break;
+    case "u": termRow = termSavedRow; termCol = termSavedCol; break;
+    case "H": case "f": {
+      const parts = termCsiParams.split(";");
+      const r = (parseInt(parts[0], 10) || 1) - 1;
+      const c = (parseInt(parts[1], 10) || 1) - 1;
+      termRow = Math.max(0, r);
+      termCol = Math.max(0, c);
+      break;
+    }
+  }
+}
+
+function renderLogBuffer() {
+  // Enforce max lines; adjust cursor if lines were trimmed from top
+  while (termBuf.length > TERM_MAX_LINES) {
+    termBuf.shift();
+    termRow = Math.max(0, termRow - 1);
+  }
+  // Reuse existing DOM children to avoid unnecessary allocations
+  const existing = logBody.children;
+  for (let i = 0; i < termBuf.length; i++) {
+    let span = i < existing.length ? existing[i] : null;
+    if (!span) {
+      span = document.createElement("span");
+      span.className = "logline";
+      logBody.appendChild(span);
+    }
+    span.textContent = termBuf[i];
+    span.className = "logline" + (_SPINNER_RE.test(termBuf[i]) ? " spinner" : "");
+  }
+  while (logBody.children.length > termBuf.length) logBody.lastChild.remove();
+  logBody.scrollTop = logBody.scrollHeight;
+}
+
+function resetTerminal() {
+  termBuf = [""];
+  termRow = 0;
+  termCol = 0;
+  termSavedRow = 0;
+  termSavedCol = 0;
+  termEscState = "";
+  termCsiParams = "";
+}
+
+function processLogChunk(text) {
+  for (const ch of text) {
+    if (termEscState) {
+      if (termEscState === "ESC") {
+        if (ch === "[") {
+          termEscState = "CSI";
+          termCsiParams = "";
+        } else if (ch === "7") {
+          termSavedRow = termRow; termSavedCol = termCol;
+          termEscState = "";
+        } else if (ch === "8") {
+          termRow = termSavedRow; termCol = termSavedCol;
+          termEscState = "";
+        } else {
+          termEscState = "";
+        }
+      } else if (termEscState === "CSI") {
+        if (ch >= "@" && ch <= "~") {
+          handleTermEscape(ch);
+          termEscState = "";
+        } else if (ch >= " " && ch <= "/") {
+          termCsiParams += ch;
+        } else {
+          termCsiParams += ch;
+        }
+      }
+    } else if (ch === "\x1b") {
+      termEscState = "ESC";
+    } else if (ch === "\r") {
+      termCol = 0;
+    } else if (ch === "\n") {
+      termRow++;
+      termCol = 0;
+    } else if (ch === "\b") {
+      termCol = Math.max(0, termCol - 1);
+    } else if (ch === "\t") {
+      termCol = (termCol + 8) & ~7;
+    } else if (ch >= " ") {
+      termWrite(ch);
+    }
+  }
+  renderLogBuffer();
+}
+
 let logReader = null;   // active ReadableStreamDefaultReader, if any
 
 function isLoggable(room) {
@@ -637,6 +779,7 @@ async function openLogPanel(room) {
   logBody.innerHTML = "";
   logStatus.textContent = "connecting…";
   logPanel.classList.add("open");
+  resetTerminal();
 
   try {
     const resp = await fetch(`/v1/logs/${encodeURIComponent(room.name)}`);
@@ -644,28 +787,15 @@ async function openLogPanel(room) {
       logStatus.textContent = `error ${resp.status}`;
       return;
     }
-    logStatus.textContent = "streaming · spinner frames deduplicated";
+    logStatus.textContent = "streaming · ANSI terminal emulation active";
     logReader = resp.body.getReader();
     const decoder = new TextDecoder();
-    let partial = "";
-    const MAX_LINES = 500;
 
     while (true) {
       const { done, value } = await logReader.read();
       if (done) { logStatus.textContent = "stream ended"; break; }
-      partial += decoder.decode(value, { stream: true });
-      const lines = partial.split("\n");
-      partial = lines.pop();          // last fragment, may be incomplete
-      for (const line of lines) {
-        const span = document.createElement("span");
-        span.className = "logline" + (_SPINNER_RE.test(line) ? " spinner" : "");
-        span.textContent = line;
-        logBody.appendChild(span);
-        // keep the body from growing forever
-        while (logBody.children.length > MAX_LINES) logBody.firstChild.remove();
-      }
-      // auto-scroll to bottom
-      logBody.scrollTop = logBody.scrollHeight;
+      const text = decoder.decode(value, { stream: true });
+      processLogChunk(text);
     }
   } catch (err) {
     if (err.name !== "AbortError") logStatus.textContent = `disconnected: ${err.message}`;
