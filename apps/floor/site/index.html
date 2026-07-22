@@ -88,35 +88,56 @@
   }
   /* Log panel — appears when you click an agent / task room */
   #logpanel {
-    position: fixed; bottom: 0; right: 0; width: min(640px, 100vw);
-    height: min(420px, 55vh); z-index: 20;
-    background: rgba(18, 21, 33, .96); border-top: 2px solid var(--brass);
-    border-left: 2px solid var(--brass); border-radius: 8px 0 0 0;
-    display: none; flex-direction: column;
+    position: fixed; bottom: 14px; right: 14px; width: 620px; min-width: 280px;
+    height: 380px; min-height: 200px; z-index: 20;
+    background: rgba(18, 21, 33, .96); border: 2px solid var(--brass);
+    border-radius: 8px; display: none; flex-direction: column;
     box-shadow: -4px -4px 24px rgba(0,0,0,.5);
     font: 12px/1.55 "SF Mono", "Consolas", "Menlo", monospace;
   }
   #logpanel.open { display: flex; }
+  #logpanel.fullscreen {
+    width: calc(100vw - 28px) !important; height: calc(100vh - 28px) !important;
+    bottom: 14px !important; right: 14px !important; top: 14px !important; left: 14px !important;
+    border-radius: 12px;
+  }
   #logpanel-header {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 6px 12px; border-bottom: 1px solid rgba(217,164,65,.3);
-    flex: none;
+    padding: 8px 12px; border-bottom: 1px solid rgba(217,164,65,.3);
+    flex: none; cursor: move; user-select: none;
   }
-  #logpanel-title { color: var(--brass); font-size: 12px; font-weight: 600; }
-  #logpanel-close {
+  #logpanel-title { color: var(--brass); font-size: 12px; font-weight: 600; flex: 1; }
+  #logpanel-actions {
+    display: flex; gap: 6px;
+  }
+  #logpanel-fullscreen, #logpanel-close {
     background: none; border: none; color: var(--paper); cursor: pointer;
-    font-size: 18px; line-height: 1; opacity: .7; padding: 0 2px;
+    font-size: 14px; line-height: 1; opacity: .7; padding: 0 4px; width: 20px; height: 20px;
   }
-  #logpanel-close:hover { opacity: 1; color: var(--brass); }
+  #logpanel-fullscreen:hover, #logpanel-close:hover { opacity: 1; color: var(--brass); }
+  #logpanel-fullscreen { font-size: 12px; }
   #logpanel-body {
-    flex: 1; overflow-y: auto; padding: 8px 12px;
-    color: rgba(244, 237, 228, 0.85); white-space: pre-wrap; word-break: break-all;
+    flex: 1; overflow: auto; padding: 10px 12px;
+    color: rgba(244, 237, 228, 0.85); white-space: pre-wrap; word-wrap: break-word;
+    background: rgba(10, 12, 20, 0.5);
   }
+  #logpanel-body::-webkit-scrollbar { width: 8px; }
+  #logpanel-body::-webkit-scrollbar-track { background: rgba(217,164,65,.1); border-radius: 4px; }
+  #logpanel-body::-webkit-scrollbar-thumb { background: rgba(217,164,65,.4); border-radius: 4px; }
+  #logpanel-body::-webkit-scrollbar-thumb:hover { background: rgba(217,164,65,.6); }
   #logpanel-body .logline { display: block; }
   #logpanel-body .logline.spinner { color: rgba(217,164,65,.55); }
   #logpanel-status {
-    padding: 3px 12px 5px; font-size: 10.5px; color: rgba(244,237,228,.4);
+    padding: 6px 12px; font-size: 10.5px; color: rgba(244,237,228,.4);
     flex: none; border-top: 1px solid rgba(217,164,65,.15);
+  }
+  #logpanel-resize {
+    position: absolute; bottom: 0; right: 0; width: 20px; height: 20px;
+    cursor: se-resize; padding: 4px;
+    background: linear-gradient(135deg, transparent 50%, rgba(217,164,65,.4) 50%);
+  }
+  #logpanel-resize:hover {
+    background: linear-gradient(135deg, transparent 50%, rgba(217,164,65,.7) 50%);
   }
 
   #inspector {
@@ -159,10 +180,14 @@
 <div id="logpanel">
   <div id="logpanel-header">
     <span id="logpanel-title">logs</span>
-    <button id="logpanel-close" title="Close log panel">&#x2715;</button>
+    <div id="logpanel-actions">
+      <button id="logpanel-fullscreen" title="Toggle fullscreen (F)">⛶</button>
+      <button id="logpanel-close" title="Close log panel (Esc)">✕</button>
+    </div>
   </div>
   <div id="logpanel-body"></div>
   <div id="logpanel-status">connecting…</div>
+  <div id="logpanel-resize" title="Drag to resize"></div>
 </div>
 <script src="iso.js"></script>
 </body>
