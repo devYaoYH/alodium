@@ -21,7 +21,7 @@ services:
       PORT: "8081"
       COMPOSE_PROJECT: sovereign-node
       COMPOSE_DIR: /srv/compose
-      ALLOWED_ON_DEMAND_APPS: snake
+      ALLOWED_ON_DEMAND_APPS: snake,fleet-sim
       LAUNCHER_API_KEY: ${LAUNCHER_API_KEY:-}
       AUDIT_LOG: /var/log/launcher/audit.jsonl
       # Route docker CLI through the scoped proxy instead of the raw socket.
