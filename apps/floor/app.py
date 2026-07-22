@@ -99,7 +99,7 @@ ARCHETYPE_RULES = [
     (("feed", "rss", "miniflux"), "antenna"),
     (("note", "memo"), "pinboard"),
     (("chat", "webui", "conversation"), "switchboard"),
-    (("game", "snake", "arcade"), "arcade"),
+    (("game", "snake", "arcade", "fleet", "simulator"), "arcade"),
     (("search",), "radar"),
     (("mail", "bridge", "drive"), "mailroom"),
     (("floor", "factory"), "drafting"),

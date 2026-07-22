@@ -96,6 +96,14 @@
         server: sovereign-node
         container: snake
         siteMonitor: http://snake:8080/
+    - Fleet Simulator:
+        icon: mdi-truck-delivery-outline
+        id: fleet-sim-tile
+        href: https://fleet.{{HOMEPAGE_VAR_NODE_DOMAIN}}
+        description: move crates around a procedurally generated wharf
+        server: sovereign-node
+        container: fleet-sim
+        siteMonitor: http://fleet-sim:8080/
     - Assistant:
         icon: open-webui.png
         href: https://chat.{{HOMEPAGE_VAR_NODE_DOMAIN}}
