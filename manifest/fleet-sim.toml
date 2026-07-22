@@ -1,0 +1,29 @@
+# Fleet Simulator — a vehicle fleet game with procedurally generated wharf.
+# On-demand ring 1 browser game. Built locally from apps/fleet-sim/site.
+
+[app]
+name = "fleet-sim"
+version = "0"
+description = "Vehicle fleet simulator game: move crates around a procedurally generated wharf"
+image = "sovereign-node/fleet-sim"
+ring = 1
+
+[service]
+port = 8080
+health = "/"
+
+[needs]
+# No internal calls; static site only.
+
+[resources]
+volumes = []
+database = "none"
+
+[tests]
+command = "curl -fsS $APP_URL/"
+timeout_seconds = 15
+
+[lifecycle]
+backup = []
+update_policy = "staged"
+on_demand = true
