@@ -56,9 +56,23 @@ fi
 git fetch -q forgejo main
 LOCAL=$(git rev-parse HEAD)
 REMOTE=$(git rev-parse forgejo/main)
-if [[ "$LOCAL" == "$REMOTE" ]]; then
+
+# Deployed hash is tracked in deploy-info.json (written at the end of each
+# successful deploy.sh run). If deploy-info.json doesn't exist or can't be read,
+# treat it as nil — first deploy ever or the file was lost. Use deployed hash
+# to trigger, not LOCAL: if a deploy.sh fails, DEPLOYED won't advance and the
+# next loop retries. Once DEPLOYED == REMOTE, nothing changes until the next
+# merge. This decouples "what's checked out" (LOCAL, operator's concern) from
+# "what's actually deployed" (DEPLOYED, this script's concern).
+DEPLOYED=""
+if [[ -f "config/homepage/static/deploy-info.json" ]]; then
+  DEPLOYED=$(python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('commit',''))" \
+    < "config/homepage/static/deploy-info.json" 2>/dev/null || echo "")
+fi
+
+if [[ "$DEPLOYED" == "$REMOTE" ]]; then
   if [[ "$DRY" == "--dry-run" ]]; then
-    echo "[deploy-watch] up to date at ${LOCAL:0:12} — nothing to do"
+    echo "[deploy-watch] deployed hash matches remote at ${REMOTE:0:12} — nothing to do"
   fi
   exit 0   # the common every-2-minutes outcome; no log noise
 fi
@@ -84,6 +98,10 @@ print(json.dumps({"title":sys.argv[1],"body":sys.argv[2],"labels":[int(sys.argv[
     "$1" "$2" "$LID")" >/dev/null || true
 }
 
+# Fast-forward-only merge check: LOCAL must be an ancestor of REMOTE. This
+# ensures the operator's working tree can safely be moved forward without
+# losing work. Divergence means the operator's working tree has commits
+# forgejo/main doesn't have — they need to reconcile by hand.
 if ! git merge-base --is-ancestor "$LOCAL" "$REMOTE"; then
   echo "[deploy-watch] local main and forgejo/main have DIVERGED — refusing (operator decision, not a script's)"
   if [[ "$DRY" != "--dry-run" ]]; then
@@ -95,12 +113,12 @@ if ! git merge-base --is-ancestor "$LOCAL" "$REMOTE"; then
 fi
 
 if [[ "$DRY" == "--dry-run" ]]; then
-  echo "[deploy-watch] would deploy ${LOCAL:0:12}..${REMOTE:0:12}:"
-  git log --oneline "$LOCAL..$REMOTE" | sed 's/^/    /'
+  echo "[deploy-watch] would deploy ${DEPLOYED:0:12}..${REMOTE:0:12}:"
+  git log --oneline "${DEPLOYED}..${REMOTE}" 2>/dev/null | sed 's/^/    /' || echo "    (cannot show log; deployed hash not in current tree)"
   exit 0
 fi
 
-echo "[deploy-watch] merge detected — deploying ${LOCAL:0:12}..${REMOTE:0:12}"
+echo "[deploy-watch] deployment needed — deploying from ${DEPLOYED:0:12} to ${REMOTE:0:12}"
 if OUT=$(./scripts/deploy.sh 2>&1); then
   printf '%s\n' "$OUT"
   echo "[deploy-watch] deployed ${REMOTE:0:12}"
