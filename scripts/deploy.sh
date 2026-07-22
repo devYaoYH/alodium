@@ -95,6 +95,34 @@ for app in $(printf '%s\n' "$CHANGED" | sed -n 's#^apps/\([^/]*\)/.*#\1#p' | sor
   fi
 done
 
+# 4c. Build locally-built images that don't exist yet (across all profiles).
+#     Mirrors the idempotent-missing-image pattern from build-mirrored.sh
+#     (step 4). Catches new on-demand apps whose image was never built
+#     (e.g. first deploy after the PR that added them) and recovers from
+#     pruned images. Only processes services that have a build context;
+#     `docker compose build` is a no-op when the image already exists.
+COMPOSE_JSON=$(COMPOSE_PROFILES="$ALL_PROFILES" docker compose config --format json 2>/dev/null || true)
+if [[ -n "$COMPOSE_JSON" ]]; then
+  python3 -c "
+import json, os, sys
+cfg = json.loads(sys.stdin.read())
+for name, svc in cfg.get('services', {}).items():
+    build = svc.get('build')
+    if not build:
+        continue
+    image = (svc.get('image') or '').strip()
+    if not image:
+        continue
+    if os.system(f'docker image inspect {image} >/dev/null 2>&1') == 0:
+        continue
+    print(name)
+" <<<"$COMPOSE_JSON" 2>/dev/null | while read -r app; do
+    echo "   building $app (missing local image — step 4c)"
+    COMPOSE_PROFILES="$ALL_PROFILES" docker compose build "$app" \
+      || echo "deploy: WARN build failed for $app (continuing; launcher will build on demand)"
+  done
+fi
+
 # 5. Apply: recreate any service whose spec changed (env/image/etc).
 #    Two passes, because "which profiles are enabled" is the OPERATOR's call,
 #    not this script's: first the core plane (default profile), then every
