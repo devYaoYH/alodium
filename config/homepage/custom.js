@@ -374,6 +374,62 @@
       </a>
       <span class="alodium-deploy-info__ts">${ts}</span>
     `;
+
+    // If the recording deploy had warnings or failed, surface a clickable badge
+    // that pops up the collected messages (written by deploy.sh into `messages`).
+    const messages = Array.isArray(info.messages) ? info.messages : [];
+    const failed = info.status === 'failed';
+    if (failed || messages.length) {
+      const badge = document.createElement('button');
+      badge.type = 'button';
+      badge.className = 'alodium-deploy-info__badge'
+        + (failed ? ' alodium-deploy-info__badge--error' : '');
+      badge.textContent = '⚠';
+      const count = messages.length;
+      badge.setAttribute('aria-label',
+        `Last deploy ${failed ? 'failed' : 'had warnings'}`
+        + (count ? ` (${count} message${count === 1 ? '' : 's'})` : ''));
+      badge.title = badge.getAttribute('aria-label');
+
+      const popup = document.createElement('div');
+      popup.className = 'alodium-deploy-info__popup';
+      popup.hidden = true;
+      const heading = failed ? 'Deploy failed' : 'Deploy warnings';
+      const rows = count
+        ? messages.map((m) => {
+            const lvl = (m.level || 'INFO').toString();
+            const text = (m.text || '').toString();
+            const li = document.createElement('div');
+            li.className = 'alodium-deploy-info__msg';
+            const tag = document.createElement('span');
+            tag.className = 'alodium-deploy-info__msg-level alodium-deploy-info__msg-level--'
+              + lvl.toLowerCase();
+            tag.textContent = lvl;
+            li.appendChild(tag);
+            li.appendChild(document.createTextNode(' ' + text));
+            return li.outerHTML;
+          }).join('')
+        : '<div class="alodium-deploy-info__msg">(no detail recorded)</div>';
+      popup.innerHTML = `<div class="alodium-deploy-info__popup-title">${heading}</div>${rows}`;
+
+      badge.addEventListener('click', (e) => {
+        e.stopPropagation();
+        popup.hidden = !popup.hidden;
+      });
+      // Dismiss on outside click. Registered once (the widget re-renders every
+      // 2 min); it just hides whatever popup is currently in the DOM.
+      if (!window.__alodiumDeployPopupDismiss) {
+        window.__alodiumDeployPopupDismiss = true;
+        document.addEventListener('click', () => {
+          const p = document.querySelector('.alodium-deploy-info__popup');
+          if (p) p.hidden = true;
+        });
+      }
+
+      el.appendChild(badge);
+      el.appendChild(popup);
+    }
+
     document.body.appendChild(el);
   };
 

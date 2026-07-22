@@ -416,11 +416,97 @@ html.alodium-chatbar-open #page_container { padding-bottom: 11rem; }
   user-select: none;
 }
 
+.alodium-deploy-info {
+  position: relative; /* anchor for the failure popup */
+}
+
 .alodium-deploy-info__label {
   font-weight: 500;
   color: rgba(148, 163, 184, 0.6);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+/* --- deploy failure/warning badge + popup --------------------------------- */
+.alodium-deploy-info__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.05rem;
+  height: 1.05rem;
+  padding: 0;
+  border: none;
+  border-radius: 0.3rem;
+  font-size: 0.7rem;
+  line-height: 1;
+  cursor: pointer;
+  color: #0b1220;
+  background: #fbbf24; /* amber — warnings */
+  transition: filter 140ms ease;
+}
+
+.alodium-deploy-info__badge:hover {
+  filter: brightness(1.1);
+}
+
+.alodium-deploy-info__badge--error {
+  background: #f87171; /* red — hard failure */
+}
+
+.alodium-deploy-info__popup {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 0.4rem);
+  z-index: 40;
+  min-width: 16rem;
+  max-width: 32rem;
+  max-height: 50vh;
+  overflow-y: auto;
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.45rem;
+  background: rgba(4, 8, 18, 0.95);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  font-size: 0.66rem;
+  line-height: 1.5;
+  color: rgba(226, 232, 240, 0.92);
+  user-select: text;
+}
+
+.alodium-deploy-info__popup[hidden] {
+  display: none;
+}
+
+.alodium-deploy-info__popup-title {
+  font-weight: 650;
+  margin-bottom: 0.35rem;
+  color: #fbbf24;
+}
+
+.alodium-deploy-info__msg {
+  padding: 0.15rem 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+  word-break: break-word;
+}
+
+.alodium-deploy-info__msg:first-of-type {
+  border-top: none;
+}
+
+.alodium-deploy-info__msg-level {
+  font-family: ui-monospace, 'SF Mono', 'Cascadia Code', 'Roboto Mono', 'Consolas', monospace;
+  font-weight: 650;
+  font-size: 0.58rem;
+}
+
+.alodium-deploy-info__msg-level--warn {
+  color: #fbbf24;
+}
+
+.alodium-deploy-info__msg-level--error {
+  color: #f87171;
 }
 
 .alodium-deploy-info__commit {

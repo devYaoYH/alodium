@@ -12,6 +12,75 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# --- deploy-info surfacing ---------------------------------------------------
+# The homepage lower-left "deployed" stamp reads config/homepage/static/
+# deploy-info.json. We record not just the deployed commit but the OUTCOME:
+# a `status` ("ok" | "warning" | "failed") and any WARN/error `messages`, so a
+# broken deploy shows a clickable badge on the dashboard instead of failing
+# silently. Warnings are collected via record_msg (below, replacing the old
+# `|| echo "deploy: WARN ..."` sites); hard aborts under `set -e` are caught by
+# the ERR trap, which flags the deploy failed with the failing command.
+DEPLOY_INFO="config/homepage/static/deploy-info.json"
+DEPLOY_MSGS="$(mktemp)"
+trap 'rm -f "$DEPLOY_MSGS"' EXIT
+
+# record_msg <LEVEL> <text...> — echo to the console AND stash for deploy-info.
+record_msg() {
+  local level="$1"; shift
+  echo "deploy: ${level} $*" >&2
+  printf '%s\t%s\n' "$level" "$*" >> "$DEPLOY_MSGS"
+}
+
+# write_deploy_info <status> — (re)write the JSON artifact the homepage reads.
+# Renders the collected messages as a JSON array via python3 (safe escaping).
+write_deploy_info() {
+  local status="$1"
+  mkdir -p "$(dirname "$DEPLOY_INFO")"
+  local domain="${NODE_DOMAIN:-localhost}"
+  local repo="${NODE_CONFIG_REPO:-operator/node-config}"
+  local commit short
+  commit=$(git rev-parse HEAD)
+  short=$(git rev-parse --short HEAD)
+  DEPLOY_STATUS="$status" \
+  DEPLOY_TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  DEPLOY_COMMIT="$commit" DEPLOY_SHORT="$short" \
+  DEPLOY_URL="https://git.${domain}/${repo}/commit/${commit}" \
+  DEPLOY_MSGS_FILE="$DEPLOY_MSGS" \
+  python3 - > "$DEPLOY_INFO" <<'PY'
+import json, os
+msgs = []
+try:
+    with open(os.environ["DEPLOY_MSGS_FILE"]) as f:
+        for line in f:
+            line = line.rstrip("\n")
+            if not line:
+                continue
+            level, _, text = line.partition("\t")
+            msgs.append({"level": level, "text": text})
+except FileNotFoundError:
+    pass
+print(json.dumps({
+    "timestamp": os.environ["DEPLOY_TS"],
+    "commit": os.environ["DEPLOY_COMMIT"],
+    "short_hash": os.environ["DEPLOY_SHORT"],
+    "url": os.environ["DEPLOY_URL"],
+    "status": os.environ["DEPLOY_STATUS"],
+    "messages": msgs,
+}, indent=2))
+PY
+}
+
+# On any unhandled failure under `set -e`, flag the deploy failed and record the
+# failing command before the shell exits. `trap - ERR` first so a failure inside
+# write_deploy_info can't re-enter this handler.
+on_error() {
+  local ec=$?
+  trap - ERR
+  record_msg ERROR "step failed (exit ${ec}): ${BASH_COMMAND}"
+  write_deploy_info failed || true
+}
+trap on_error ERR
+
 # 1. Bring the merged tree into the working checkout FROM FORGEJO (where the PR
 #    merged), fast-forward only — a divergence is an operator decision, not a
 #    silent merge commit from a deploy script. Remember where we started: the
@@ -19,7 +88,9 @@ cd "$(dirname "$0")/.."
 OLD_HEAD=$(git rev-parse HEAD)
 git fetch forgejo main
 if ! git merge --ff-only forgejo/main; then
-  echo "deploy: local main and forgejo/main have diverged — reconcile by hand, then re-run." >&2
+  trap - ERR
+  record_msg ERROR "local main and forgejo/main have diverged — reconcile by hand, then re-run."
+  write_deploy_info failed || true
   exit 1
 fi
 
@@ -30,7 +101,7 @@ fi
 #    `git remote add origin git@github.com:devYaoYH/alodium.git`.
 #    (sync-node-config pushes the other way; forgejo remains the deploy source.)
 if git remote get-url origin >/dev/null 2>&1; then
-  git push origin main || echo "deploy: WARN could not push origin (continuing; node is already at merged main)"
+  git push origin main || record_msg WARN "could not push origin (continuing; node is already at merged main)"
 else
   echo "   skipping origin mirror (no 'origin' remote configured)"
 fi
@@ -48,7 +119,7 @@ fi
 #     These are the per-issue model-routing knobs for issue-work dispatch.
 #     Safe to re-run: the script checks for label existence via the API
 #     before creating (Forgejo does NOT deduplicate by name).
-./scripts/ensure-tier-labels.sh || echo "deploy: WARN ensure-tier-labels.sh failed (non-fatal; labels may need manual creation)"
+./scripts/ensure-tier-labels.sh || record_msg WARN "ensure-tier-labels.sh failed (non-fatal; labels may need manual creation)"
 
 # 4. Build any mirrored images that are missing (idempotent: existing images
 #    are skipped). This happens before compose up so the image reference in
@@ -91,7 +162,7 @@ for app in $(printf '%s\n' "$CHANGED" | sed -n 's#^apps/\([^/]*\)/.*#\1#p' | sor
   if printf '%s\n' "$BUILDABLE" | grep -qx "$app"; then
     echo "   rebuilding $app image (build inputs changed)"
     COMPOSE_PROFILES="$ALL_PROFILES" docker compose build "$app" \
-      || echo "deploy: WARN build failed for $app (continuing; step 5 uses existing image)"
+      || record_msg WARN "build failed for $app (continuing; step 5 uses existing image)"
   fi
 done
 
@@ -119,7 +190,7 @@ for name, svc in cfg.get('services', {}).items():
 " <<<"$COMPOSE_JSON" 2>/dev/null | while read -r app; do
     echo "   building $app (missing local image — step 4c)"
     COMPOSE_PROFILES="$ALL_PROFILES" docker compose build "$app" \
-      || echo "deploy: WARN build failed for $app (continuing; launcher will build on demand)"
+      || record_msg WARN "build failed for $app (continuing; launcher will build on demand)"
   done
 fi
 
@@ -157,7 +228,7 @@ fi
 if docker compose exec -T caddy caddy validate --config /etc/caddy/Caddyfile >/dev/null 2>&1; then
   docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile && echo "   caddy reloaded"
 else
-  echo "deploy: WARN caddy config failed validation — NOT reloading (fix the route, re-run)"
+  record_msg WARN "caddy config failed validation — NOT reloading (fix the route, re-run)"
 fi
 
 # CHANGED was computed in step 4b (OLD_HEAD..HEAD is fixed after the ff-merge).
@@ -188,18 +259,12 @@ docker compose ps --format 'table {{.Name}}\t{{.Status}}'
 #     Writes a JSON artifact that the homepage serves at /static/deploy-info.json
 #     containing the current timestamp and deployed commit hash, hyperlinked to
 #     the commit in the node-config Forgejo repo.
-DEPLOY_INFO="config/homepage/static/deploy-info.json"
-mkdir -p "$(dirname "$DEPLOY_INFO")"
-NODE_DOMAIN="${NODE_DOMAIN:-localhost}"
-NODE_CONFIG_REPO="${NODE_CONFIG_REPO:-operator/node-config}"
-COMMIT=$(git rev-parse HEAD)
-SHORT=$(git rev-parse --short HEAD)
-cat > "$DEPLOY_INFO" <<DEPLOY_EOF
-{
-  "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "commit": "${COMMIT}",
-  "short_hash": "${SHORT}",
-  "url": "https://git.${NODE_DOMAIN}/${NODE_CONFIG_REPO}/commit/${COMMIT}"
-}
-DEPLOY_EOF
-echo "   deploy-info recorded (${SHORT} at $(date -u +%Y-%m-%dT%H:%M:%SZ))"
+#     Any WARN collected along the way (build failures, skipped SSO, caddy
+#     validation) downgrades the status to "warning" so the dashboard shows the
+#     badge; a clean run is "ok". Hard aborts are handled by the ERR trap above.
+DEPLOY_FINAL_STATUS=ok
+if [[ -s "$DEPLOY_MSGS" ]]; then
+  DEPLOY_FINAL_STATUS=warning
+fi
+write_deploy_info "$DEPLOY_FINAL_STATUS"
+echo "   deploy-info recorded (status=${DEPLOY_FINAL_STATUS}, $(git rev-parse --short HEAD) at $(date -u +%Y-%m-%dT%H:%M:%SZ))"
