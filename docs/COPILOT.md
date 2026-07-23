@@ -45,11 +45,20 @@ real credentials and the IdP, which no agent may touch):
    ```
    Copy the token into `secrets/copilot.env` as `CLAUDE_CODE_OAUTH_TOKEN=...`.
 2. **Create the `copilot` Forgejo user** and a token with scopes
-   `write:issue, write:repository`; put it in `secrets/copilot.env` as
-   `COPILOT_FORGEJO_TOKEN=...`. Ensure `main` on `node-config` is
-   branch-protected (blocks direct push/merge) — this is the apply-gap.
+   `write:issue, write:repository` (NOT org/admin); put it in `secrets/copilot.env`
+   as `COPILOT_FORGEJO_TOKEN=...`. Then:
+   - **Grant repo access** so it can propose: add `copilot` as a **write**
+     collaborator on `node-config` and `coordination` (token scope alone is not
+     access).
+   - **Protect `main`** on both repos so the token stays a proposer: block direct
+     push and restrict merge to the operator. This is the apply-gap. Example:
+     ```
+     POST /api/v1/repos/operator/<repo>/branch_protections
+       {"rule_name":"main","enable_push":false,
+        "enable_merge_whitelist":true,"merge_whitelist_usernames":["operator"]}
+     ```
    (`mint-secrets.sh` scaffolds `secrets/copilot.env` from `apps/copilot/env.example`
-   on deploy and will flag both as operator-owed if left blank.)
+   on deploy and will flag both credentials as operator-owed if left blank.)
 3. **Enable the profiles.** The door needs the auth shim, and the seat is
    profile-gated so it is opt-in:
    ```
