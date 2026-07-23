@@ -226,7 +226,7 @@ services:
       # Chrome refuses Domain=.localhost cookies (public-suffix rule), which
       # silently drops the shim's CSRF cookie -> 403 on the OAuth callback.
       # Host-scope the cookies in local dev; real domains keep .${NODE_DOMAIN}.
-      OAUTH2_PROXY_COOKIE_DOMAINS: cal.localhost,calino.localhost
+      OAUTH2_PROXY_COOKIE_DOMAINS: cal.localhost,calino.localhost,copilot.localhost
     volumes:
       - ./.local-ca-bundle.pem:/certs/local-bundle.pem:ro
 EOF
