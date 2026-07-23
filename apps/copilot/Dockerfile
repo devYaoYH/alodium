@@ -37,6 +37,15 @@ RUN npm install -g @anthropic-ai/claude-code
 
 # unprivileged, high-uid user — no root in the seat.
 RUN useradd -m -u 10001 copilot
+
+# Pre-create the Claude state dir OWNED BY copilot. The compose bind-mounts the
+# operating contract to /home/copilot/.claude/CLAUDE.md; if this dir does not
+# already exist, Docker auto-creates the mount's parent as ROOT, leaving the seat
+# (uid 10001) unable to write its own credentials/sessions/state there — which
+# breaks the interactive session. Creating it here first keeps the mount from
+# reparenting it to root, so Claude Code can write ~/.claude/* as copilot.
+RUN mkdir -p /home/copilot/.claude && chown -R copilot:copilot /home/copilot/.claude
+
 COPY --chown=copilot:copilot entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
