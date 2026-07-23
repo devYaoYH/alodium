@@ -145,11 +145,11 @@
               label: latest handoff
     - Ask your engineering org:
         icon: mdi-message-processing-outline
-        href: https://chat.{{HOMEPAGE_VAR_NODE_DOMAIN}}
-        description: describe what you want built, changed, or investigated
+        href: https://copilot.{{HOMEPAGE_VAR_NODE_DOMAIN}}
+        description: talk to your infra co-pilot — it plans, files issues, and reviews PRs
         server: sovereign-node
-        container: open-webui
-        siteMonitor: http://open-webui:8080/health
+        container: copilot
+        siteMonitor: http://copilot:7681/
 
 - Engineering org:
     - Agent notebook:

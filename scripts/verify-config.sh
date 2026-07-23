@@ -123,6 +123,87 @@ else
   fi
 fi
 
+# --- 6. Copilot containment invariants -------------------------------------
+# The copilot seat is a capable, subscription-backed Claude Code session. Its
+# safety rests on a hard code/data-plane split: it may reach ONLY its door
+# (front), the agent spur (agents) and its egress proxy (copilot-egress), and
+# its ONLY internet path is that proxy. A config change that puts it on a
+# data-plane network, on `edge` directly, or hands it the docker socket / a
+# secrets mount would silently dismantle that boundary — this catches it before
+# it can be proposed, let alone merged.
+sec "copilot containment"
+if [[ -f "apps/copilot/compose.yaml" ]]; then
+  python3 - <<'PY' 2>/tmp/vc_copilot.log
+import sys, yaml
+
+cfg = yaml.safe_load(open('apps/copilot/compose.yaml'))
+svcs = cfg.get('services', {})
+errs = []
+
+def nets(name):
+    n = svcs.get(name, {}).get('networks', []) or []
+    return set(n.keys()) if isinstance(n, dict) else set(n)
+
+# The load-bearing boundary: reach front (door), agents (spur) and its egress
+# proxy — nothing else. Any other network, above all a data-plane net or `edge`
+# (direct internet), breaks the separation the whole design rests on.
+ALLOWED = {'front', 'agents', 'copilot-egress'}
+extra = nets('copilot') - ALLOWED
+if extra:
+    errs.append(f"copilot joins forbidden network(s) {sorted(extra)} "
+                f"(allowed: {sorted(ALLOWED)}) — data-plane reach / direct "
+                f"internet must never be granted to the copilot.")
+if 'edge' in nets('copilot'):
+    errs.append("copilot must NOT join `edge` — its only egress is via copilot-egress.")
+
+# Only the egress companion may bridge to the internet, and only paired with its
+# private link to the copilot — exactly the search-egress shape.
+EGRESS_ALLOWED = {'copilot-egress', 'edge'}
+e_extra = nets('copilot-egress') - EGRESS_ALLOWED
+if e_extra:
+    errs.append(f"copilot-egress joins unexpected network(s) {sorted(e_extra)} "
+                f"(allowed: {sorted(EGRESS_ALLOWED)}).")
+
+# No host socket, no secrets mount — node maintenance only, no host control.
+for v in svcs.get('copilot', {}).get('volumes', []) or []:
+    src = (v.split(':', 1)[0] if isinstance(v, str) else v.get('source', '')).strip()
+    if 'docker.sock' in src:
+        errs.append("copilot mounts the docker socket — forbidden (no host control).")
+    if src == 'secrets' or src.startswith('./secrets') or src.startswith('/'):
+        if 'COPILOT.md' not in (v if isinstance(v, str) else ''):
+            errs.append(f"copilot mounts host path {src!r} — only ./COPILOT.md (ro) is allowed.")
+
+# The egress allowlist default must stay Anthropic-only: a widened default here
+# would quietly turn the one controlled hole into general internet access. The
+# value is a `${VAR:-<default>}` string — pull out the default and require EVERY
+# entry to be an anthropic.com host.
+import re
+egress_env = svcs.get('copilot-egress', {}).get('environment', {}) or {}
+raw = str(egress_env.get('EGRESS_ALLOW', ''))
+m = re.search(r':-([^}]*)\}', raw)          # ${VAR:-<default>} -> <default>
+default = m.group(1) if m else raw
+entries = [e.strip().lstrip('.').lower() for e in default.split(',') if e.strip()]
+if not entries:
+    errs.append("copilot-egress EGRESS_ALLOW has no default allowlist.")
+for e in entries:
+    if e != 'anthropic.com' and not e.endswith('.anthropic.com'):
+        errs.append(f"copilot-egress EGRESS_ALLOW default entry {e!r} is not an "
+                    f"anthropic.com host — the egress must stay Anthropic-only.")
+
+if errs:
+    for e in errs:
+        sys.stderr.write('  - ' + e + '\n')
+    sys.exit(1)
+PY
+  if [[ $? -ne 0 ]]; then
+    note "FAIL: copilot containment violated —"; sed 's/^/    /' /tmp/vc_copilot.log; FAIL=1
+  else
+    note "OK: copilot reaches only front/agents/egress; no socket, secrets, or data-plane net"
+  fi
+else
+  note "SKIP: no apps/copilot/compose.yaml"
+fi
+
 echo
 if [[ "$FAIL" -eq 0 ]]; then echo "verify-config: PASS"; else echo "verify-config: FAIL (fix the above before pushing)"; fi
 exit "$FAIL"

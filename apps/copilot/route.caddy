@@ -1,0 +1,34 @@
+# copilot's door — imported by the root Caddyfile (import apps/*/route.caddy),
+# so ring guards and the (authed) snippet are already defined when this loads.
+# Ring 0 — the operator's paired infra-sysadmin seat (ttyd terminal).
+#
+# A privileged interactive shell demands defense in depth at the door: ring0
+# (operator LAN/VPN only) + passkey SSO (authed) + operator-email-only. ttyd
+# itself is unauthenticated behind this door — the door IS the authentication.
+# Requires the `authshim` profile (oauth2-proxy) and the `copilot` profile.
+copilot.{$NODE_DOMAIN} {
+	import ring0
+
+	# Complete the passkey callback locally without the forward-auth loop
+	# re-inspecting it (same pattern as calino).
+	handle /oauth2/* {
+		reverse_proxy oauth2-proxy:4180
+	}
+
+	handle {
+		import authed
+
+		# Only the operator's verified SSO identity may reach the shell; any
+		# other signed-in household member is refused. Reuses the operator's
+		# Pocket ID email (the same identity the radicale route trusts). Sentinel
+		# default = fail closed (nobody matches) when it is unset.
+		@operator header X-Auth-Request-Email {$RADICALE_OPERATOR_EMAIL:nobody@node.invalid}
+		handle @operator {
+			# ttyd speaks WebSocket; Caddy's reverse_proxy upgrades transparently.
+			reverse_proxy copilot:7681
+		}
+		handle {
+			respond "operator only" 403
+		}
+	}
+}
