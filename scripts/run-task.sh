@@ -67,7 +67,7 @@ LLM=(/usr/bin/curl -sk --resolve "llm.${NODE_DOMAIN}:443:127.0.0.1" \
 
 echo "[$RUN] minting per-run key: model=$MODEL budget=\$$BUDGET expiry=$EXPIRES"
 RUN_KEY=$("${LLM[@]}" "https://llm.${NODE_DOMAIN}/key/generate" \
-  -d "{\"key_alias\":\"$RUN\",\"models\":[\"$MODEL\"],\"max_budget\":$BUDGET,\"duration\":\"$EXPIRES\"}" \
+  -d "{\"key_alias\":\"$RUN\",\"team_id\":\"$ENG_TEAM_ID\",\"models\":[\"$MODEL\"],\"max_budget\":$BUDGET,\"duration\":\"$EXPIRES\"}" \
   | python3 -c 'import json,sys; print(json.load(sys.stdin)["key"])')
 
 teardown() {
