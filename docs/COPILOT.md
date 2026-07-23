@@ -26,8 +26,9 @@ gets a genuinely capable model — but it is boxed in by construction:
   asserts this on every config change, so a PR that tries to widen its reach
   fails the gate before it can be merged.
 - **One sanctioned egress.** Its only internet path is `copilot-egress`, a
-  deny-by-default CONNECT proxy that tunnels TLS to `*.anthropic.com` and refuses
-  everything else. No direct internet, no arbitrary fetch.
+  deny-by-default CONNECT proxy that tunnels TLS to Anthropic's own domains
+  (`*.anthropic.com` = the API, `*.claude.com` = the subscription-auth/console
+  plane) and refuses everything else. No direct internet, no arbitrary fetch.
 - **Proposer, not applier.** Its Forgejo token opens PRs and files issues; branch
   protection on `main` keeps merge — the deploy authorization moment — with you.
   It never runs `scripts/deploy.sh` and never holds the docker socket.

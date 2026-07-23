@@ -4,8 +4,9 @@
 The copilot seat has no direct internet: it sits on internal networks only
 (front, agents, copilot-egress). Its ONE sanctioned egress is this proxy, which
 accepts CONNECT tunnels to an allowlist of hosts and refuses everything else.
-The allowlist is Anthropic's API only — so a compromised copilot session can
-reach the model it needs and nothing else on the internet.
+The allowlist is Anthropic's own domains only (anthropic.com = the API,
+claude.com = the subscription-auth / console plane) — so a compromised copilot
+session can reach the model it needs and nothing else on the internet.
 
 Stdlib only, no dependencies; the allowlist is right here in the open for the
 operator (and scripts/verify-config.sh) to read. Only CONNECT is handled: this
@@ -23,7 +24,7 @@ PORT = int(os.environ.get("PORT", "8080"))
 # "this domain and any subdomain"; an entry without a dot must match exactly.
 ALLOW = tuple(
     h.strip().lower()
-    for h in os.environ.get("EGRESS_ALLOW", ".anthropic.com").split(",")
+    for h in os.environ.get("EGRESS_ALLOW", ".anthropic.com,.claude.com").split(",")
     if h.strip()
 )
 
