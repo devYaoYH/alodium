@@ -69,6 +69,26 @@
       border: 1px solid #202533;
       image-rendering: pixelated;
     }
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 8px 4px 0;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .legend-swatch {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 2px;
+      border: 1px solid #333;
+    }
     .controls {
       display: flex;
       gap: 8px;
@@ -121,6 +141,14 @@
         <span class="key">R</span> restart
         <button class="btn" id="spawnBtn">+ Vehicle</button>
       </div>
+      <div class="legend">
+        <span class="legend-item"><span class="legend-swatch" style="background:#2a2a2a"></span> Road (movable area)</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:#2d4a2d"></span> Storage (drop-off zone)</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:#5c4033"></span> Dock (crate spawn)</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:#1a3a4a"></span> Water (impassable)</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:#d4a043"></span> Crate</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:#f97316"></span> Vehicle</span>
+      </div>
       <div id="status">Select a vehicle to begin</div>
     </div>
   </div>
@@ -142,6 +170,7 @@
 
     // Tile types
     const T = { WATER: 0, DOCK: 1, ROAD: 2, STORAGE: 3, CRATE: 4 };
+    let frameCount = 0;
 
     // Procedural wharf layout
     let grid = [];
@@ -338,10 +367,10 @@
               }
             }
 
-            // Check if we arrived at storage (deliver)
+            // Check if we arrived at storage (deliver) — also stop on any road as fallback
             if (v.cargo) {
               const tile = grid[Math.floor(v.y)][Math.floor(v.x)];
-              if (tile === T.STORAGE) {
+              if (tile === T.STORAGE || tile === T.ROAD) {
                 // Deliver the crate
                 const idx = crates.indexOf(v.cargo);
                 if (idx !== -1) crates.splice(idx, 1);
@@ -380,7 +409,7 @@
               }
             }
           } else {
-            // Find nearest storage
+            // Find nearest storage (or road as fallback if no storage reachable)
             let nearest = null;
             let nearestDist = Infinity;
             for (let y = 0; y < ROWS; y++) {
@@ -398,6 +427,25 @@
               const path = findPath(Math.floor(v.x), Math.floor(v.y), nearest.x, nearest.y);
               if (path) {
                 v.path = path;
+              } else {
+                // Fallback: try any reachable road tile for drop-off
+                let fallback = null;
+                let fallbackDist = Infinity;
+                for (let y = 0; y < ROWS; y++) {
+                  for (let x = 0; x < COLS; x++) {
+                    if (grid[y][x] === T.ROAD) {
+                      const d = Math.abs(x - v.x) + Math.abs(y - v.y);
+                      if (d < fallbackDist) {
+                        fallbackDist = d;
+                        fallback = {x, y};
+                      }
+                    }
+                  }
+                }
+                if (fallback) {
+                  const fallbackPath = findPath(Math.floor(v.x), Math.floor(v.y), fallback.x, fallback.y);
+                  if (fallbackPath) v.path = fallbackPath;
+                }
               }
             }
           }
@@ -412,6 +460,7 @@
       ctx.clearRect(0, 0, COLS * CELL, ROWS * CELL);
 
       // Draw tiles
+      frameCount++;
       for (let y = 0; y < ROWS; y++) {
         for (let x = 0; x < COLS; x++) {
           const t = grid[y][x];
@@ -445,23 +494,31 @@
         }
       }
 
-      // Draw crates
+      // Draw crates (uncarried on the ground, carried on the vehicle)
       for (const c of crates) {
-        if (c.carried) continue;
-        const cx = c.x * CELL + 2;
-        const cy = c.y * CELL + 2;
+        let drawX, drawY;
+        if (c.carried && c.carrier) {
+          // Draw crate at the carrier vehicle's position so it follows the vehicle
+          drawX = c.carrier.x * CELL + 2;
+          drawY = c.carrier.y * CELL + 2;
+        } else if (c.carried) {
+          continue;
+        } else {
+          drawX = c.x * CELL + 2;
+          drawY = c.y * CELL + 2;
+        }
         ctx.fillStyle = 'var(--crate)';
-        ctx.fillRect(cx, cy, CELL - 4, CELL - 4);
+        ctx.fillRect(drawX, drawY, CELL - 4, CELL - 4);
         ctx.strokeStyle = '#b8862d';
         ctx.lineWidth = 1;
-        ctx.strokeRect(cx, cy, CELL - 4, CELL - 4);
+        ctx.strokeRect(drawX, drawY, CELL - 4, CELL - 4);
         // Cross pattern
         ctx.strokeStyle = '#b8862d';
         ctx.beginPath();
-        ctx.moveTo(cx + 2, cy + 2);
-        ctx.lineTo(cx + CELL - 6, cy + CELL - 6);
-        ctx.moveTo(cx + CELL - 6, cy + 2);
-        ctx.lineTo(cx + 2, cy + CELL - 6);
+        ctx.moveTo(drawX + 2, drawY + 2);
+        ctx.lineTo(drawX + CELL - 6, drawY + CELL - 6);
+        ctx.moveTo(drawX + CELL - 6, drawY + 2);
+        ctx.lineTo(drawX + 2, drawY + CELL - 6);
         ctx.stroke();
       }
 
@@ -471,13 +528,25 @@
         const cy = v.y * CELL;
         const isSelected = selectedVehicle === v;
 
-        // Selection glow
+        // Selection glow — pulsing ring
         if (isSelected) {
+          const pulse = 0.6 + 0.3 * Math.sin(frameCount * 0.08);
           ctx.strokeStyle = 'var(--vehicle-selected)';
           ctx.lineWidth = 2;
           ctx.beginPath();
-          ctx.arc(cx + CELL/2, cy + CELL/2, CELL * 0.7, 0, Math.PI * 2);
+          ctx.arc(cx + CELL/2, cy + CELL/2, CELL * (0.5 + 0.25 * pulse), 0, Math.PI * 2);
           ctx.stroke();
+          // Outer glow ring
+          ctx.strokeStyle = `rgba(34, 211, 238, ${0.15 * pulse})`;
+          ctx.lineWidth = 4;
+          ctx.beginPath();
+          ctx.arc(cx + CELL/2, cy + CELL/2, CELL * 0.85, 0, Math.PI * 2);
+          ctx.stroke();
+          // "SELECTED" label below
+          ctx.fillStyle = 'var(--vehicle-selected)';
+          ctx.font = 'bold 8px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('SELECTED', cx + CELL/2, cy + CELL + 12);
         }
 
         // Vehicle body
@@ -486,19 +555,30 @@
         ctx.roundRect(cx + 2, cy + 3, CELL - 4, CELL - 6, 3);
         ctx.fill();
 
-        // Cab
+        // Cab (facing direction of travel)
+        const facingRight = v.path.length > 0 && v.path[0].x > v.x;
+        const facingLeft = v.path.length > 0 && v.path[0].x < v.x;
+        const facingDown = v.path.length > 0 && v.path[0].y > v.y;
+        const facingUp = v.path.length > 0 && v.path[0].y < v.y;
+        let cabX = cx + 2, cabY = cy + 3;
+        if (facingRight) cabX = cx + 12;
+        else if (facingLeft) cabX = cx + 2;
+        else if (facingDown) cabY = cy + 10;
+        else if (facingUp) cabY = cy + 3;
         ctx.fillStyle = isSelected ? '#0891b2' : '#c2410c';
-        ctx.fillRect(cx + (v.x === Math.floor(v.x) && v.path.length > 0 ? 2 : 2), cy + 3, 6, 6);
+        ctx.fillRect(cabX, cabY, 6, 6);
 
-        // Cargo indicator
+        // Cargo indicator (small label, the crate itself is drawn separately)
         if (v.cargo) {
-          ctx.fillStyle = 'var(--crate-highlight)';
-          ctx.fillRect(cx + 10, cy + 6, 6, 6);
+          ctx.fillStyle = '#fff';
+          ctx.font = 'bold 6px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('c', cx + CELL/2, cy + CELL - 1);
         }
 
-        // Label
+        // Label (vehicle ID)
         ctx.fillStyle = '#fff';
-        ctx.font = '7px sans-serif';
+        ctx.font = 'bold 7px sans-serif';
         ctx.textAlign = 'center';
         ctx.fillText(v.id, cx + CELL/2, cy + 3);
       }
