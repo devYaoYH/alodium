@@ -281,6 +281,8 @@ services:
       # git token, the Pocket ID admin API key for auth events. The LiteLLM
       # master key and operator tokens never enter this container.
       HOMEPAGE_VAR_AGENT_LLM_KEY: ${AGENT_LLM_KEY:-}
+      HOMEPAGE_VAR_ENG_TEAM_ID: ${ENG_TEAM_ID:-}
+      HOMEPAGE_VAR_ENGINEERING_TEAM_KEY: ${ENGINEERING_TEAM_KEY:-}
       HOMEPAGE_VAR_ASSISTANT_LLM_KEY: ${ASSISTANT_LLM_KEY:-}
       HOMEPAGE_VAR_DASH_GIT_TOKEN: ${ASSISTANT_FORGEJO_TOKEN:-}
       HOMEPAGE_VAR_POCKET_ID_API_KEY: ${POCKET_ID_API_KEY:-}

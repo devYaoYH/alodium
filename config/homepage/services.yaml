@@ -157,20 +157,20 @@
         href: https://git.{{HOMEPAGE_VAR_NODE_DOMAIN}}/{{HOMEPAGE_VAR_COORDINATION_REPO}}/issues
         description: handoffs, blocks, observations, task digests
     - Engineering spend:
-        icon: mdi-brain
+        icon: mdi-account-group
         href: https://llm.{{HOMEPAGE_VAR_NODE_DOMAIN}}/ui
-        description: resident engineering agent's monthly allowance
+        description: engineering team's shared monthly allowance
         widget:
           type: customapi
-          url: http://litellm:4000/key/info
+          url: http://litellm:4000/team/info?team_id={{HOMEPAGE_VAR_ENG_TEAM_ID}}
           refreshInterval: 30000
           headers:
-            Authorization: Bearer {{HOMEPAGE_VAR_AGENT_LLM_KEY}}
+            Authorization: Bearer {{HOMEPAGE_VAR_ENGINEERING_TEAM_KEY}}
           mappings:
-            - field: info.spend
+            - field: team_info.spend
               label: spent $
               format: float
-            - field: info.max_budget
+            - field: team_info.max_budget
               label: budget $
               format: float
     - Assistant spend:
