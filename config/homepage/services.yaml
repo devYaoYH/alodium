@@ -162,7 +162,7 @@
         description: engineering team's shared monthly allowance
         widget:
           type: customapi
-          url: http://litellm:4000/team/info?team_id=97d16637-c109-4002-8a3f-cd8ce3577687
+          url: http://litellm:4000/team/info?team_id={{HOMEPAGE_VAR_ENG_TEAM_ID}}
           refreshInterval: 30000
           headers:
             Authorization: Bearer {{HOMEPAGE_VAR_ENGINEERING_TEAM_KEY}}
