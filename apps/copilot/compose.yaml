@@ -56,9 +56,12 @@ services:
     restart: unless-stopped
     environment:
       PORT: "8080"
-      # Deny-by-default allowlist. Anthropic only — the copilot's model traffic
-      # and nothing else reaches the internet from the spur.
-      EGRESS_ALLOW: ${COPILOT_EGRESS_ALLOW:-.anthropic.com}
+      # Deny-by-default allowlist. Anthropic-owned domains only — the copilot's
+      # model + subscription-auth traffic and nothing else reaches the internet.
+      # Claude Code (subscription) uses BOTH anthropic.com (the API) and
+      # claude.com (platform.claude.com, the OAuth/console plane); omitting the
+      # latter makes claude fail with ERR_SOCKET_CLOSED at startup.
+      EGRESS_ALLOW: ${COPILOT_EGRESS_ALLOW:-.anthropic.com,.claude.com}
     read_only: true
     tmpfs: [/tmp]
     security_opt: [no-new-privileges:true]

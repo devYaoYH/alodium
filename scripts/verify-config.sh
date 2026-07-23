@@ -173,11 +173,12 @@ for v in svcs.get('copilot', {}).get('volumes', []) or []:
         if 'COPILOT.md' not in (v if isinstance(v, str) else ''):
             errs.append(f"copilot mounts host path {src!r} — only ./COPILOT.md (ro) is allowed.")
 
-# The egress allowlist default must stay Anthropic-only: a widened default here
+# The egress allowlist default must stay Anthropic-owned: a widened default here
 # would quietly turn the one controlled hole into general internet access. The
 # value is a `${VAR:-<default>}` string — pull out the default and require EVERY
-# entry to be an anthropic.com host.
+# entry to be an Anthropic domain (anthropic.com = API, claude.com = auth plane).
 import re
+ANTHROPIC_DOMAINS = ('anthropic.com', 'claude.com')
 egress_env = svcs.get('copilot-egress', {}).get('environment', {}) or {}
 raw = str(egress_env.get('EGRESS_ALLOW', ''))
 m = re.search(r':-([^}]*)\}', raw)          # ${VAR:-<default>} -> <default>
@@ -186,9 +187,10 @@ entries = [e.strip().lstrip('.').lower() for e in default.split(',') if e.strip(
 if not entries:
     errs.append("copilot-egress EGRESS_ALLOW has no default allowlist.")
 for e in entries:
-    if e != 'anthropic.com' and not e.endswith('.anthropic.com'):
+    if not any(e == d or e.endswith('.' + d) for d in ANTHROPIC_DOMAINS):
         errs.append(f"copilot-egress EGRESS_ALLOW default entry {e!r} is not an "
-                    f"anthropic.com host — the egress must stay Anthropic-only.")
+                    f"Anthropic-owned host ({'/'.join(ANTHROPIC_DOMAINS)}) — the "
+                    f"egress must stay Anthropic-only.")
 
 if errs:
     for e in errs:
