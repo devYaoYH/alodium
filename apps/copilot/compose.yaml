@@ -1,0 +1,84 @@
+# copilot — the operator's paired infra-sysadmin seat, merged into the node
+# stack by the root docker-compose.yml `include:` list. An interactive Claude
+# Code session served into the browser (ttyd + tmux), authenticated with the
+# operator's Anthropic SUBSCRIPTION (flat-rate) reached ONLY through the
+# copilot-egress allowlist proxy (Anthropic hosts, nothing else on the internet).
+#
+# It plans, files issues, reviews PRs and tasks the cheap swarm — as a PROPOSER:
+# its Forgejo token opens PRs but branch protection on main keeps merge
+# (= deploy authorization) with the operator. It is NOT on any data-plane
+# network, holds no data-plane credential, and mounts no host data: the
+# code/maintenance plane is walled off from the private-data plane by
+# construction (scripts/verify-config.sh asserts this on every config change).
+#
+# Profile-gated: enable once with `docker compose --profile copilot up -d`
+# (needs the `authshim` profile too — the door uses passkey SSO). See docs/COPILOT.md.
+services:
+  copilot:
+    profiles: [copilot]
+    build: .
+    image: sovereign-node/copilot:local
+    container_name: copilot
+    restart: unless-stopped
+    environment:
+      # Subscription OAuth — flat-rate Opus/Sonnet, NOT a LiteLLM virtual key and
+      # NOT a metered API key. Generated with `claude setup-token` on a trusted
+      # machine; lives only in host-only secrets/copilot.env.
+      CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}
+      # The ONE sanctioned egress: HTTPS (i.e. api.anthropic.com) tunnels through
+      # the allowlist proxy. Internal HTTP (forgejo, registry) stays direct via
+      # NO_PROXY, and HTTP_PROXY is intentionally left unset.
+      HTTPS_PROXY: http://copilot-egress:8080
+      https_proxy: http://copilot-egress:8080
+      NO_PROXY: localhost,127.0.0.1,forgejo,litellm,registry,search-broker
+      no_proxy: localhost,127.0.0.1,forgejo,litellm,registry,search-broker
+      # Proposer identity — write:issue + write:repository; branch protection on
+      # main is the apply-gap (same posture as agent-dev). Never a merge/deploy key.
+      COPILOT_FORGEJO_TOKEN: ${COPILOT_FORGEJO_TOKEN:-}
+      COPILOT_GIT_USER: ${COPILOT_GIT_USER:-copilot}
+      NODE_CONFIG_REPO: ${NODE_CONFIG_REPO:-operator/node-config}
+      COORDINATION_REPO: ${COORDINATION_REPO:-operator/coordination}
+    volumes:
+      - copilot_workspace:/workspace
+      # Operating contract (git-tracked, read-only) — the copilot's role and its
+      # propose-not-apply / no-private-data boundary, wired into Claude's memory.
+      - ./COPILOT.md:/home/copilot/.claude/CLAUDE.md:ro
+    # front: Caddy reaches ttyd here (ingress). agents: reach forgejo/registry to
+    # file issues, open PRs, task the swarm. copilot-egress: reach the allowlist
+    # proxy. NOT edge (no direct internet); NOT any data-plane network.
+    networks: [front, agents, copilot-egress]
+
+  copilot-egress:
+    profiles: [copilot]
+    build: ./egress
+    image: sovereign-node/copilot-egress:local
+    container_name: copilot-egress
+    restart: unless-stopped
+    environment:
+      PORT: "8080"
+      # Deny-by-default allowlist. Anthropic only — the copilot's model traffic
+      # and nothing else reaches the internet from the spur.
+      EGRESS_ALLOW: ${COPILOT_EGRESS_ALLOW:-.anthropic.com}
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    # copilot-egress: the internal link to the copilot. edge: the ONLY member
+    # with an internet route — exactly the search-egress shape.
+    networks: [copilot-egress, edge]
+
+networks:
+  # Shared networks re-declare the root's attributes exactly; compose merges.
+  front:
+    internal: true
+  agents:
+    internal: true
+  edge:
+  copilot-egress:
+    # The copilot <-> its egress proxy meet here and nothing else joins. The
+    # proxy is the sole bridge to `edge`, so this is the one controlled hole in
+    # the copilot's otherwise egress-less spur.
+    internal: true
+
+volumes:
+  copilot_workspace:
