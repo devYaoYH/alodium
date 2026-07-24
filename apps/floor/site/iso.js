@@ -37,7 +37,7 @@ const WINGS = {
   outside: { origin: [-8.6, 2.2], cols: 1, label: "OUTSIDE", level: 0 },
   gate:    { origin: [-4.6, 0.0], cols: 2, label: "GATE", level: 0 },
   core:    { origin: [0.0, 0.0],  cols: 2, label: "CORE PLANE", level: 0 },
-  ops:     { origin: [0.8, 5.0],  cols: 3, label: "OPERATIONS", level: 0 },
+  ops:     { origin: [-3.0, 5.0], cols: 3, label: "OPERATIONS", level: 0 },
   bay:     { origin: [5.2, -0.8], cols: 2, label: "AGENT BAY", level: 0 },
   apps:    { origin: [-1.2, -5.4], cols: 5, label: "APPS", level: 0 },
   overflow:{ origin: [-8.6, -2.6], cols: 2, label: "ANNEX", level: 0 },
