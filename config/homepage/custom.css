@@ -687,8 +687,19 @@ html.alodium-chatbar-open #page_container { padding-bottom: 11rem; }
 .alodium-docker-group h1,
 .alodium-docker-group h2,
 .alodium-docker-group h3 {
+  display: flex;
+  align-items: center;         /* center the mdi-docker icon on the text midline */
+  gap: 0.5rem;
   margin-bottom: 0.9rem;
-  padding-bottom: 0.4rem;
+}
+/* Belt-and-suspenders: whatever wraps the icon (span/img/svg) sits centered on
+   the heading's midline rather than on the text baseline. */
+.alodium-docker-group :is(h1, h2, h3) > * {
+  align-self: center;
+}
+.alodium-docker-group :is(h1, h2, h3) img,
+.alodium-docker-group :is(h1, h2, h3) svg {
+  vertical-align: middle;
 }
 .alodium-containers-panel {
   margin-top: 0.25rem;

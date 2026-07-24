@@ -66,19 +66,30 @@ mkdir -p "$SECRETS_DIR"
 
 # Append the host to the egress allowlist
 ALLOW_FILE="$SECRETS_DIR/egress-broker.env"
-if [[ -f "$ALLOW_FILE" ]]; then
-  # Update or append EGRESS_ALLOW
-  if grep -q '^EGRESS_ALLOW=' "$ALLOW_FILE" 2>/dev/null; then
-    sed -i "s/^EGRESS_ALLOW=.*/EGRESS_ALLOW=${HOST}/" "$ALLOW_FILE"
-  else
-    echo "EGRESS_ALLOW=${HOST}" >> "$ALLOW_FILE"
-  fi
+touch "$ALLOW_FILE"
+
+# egress-out's EGRESS_ALLOW is a defense-in-depth allowlist (the broker still
+# enforces per-key host scoping at the application layer). Append the approved
+# host if it is not already listed — never clobber, so a new approval does not
+# silently revoke a previously-approved host at this layer.
+if grep -q "^EGRESS_ALLOW=" "$ALLOW_FILE"; then
+  current=$(sed -n "s/^EGRESS_ALLOW=//p" "$ALLOW_FILE")
+  case ",$current," in
+    *",$HOST,"*) ;;  # already allowed — nothing to do
+    *) sed -i "s|^EGRESS_ALLOW=.*|EGRESS_ALLOW=${current:+$current,}$HOST|" "$ALLOW_FILE" ;;
+  esac
 else
-  echo "EGRESS_ALLOW=${HOST}" > "$ALLOW_FILE"
+  echo "EGRESS_ALLOW=$HOST" >> "$ALLOW_FILE"
 fi
 
-# Write the agent's egress token
-echo "AGENT_EGRESS_TOKEN=${KEY_VALUE}" >> "$ALLOW_FILE"
+# Write the agent's egress token. Keep exactly one line: replace the existing
+# value if present (the compose model exposes a single AGENT_EGRESS_TOKEN), so
+# repeated mints don't leave stale key material in the secrets file.
+if grep -q "^AGENT_EGRESS_TOKEN=" "$ALLOW_FILE"; then
+  sed -i "s|^AGENT_EGRESS_TOKEN=.*|AGENT_EGRESS_TOKEN=$KEY_VALUE|" "$ALLOW_FILE"
+else
+  echo "AGENT_EGRESS_TOKEN=$KEY_VALUE" >> "$ALLOW_FILE"
+fi
 
 echo "OK: minted key $KEY_ID for $TENANT_ID -> $HOST (TTL: ${TTL}m)"
 echo "Key value: $KEY_VALUE"

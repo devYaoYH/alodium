@@ -87,12 +87,14 @@ services:
     networks: [egress-private, edge]
 
 networks:
+  # Declared here (matching search-broker's fragment) so the fragment is
+  # self-describing; they merge cleanly with the top-level docker-compose.yml
+  # (project `sovereign-node`), which owns these as project-managed networks.
+  # Do NOT mark them `external` — that conflicts with the parent's non-external
+  # declaration and `docker compose config` rejects the merge.
   agents:
-    external: true
-    name: sovereign-node_agents
+    internal: true
   edge:
-    external: true
-    name: sovereign-node_edge
   egress-private:
     # The broker and its egress companion meet here. Agents cannot join this
     # network, and egress-out is the only egress service on edge.
