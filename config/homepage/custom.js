@@ -152,6 +152,7 @@
     document.querySelectorAll('.services-group').forEach((group) => {
       const heading = group.querySelector('h1, h2, h3')?.textContent.trim();
       group.classList.toggle('alodium-tile-group', heading === 'Apps');
+      group.classList.toggle('alodium-node-access', heading === 'Node & access');
     });
 
   };
