@@ -227,36 +227,12 @@
         container: search-broker
 
 - Services (Docker):
-    - registry:
-        icon: mdi-format-list-bulleted-square
-        description: service discovery · ring 0
-        server: sovereign-node
-        container: registry
-    - homepage:
-        icon: mdi-home-heart
-        description: this dashboard
-        server: sovereign-node
-        container: homepage
-    - caddy:
-        icon: caddy.png
-        description: the only exposed thing
-        server: sovereign-node
-        container: caddy
-    - litellm-db:
-        icon: postgresql.png
-        description: LiteLLM's postgres · private network
-        server: sovereign-node
-        container: litellm-db
-    - miniflux-db:
-        icon: postgresql.png
-        description: Miniflux's postgres · private network
-        server: sovereign-node
-        container: miniflux-db
-    - docker-proxy:
+    - All live containers:
+        id: alodium-containers-table
         icon: docker.png
-        description: read-only container status for this page
-        server: sovereign-node
-        container: docker-proxy
+        description: dynamic list of all running and stopped containers with live stats
+        widget:
+          type: customhtml
 
 - Tenant boundaries:
     - agent-dev (resident):

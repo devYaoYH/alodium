@@ -528,11 +528,108 @@ html.alodium-chatbar-open #page_container { padding-bottom: 11rem; }
   color: rgba(148, 163, 184, 0.65);
 }
 
+/* --- dynamic docker containers table ---------------------------------------- */
+.alodium-containers-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.alodium-containers-table thead {
+  border-bottom: 1px solid rgba(103, 232, 195, 0.2);
+}
+
+.alodium-containers-table th {
+  text-align: left;
+  padding: 0.6rem 0.8rem;
+  font-weight: 600;
+  color: rgba(103, 232, 195, 0.8);
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+}
+
+.alodium-containers-table tbody tr {
+  border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+  transition: background-color 120ms ease;
+}
+
+.alodium-containers-table tbody tr:hover {
+  background-color: rgba(103, 232, 195, 0.06);
+}
+
+.alodium-containers-table td {
+  padding: 0.5rem 0.8rem;
+  color: #cbd5e1;
+}
+
+.alodium-containers-table .name code {
+  font-family: ui-monospace, 'Courier New', monospace;
+  font-size: 0.8rem;
+  background: rgba(15, 23, 42, 0.45);
+  padding: 0.2rem 0.35rem;
+  border-radius: 0.25rem;
+  color: #a7f3d0;
+}
+
+.alodium-containers-table .status {
+  font-weight: 500;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 0.25rem 0.55rem;
+  border-radius: 0.3rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.status-badge.running {
+  background: rgba(34, 197, 94, 0.18);
+  color: #86efac;
+}
+
+.status-badge.stopped {
+  background: rgba(239, 68, 68, 0.18);
+  color: #fca5a5;
+}
+
+.status-badge.other {
+  background: rgba(148, 163, 184, 0.18);
+  color: #cbd5e1;
+}
+
+.alodium-containers-table .image,
+.alodium-containers-table .ports {
+  font-family: ui-monospace, 'Courier New', monospace;
+  font-size: 0.75rem;
+  color: rgba(203, 213, 225, 0.65);
+}
+
+.alodium-containers-error {
+  padding: 1rem;
+  text-align: center;
+  color: rgba(244, 63, 94, 0.8);
+  font-size: 0.85rem;
+}
+
 @media (max-width: 640px) {
   .alodium-deploy-info {
     left: 0.5rem;
     bottom: 0.4rem;
     font-size: 0.58rem;
     padding: 0.15rem 0.45rem;
+  }
+
+  .alodium-containers-table {
+    font-size: 0.75rem;
+  }
+
+  .alodium-containers-table th,
+  .alodium-containers-table td {
+    padding: 0.35rem 0.5rem;
   }
 }
