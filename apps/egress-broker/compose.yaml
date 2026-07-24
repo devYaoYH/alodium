@@ -1,0 +1,110 @@
+# egress-broker — capability-gated brokered egress with a separate durable audit
+# plane. The broker can write audit rows; the dashboard API can only read them.
+# Neither the agent spur nor the egress-out companion can reach the audit dashboard.
+# Mirror of search-broker pattern: single image, EGRESS_ROLE env switch.
+
+services:
+  egress-audit-db:
+    profiles: [apps]
+    image: postgres:16-alpine@sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229
+    container_name: egress-audit-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: egress_audit
+      POSTGRES_USER: egress_audit_owner
+      POSTGRES_PASSWORD: ${EGRESS_AUDIT_DB_OWNER_PASSWORD:-}
+      EGRESS_AUDIT_DB_WRITER_PASSWORD: ${EGRESS_AUDIT_DB_WRITER_PASSWORD:-}
+      EGRESS_AUDIT_DB_READER_PASSWORD: ${EGRESS_AUDIT_DB_READER_PASSWORD:-}
+    volumes:
+      - egress_audit_db:/var/lib/postgresql/data
+      - ./db-init:/docker-entrypoint-initdb.d:ro
+    networks: [egress-data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U egress_audit_owner -d egress_audit"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+
+  egress-broker:
+    profiles: [apps]
+    image: ${EGRESS_BROKER_IMAGE:-sovereign-node/egress-broker:0.1.0}
+    container_name: egress-broker
+    restart: unless-stopped
+    depends_on:
+      egress-out:
+        condition: service_healthy
+      egress-audit-db:
+        condition: service_healthy
+    environment:
+      EGRESS_ROLE: broker
+      PORT: "8080"
+      AGENT_EGRESS_TOKEN: ${AGENT_EGRESS_TOKEN:-}
+      EGRESS_AUDIT_DATABASE_URL: postgresql://egress_audit_writer:${EGRESS_AUDIT_DB_WRITER_PASSWORD:-}@egress-audit-db:5432/egress_audit
+      EGRESS_EGRESS_TOKEN: ${EGRESS_EGRESS_TOKEN:-}
+      EGRESS_EGRESS_URL: http://egress-out:8081
+      EGRESS_PROFILE: ${EGRESS_PROFILE:-default}
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    networks: [agents, egress-private, egress-data]
+
+  egress-audit-api:
+    profiles: [apps]
+    image: ${EGRESS_BROKER_IMAGE:-sovereign-node/egress-broker:0.1.0}
+    container_name: egress-audit-api
+    restart: unless-stopped
+    depends_on:
+      egress-audit-db:
+        condition: service_healthy
+    environment:
+      EGRESS_ROLE: audit-api
+      PORT: "8082"
+      EGRESS_AUDIT_TOKEN: ${EGRESS_AUDIT_TOKEN:-}
+      EGRESS_AUDIT_DATABASE_URL: postgresql://egress_audit_reader:${EGRESS_AUDIT_DB_READER_PASSWORD:-}@egress-audit-db:5432/egress_audit
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    networks: [egress-admin, egress-data]
+
+  egress-out:
+    profiles: [apps]
+    image: ${EGRESS_BROKER_IMAGE:-sovereign-node/egress-broker:0.1.0}
+    container_name: egress-out
+    restart: unless-stopped
+    environment:
+      EGRESS_ROLE: egress
+      PORT: "8081"
+      EGRESS_EGRESS_TOKEN: ${EGRESS_EGRESS_TOKEN:-}
+      # Egress allowlist: only hosts listed here may be reached. The broker
+      # enforces at the application layer; this is a defense-in-depth layer.
+      EGRESS_ALLOW: ${EGRESS_ALLOW:-}
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    networks: [egress-private, edge]
+
+networks:
+  agents:
+    external: true
+    name: sovereign-node_agents
+  edge:
+    external: true
+    name: sovereign-node_edge
+  egress-private:
+    # The broker and its egress companion meet here. Agents cannot join this
+    # network, and egress-out is the only egress service on edge.
+    internal: true
+  egress-admin:
+    # The Ring 0 audit route joins this with Caddy and the read-only audit API.
+    # Neither agent tenants nor the egress-out companion can read egress history.
+    internal: true
+  egress-data:
+    # The audit database is reachable only by the broker and audit API; it has
+    # no ingress or egress path, and never joins the agents spur.
+    internal: true
+
+volumes:
+  egress_audit_db:

@@ -1,0 +1,9 @@
+# Ring 0 operator dashboard. Caddy injects the upstream-only credential, so a
+# browser session never learns it. The broker is reachable here only over the
+# dedicated egress-admin network, not through the agents spur.
+egress.{$NODE_DOMAIN} {
+	import ring0
+	reverse_proxy egress-audit-api:8082 {
+		header_up X-Egress-Audit-Token "{env.EGRESS_AUDIT_TOKEN}"
+	}
+}

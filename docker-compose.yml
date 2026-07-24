@@ -37,6 +37,8 @@ include:
   - path: apps/fleet-sim/compose.yaml
   - path: apps/copilot/compose.yaml
     env_file: secrets/copilot.env
+  - path: apps/egress-broker/compose.yaml
+    env_file: secrets/egress-broker.env
 
 networks:
   edge:
@@ -80,6 +82,20 @@ networks:
     # sessions, not by the general `front` network. Open WebUI and toolshims
     # are the only members.
     internal: true
+  egress-private:
+    # The egress broker and its egress-out companion meet here. Agents cannot
+    # join this network, and egress-out is the only egress service on edge.
+    # Mirror of search-private.
+    internal: true
+  egress-admin:
+    # The Ring 0 egress audit route joins this with Caddy and the read-only
+    # audit API. Neither agent tenants nor the egress-out companion can read
+    # egress history.
+    internal: true
+  egress-data:
+    # The egress audit database is reachable only by the broker and audit API;
+    # it has no ingress or egress path, and never joins the agents spur.
+    internal: true
   
 
 volumes:
@@ -93,6 +109,7 @@ volumes:
   search_audit:
   launcher_audit:
   search_audit_db:
+  egress_audit_db:
 
 services:
   caddy:
@@ -142,6 +159,7 @@ services:
         # by hairpinning through the door — with the real certificate.
         aliases: ["auth.${NODE_DOMAIN}"]
       search-admin:
+      egress-admin:
 
   litellm:
     # Digest-pinned (as is every image here). To update: scripts/pin-images.sh,
