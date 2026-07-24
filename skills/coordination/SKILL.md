@@ -12,10 +12,13 @@ operator. Memory belongs to git, not to a process — a successor picks up
 from artifacts, never from a transcript.
 
 The repo path is in `$COORDINATION_REPO` (owner/name). All calls go to
-`http://forgejo:3000/api/v1` with your own token:
+`http://forgejo:3000/api/v1` with your Forgejo token (env var name varies by agent):
 
-    AUTH='Authorization: token '"$AGENT_FORGEJO_TOKEN"
+    AUTH="Authorization: token $COPILOT_FORGEJO_TOKEN"  # copilot sessions
+    # or $AGENT_FORGEJO_TOKEN (agent-dev), $RUNNER_FORGEJO_TOKEN, etc.
     API="http://forgejo:3000/api/v1/repos/$COORDINATION_REPO"
+
+Check which token your agent has with `env | grep FORGEJO_TOKEN`.
 
 ## At session start — read before you write
 
@@ -36,11 +39,25 @@ it — comment on that issue rather than opening a duplicate.
 
 ## Filing a note
 
-The create API takes label IDs (integers), not names — look the ID up
-first (they're stable per repo, so once per session is fine):
+### Quick path (no labels)
 
-    LID=$(curl -s -H "$AUTH" "$API/labels" \
-      | python3 -c 'import json,sys; print([l["id"] for l in json.load(sys.stdin) if l["name"]=="handoff"][0])')
+For issues that don't need immediate categorization, file without labels and the operator can label later:
+
+    curl -s -H "$AUTH" -H 'Content-Type: application/json' -X POST "$API/issues" \
+      -d '{"title":"<imperative, specific>","body":"<see shapes below>"}'
+
+Success response includes `"id":<NUM>` and `"url":"https://git.localhost/api/v1/repos/operator/coordination/issues/<NUM>"`. The issue is now filed.
+
+### With labels (lookup + file)
+
+The create API takes label IDs (integers). Look them up once per session (stable per repo):
+
+    # Fetch all labels and pick the ID for "handoff" (or "blocked", "digest", "observation")
+    curl -s -H "$AUTH" "$API/labels" \
+      | grep -o '"name":"handoff"[^}]*"id":[0-9]*' | grep -o '[0-9]*$'
+
+    # Then file with label ID(s):
+    LID=<ID from above>
     curl -s -H "$AUTH" -H 'Content-Type: application/json' -X POST "$API/issues" \
       -d "{\"title\":\"<imperative, specific>\",\"body\":\"<see shapes below>\",\"labels\":[$LID]}"
 
@@ -74,8 +91,11 @@ glance:
 
 Add the label (POST adds, it does not replace):
 
+    # Look up the label ID for "handoff" (or swap for "blocked", etc.)
     LID=$(curl -s -H "$AUTH" "$API/labels" \
-      | python3 -c 'import json,sys; print([l["id"] for l in json.load(sys.stdin) if l["name"]=="handoff"][0])')
+      | grep -o '"name":"handoff"[^}]*"id":[0-9]*' | grep -o '[0-9]*$')
+    
+    # Add label to issue #<NUM>
     curl -s -H "$AUTH" -H 'Content-Type: application/json' \
       -X POST "$API/issues/<NUM>/labels" \
       -d "{\"labels\":[$LID]}"
