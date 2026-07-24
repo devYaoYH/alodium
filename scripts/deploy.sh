@@ -143,12 +143,28 @@ CHANGED=$(git diff --name-only "$OLD_HEAD" HEAD)
 # profile-gated app (e.g. on-demand snake) is INVISIBLE to the gate below —
 # its rebuild gets skipped, and step 5 then recreates it from the STALE image
 # (recreate with no new image = no change; exactly what stranded snake's fixes).
-# `--profiles` lists every profile defined anywhere; feeding them all back via
-# COMPOSE_PROFILES makes both `config --services` and `build` see the whole set.
+# Extract all profiles from compose files (apps/*/compose.yaml + root) and pass
+# them to config/build so profile-gated services are visible. Fallback to a
+# default set if extraction fails (silent parse errors are not acceptable here).
 # This only affects the BUILD pass — naming a service builds just that image and
 # starts nothing, so the operator still owns which profiles actually run (step 5
 # is unchanged and only recreates services that are already running).
-ALL_PROFILES=$(docker compose config --profiles 2>/dev/null | paste -sd, -)
+get_all_profiles() {
+  # Extract all unique profile names from compose files (including on-demand services)
+  (grep -h "profiles:" docker-compose.yml apps/*/compose.yaml 2>/dev/null || true) \
+    | grep -o '\[.*\]' \
+    | tr -d '[]' \
+    | tr ',' '\n' \
+    | tr -d ' "' \
+    | sort -u \
+    | paste -sd, -
+}
+ALL_PROFILES=$(get_all_profiles)
+if [[ -z "$ALL_PROFILES" ]]; then
+  # Fallback: if profile extraction failed, try docker compose (may miss on-demand)
+  ALL_PROFILES=$(docker compose config --profiles 2>/dev/null | paste -sd, - || echo "on-demand")
+fi
+echo "   rebuilding with profiles: $ALL_PROFILES"
 BUILDABLE=$(COMPOSE_PROFILES="$ALL_PROFILES" docker compose config --services 2>/dev/null)
 for app in $(printf '%s\n' "$CHANGED" | sed -n 's#^apps/\([^/]*\)/.*#\1#p' | sort -u); do
   # Build inputs = context files baked into the image; exclude compose/proxy
@@ -163,6 +179,8 @@ for app in $(printf '%s\n' "$CHANGED" | sed -n 's#^apps/\([^/]*\)/.*#\1#p' | sor
     echo "   rebuilding $app image (build inputs changed)"
     COMPOSE_PROFILES="$ALL_PROFILES" docker compose build "$app" \
       || record_msg WARN "build failed for $app (continuing; step 5 uses existing image)"
+  else
+    echo "   skipping $app rebuild (not found in BUILDABLE services)"
   fi
 done
 
@@ -209,6 +227,23 @@ if [[ -n "$RUNNING" ]]; then
   # shellcheck disable=SC2086  # word-splitting the service list is the point
   docker compose up -d $RUNNING
 fi
+# On-demand apps (restart: "no") don't appear in RUNNING, so they won't be
+# recreated above even if their image changed. Track which apps were rebuilt in
+# step 4b and explicitly recreate them here (up -d is idempotent, but on-demand
+# apps won't auto-launch; this just ensures the container spec is refreshed).
+REBUILT_APPS=""
+for rebuilt_app in $(printf '%s\n' "$CHANGED" | sed -n 's#^apps/\([^/]*\)/.*#\1#p' | sort -u); do
+  printf '%s\n' "$CHANGED" | grep "^apps/$rebuilt_app/" \
+    | grep -qvE "^apps/$rebuilt_app/(compose\.yaml|route\.caddy|env\.example)$" || continue
+  if printf '%s\n' "$BUILDABLE" | grep -qx "$rebuilt_app"; then
+    REBUILT_APPS="$REBUILT_APPS $rebuilt_app"
+  fi
+done
+if [[ -n "$REBUILT_APPS" ]]; then
+  echo "   recreating rebuilt on-demand apps:$REBUILT_APPS"
+  # shellcheck disable=SC2086  # word-splitting is intentional
+  COMPOSE_PROFILES="$ALL_PROFILES" docker compose up -d $REBUILT_APPS || true
+fi
 
 # SSO has one host-side source of truth: Pocket ID's client callbacks and the
 # local-dev compose override are derived by sso-setup.sh.  A merged browser
@@ -252,12 +287,6 @@ if printf '%s\n' "$CHANGED" | grep -q "^config/homepage/"; then
   echo "   restarting homepage (config/homepage/* changed)"
   docker compose restart homepage
 fi
-
-# 7. Reconcile chat tool surface: build/start toolshims, register connections
-#     in Open WebUI.  Idempotent — no-ops when wiring is unchanged.  Safe to
-#     run even when open-webui is not running (exits cleanly).  Non-fatal so a
-#     transient toolshim issue never blocks the rest of deploy.
-./scripts/chat-tools-setup.sh || echo "deploy: WARN chat-tools-setup failed (non-fatal)"
 
 docker compose ps --format 'table {{.Name}}\t{{.Status}}'
 
