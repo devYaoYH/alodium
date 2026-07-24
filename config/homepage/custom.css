@@ -302,18 +302,18 @@ html.alodium-chatbar-open #page_container { padding-bottom: 11rem; }
 /* --- on-demand app control: REUSE Homepage's own container-status dot -------
    No dot of our own — the single indicator IS Homepage's .service-container-stats
    button (its inner .docker-status .rounded-full is the coloured light). custom.js
-   tags the snake card with .alodium-asleep / .alodium-starting / .alodium-live from
-   the launcher's view; we repaint that one native dot to match — red asleep, amber
-   warming (a state the raw docker dot can't show), green live — so there is
-   exactly one dot and it always reflects launch state. */
+   tags the on-demand card with .alodium-asleep / .alodium-starting / .alodium-stopping
+   / .alodium-live from the launcher's view; we repaint that one native dot to match
+   — red asleep, amber warming/stopping, green live — so there is exactly one dot
+   and it always reflects launch state. */
 .alodium-ondemand-card { position: relative; }
 
-/* Pull the reused dot up to the card's top-right corner and enlarge its hit
+/* Pull the reused dot to the card's top-right corner and enlarge its hit
    area so it reads as a status light / launch control, not a stats toggle. */
 .alodium-ondemand-card .service-container-stats {
   position: absolute;
-  top: 0.45rem;
-  right: 0.5rem;
+  top: 0.3rem;
+  right: 0.3rem;
   z-index: 3;
   cursor: pointer;
 }
@@ -337,9 +337,17 @@ html.alodium-chatbar-open #page_container { padding-bottom: 11rem; }
   background-color: #f59e0b !important;
   animation: alodium-pulse 1200ms ease-out infinite;
 }
+.alodium-ondemand-card.alodium-stopping .docker-status .rounded-full {
+  background-color: #f59e0b !important;
+  animation: alodium-dim 1200ms ease-out infinite;
+}
 @keyframes alodium-pulse {
   0%   { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.5); }
   100% { box-shadow: 0 0 0 7px rgba(245, 158, 11, 0); }
+}
+@keyframes alodium-dim {
+  0%   { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.5); opacity: 1; }
+  100% { box-shadow: 0 0 0 7px rgba(245, 158, 11, 0); opacity: 0.4; }
 }
 
 /* Fallback dot: before snake has ever run there may be no container yet, so
@@ -358,6 +366,10 @@ html.alodium-chatbar-open #page_container { padding-bottom: 11rem; }
   background: #f59e0b;
   animation: alodium-pulse 1200ms ease-out infinite;
 }
+.alodium-ondemand-card.alodium-stopping .service-container-stats:not(:has(.docker-status .rounded-full))::before {
+  background: #f59e0b;
+  animation: alodium-dim 1200ms ease-out infinite;
+}
 .alodium-ondemand-card.alodium-live .service-container-stats:not(:has(.docker-status .rounded-full))::before {
   background: #22c55e;
 }
@@ -366,8 +378,8 @@ html.alodium-chatbar-open #page_container { padding-bottom: 11rem; }
    never a second dot. */
 .alodium-ondemand-action {
   position: absolute;
-  top: 0.5rem;
-  right: 1.55rem;
+  top: 0.35rem;
+  right: 1.2rem;
   z-index: 3;
   max-width: 0;
   overflow: hidden;
