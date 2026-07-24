@@ -227,12 +227,16 @@
         container: search-broker
 
 - Services (Docker):
-    - All live containers:
-        id: alodium-containers-table
+    # Rendered by custom.js as a full-width live table of every container on the
+    # node, sourced from the floor's read-only /v1/containers endpoint (the
+    # browser can't reach docker-proxy directly). The entry below is only a
+    # fallback link, shown if custom.js hasn't loaded; the injected table
+    # replaces it and spans the whole collapsible section.
+    - Live containers:
+        id: alodium-containers-mount
         icon: docker.png
-        description: dynamic list of all running and stopped containers with live stats
-        widget:
-          type: customhtml
+        description: live view of every container on this node — rendered below
+        href: https://floor.{{HOMEPAGE_VAR_NODE_DOMAIN}}
 
 - Tenant boundaries:
     - agent-dev (resident):

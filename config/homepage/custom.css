@@ -626,11 +626,61 @@ html.alodium-chatbar-open #page_container { padding-bottom: 11rem; }
   color: rgba(203, 213, 225, 0.65);
 }
 
+.alodium-containers-table .meta small {
+  color: rgba(203, 213, 225, 0.75);
+}
+
 .alodium-containers-error {
   padding: 1rem;
   text-align: center;
   color: rgba(244, 63, 94, 0.8);
   font-size: 0.85rem;
+}
+
+.alodium-containers-loading {
+  padding: 1rem;
+  text-align: center;
+  color: rgba(203, 213, 225, 0.6);
+  font-size: 0.85rem;
+}
+
+/* The injected panel spans the whole collapsible section. custom.js tags the
+   group with .alodium-docker-group and hides the native placeholder card so
+   only the full-width table shows. */
+.alodium-docker-group .services-list {
+  display: none;
+}
+
+.alodium-containers-panel {
+  width: 100%;
+  border: 1px solid var(--alodium-border);
+  border-radius: 0.8rem;
+  background: var(--alodium-surface);
+  backdrop-filter: blur(14px) saturate(1.15);
+  -webkit-backdrop-filter: blur(14px) saturate(1.15);
+  box-shadow: 0 8px 24px rgba(2, 6, 23, 0.22);
+  overflow: hidden;
+}
+
+.alodium-containers-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.55rem 0.9rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+  font-size: 0.75rem;
+  color: rgba(148, 163, 184, 0.75);
+}
+
+.alodium-containers-foot a {
+  color: var(--alodium-accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.alodium-containers-foot a:hover {
+  text-decoration: underline;
 }
 
 @media (max-width: 640px) {
