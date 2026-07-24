@@ -382,11 +382,84 @@
   let dockerData = null;      // [{name,state,status,image,ports}] | null (loading)
   let dockerError = null;     // string | null
 
+  // Sortable columns. Click a header to sort; click again to flip direction.
+  const DOCKER_COLS = [
+    { key: 'name', label: 'Container' },
+    { key: 'state', label: 'State' },
+    { key: 'status', label: 'Status' },
+    { key: 'image', label: 'Image' },
+    { key: 'ports', label: 'Ports' },
+  ];
+  let dockerSortKey = 'name';
+  let dockerSortDir = 1;      // 1 = ascending, -1 = descending
+  const dockerExpanded = new Set();   // parent names whose sidecars are shown
+
   const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   const stateClass = (s) =>
     s === 'running' ? 'running' : (s === 'exited' || s === 'dead') ? 'stopped' : 'other';
+
+  // Group sidecars under the app they serve: a container is a child of another
+  // when its name is that container's name + "-" (miniflux-db → miniflux,
+  // radicale-toolshim → radicale). Strictly one level — a candidate parent that
+  // is itself someone's child stays a root, so no container is ever dropped.
+  const buildGroups = (list) => {
+    const parentOf = new Map();
+    for (const c of list) {
+      let p = null;
+      for (const other of list) {
+        if (other.name !== c.name && c.name.startsWith(other.name + '-')
+            && (!p || other.name.length > p.length)) p = other.name;
+      }
+      if (p) parentOf.set(c.name, p);
+    }
+    const childrenOf = new Map();
+    const isChild = new Set();
+    for (const c of list) {
+      const p = parentOf.get(c.name);
+      if (p && !parentOf.has(p)) {          // parent must itself be a root
+        isChild.add(c.name);
+        if (!childrenOf.has(p)) childrenOf.set(p, []);
+        childrenOf.get(p).push(c);
+      }
+    }
+    const byName = new Map(list.map((c) => [c.name, c]));
+    const groups = [];
+    for (const c of list) {
+      if (isChild.has(c.name)) continue;
+      const children = (childrenOf.get(c.name) || [])
+        .slice().sort((a, b) => a.name.localeCompare(b.name));
+      groups.push({ parent: byName.get(c.name), children });
+    }
+    return groups;
+  };
+
+  // Aggregate a group's status: all running → running, none → stopped, a mix
+  // → warn. A childless group just reflects its one container's own state.
+  const groupBadge = (g) => {
+    if (!g.children.length) {
+      const s = g.parent.state || 'unknown';
+      return { label: s, cls: stateClass(s), title: '' };
+    }
+    const all = [g.parent, ...g.children];
+    const running = all.filter((c) => c.state === 'running').length;
+    const title = `${running}/${all.length} running`;
+    if (running === all.length) return { label: 'running', cls: 'running', title };
+    if (running === 0) return { label: 'stopped', cls: 'stopped', title };
+    return { label: 'warn', cls: 'warn', title };
+  };
+
+  const groupSortValue = (g, key) =>
+    key === 'state' ? groupBadge(g).label : (g.parent[key] ?? '');
+
+  const cellsFor = (c) => {
+    const cls = stateClass(c.state);
+    return `<td class="status"><span class="status-badge ${cls}">${esc(c.state || 'unknown')}</span></td>`
+      + `<td class="meta"><small>${esc(c.status || '')}</small></td>`
+      + `<td class="image"><small>${esc(c.image || '—')}</small></td>`
+      + `<td class="ports"><small>${esc(c.ports || '—')}</small></td>`;
+  };
 
   const dockerTableHTML = () => {
     const foot = `<div class="alodium-containers-foot">`
@@ -402,19 +475,49 @@
     if (!dockerData.length) {
       return `<div class="alodium-containers-loading">No containers reported.</div>` + foot;
     }
-    const rows = dockerData.map((c) => {
-      const cls = stateClass(c.state);
-      return `<tr class="alodium-container-row">`
-        + `<td class="name"><code>${esc(c.name)}</code></td>`
-        + `<td class="status"><span class="status-badge ${cls}">${esc(c.state || 'unknown')}</span></td>`
-        + `<td class="meta"><small>${esc(c.status || '')}</small></td>`
-        + `<td class="image"><small>${esc(c.image || '—')}</small></td>`
-        + `<td class="ports"><small>${esc(c.ports || '—')}</small></td>`
+    const groups = buildGroups(dockerData).sort((a, b) =>
+      String(groupSortValue(a, dockerSortKey)).localeCompare(
+        String(groupSortValue(b, dockerSortKey)),
+        undefined, { numeric: true, sensitivity: 'base' }) * dockerSortDir);
+    const head = DOCKER_COLS.map((col) => {
+      const active = col.key === dockerSortKey;
+      const ariaSort = active ? (dockerSortDir === 1 ? 'ascending' : 'descending') : 'none';
+      const arrow = active ? (dockerSortDir === 1 ? '▲' : '▼') : '';
+      return `<th class="sortable${active ? ' active' : ''}" data-sort="${col.key}"`
+        + ` role="button" tabindex="0" aria-sort="${ariaSort}">`
+        + `${esc(col.label)}<span class="sort-arrow">${arrow}</span></th>`;
+    }).join('');
+    const rows = groups.map((g) => {
+      const hasKids = g.children.length > 0;
+      const expanded = dockerExpanded.has(g.parent.name);
+      const badge = groupBadge(g);
+      const toggle = hasKids
+        ? `<button type="button" class="alodium-group-toggle" data-toggle="${esc(g.parent.name)}"`
+          + ` aria-expanded="${expanded}" aria-label="Toggle ${esc(g.parent.name)} sidecars">`
+          + `${expanded ? '▾' : '▸'}</button>`
+        : `<span class="alodium-group-spacer" aria-hidden="true"></span>`;
+      const count = hasKids ? `<span class="alodium-group-count">+${g.children.length}</span>` : '';
+      const titleAttr = badge.title ? ` title="${esc(badge.title)}"` : '';
+      let html = `<tr class="alodium-container-row alodium-group-row">`
+        + `<td class="name">${toggle}<code>${esc(g.parent.name)}</code>${count}</td>`
+        + `<td class="status"><span class="status-badge ${badge.cls}"${titleAttr}>${esc(badge.label)}</span></td>`
+        + `<td class="meta"><small>${esc(g.parent.status || '')}</small></td>`
+        + `<td class="image"><small>${esc(g.parent.image || '—')}</small></td>`
+        + `<td class="ports"><small>${esc(g.parent.ports || '—')}</small></td>`
         + `</tr>`;
+      if (hasKids && expanded) {
+        html += g.children.map((c) =>
+          `<tr class="alodium-container-row alodium-child-row">`
+          + `<td class="name child"><span class="alodium-child-mark" aria-hidden="true">└</span>`
+          + `<code>${esc(c.name)}</code></td>`
+          + cellsFor(c)
+          + `</tr>`).join('');
+      }
+      return html;
     }).join('');
     const running = dockerData.filter((c) => c.state === 'running').length;
     return `<table class="alodium-containers-table">`
-      + `<thead><tr><th>Container</th><th>State</th><th>Status</th><th>Image</th><th>Ports</th></tr></thead>`
+      + `<thead><tr>${head}</tr></thead>`
       + `<tbody>${rows}</tbody></table>`
       + `<div class="alodium-containers-foot">`
       + `<span>${running}/${dockerData.length} running</span>`
@@ -461,6 +564,38 @@
     }
     paintDockerPanel();
   };
+
+  // Sort on header click/Enter/Space. Delegated on document so it survives the
+  // panel being re-rendered on every data refresh (innerHTML wipes the nodes).
+  const sortDockerBy = (key) => {
+    if (!key) return;
+    if (key === dockerSortKey) dockerSortDir = -dockerSortDir;
+    else { dockerSortKey = key; dockerSortDir = 1; }
+    paintDockerPanel();
+  };
+  const headerFromEvent = (e) =>
+    e.target.closest?.('.alodium-containers-table th[data-sort]');
+  document.addEventListener('click', (e) => {
+    // Expand/collapse a container group. Checked before sort so a toggle click
+    // inside the header row never also triggers a sort.
+    const toggle = e.target.closest?.('.alodium-group-toggle');
+    if (toggle) {
+      e.preventDefault();
+      e.stopPropagation();
+      const key = toggle.getAttribute('data-toggle');
+      if (dockerExpanded.has(key)) dockerExpanded.delete(key);
+      else dockerExpanded.add(key);
+      paintDockerPanel();
+      return;
+    }
+    const th = headerFromEvent(e);
+    if (th) sortDockerBy(th.getAttribute('data-sort'));
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const th = headerFromEvent(e);
+    if (th) { e.preventDefault(); sortDockerBy(th.getAttribute('data-sort')); }
+  });
 
   refreshDockerData();
   setInterval(refreshDockerData, 10000);   // live data refresh
