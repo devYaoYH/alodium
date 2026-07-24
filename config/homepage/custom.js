@@ -369,64 +369,102 @@
   }, true);
   window.addEventListener('hashchange', () => switchToHashTab(window.location.hash));
 
-  // --- dynamic docker containers table ---
-  // Fetches all containers from docker-proxy and renders a live table showing
-  // name, status, image, and port mappings. Updates every 10 seconds.
-  const renderContainersTable = async () => {
-    const placeholder = document.getElementById('alodium-containers-table');
-    if (!placeholder) return;
+  // --- live container table in the Services (Docker) section -----------------
+  // The browser cannot reach docker-proxy (internal `dockerwatch` net only), so
+  // we read the floor's read-only /v1/containers aggregator instead — same ring
+  // (ring1, IP-gated), CORS-scoped to this origin. We hide the section's single
+  // native placeholder card and inject a full-width table spanning the whole
+  // collapsible group. The table self-heals if Homepage re-renders the group.
+  const DOCKER_GROUP_HEADING = 'Services (Docker)';
+  const FLOOR_ORIGIN = `https://floor.${domain}`;
+  const CONTAINERS_URL = `${FLOOR_ORIGIN}/v1/containers`;
 
-    try {
-      const resp = await fetch('http://docker-proxy:2375/containers/json?all=1');
-      if (!resp.ok) throw new Error(`docker-proxy returned ${resp.status}`);
-      const containers = await resp.json();
+  let dockerData = null;      // [{name,state,status,image,ports}] | null (loading)
+  let dockerError = null;     // string | null
 
-      const table = document.createElement('table');
-      table.className = 'alodium-containers-table';
-      table.innerHTML = `
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Status</th>
-            <th>Image</th>
-            <th>Ports</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${containers.map(c => {
-            const name = (c.Names?.[0] || c.Id?.slice(0, 12) || 'unknown').replace(/^\//, '');
-            const status = c.State || 'unknown';
-            const image = c.Image || '—';
-            const ports = c.Ports?.map(p => {
-              if (p.PublicPort) return `${p.PublicPort}→${p.PrivatePort}`;
-              return `${p.PrivatePort}`;
-            }).join(', ') || '—';
-            const statusClass = status === 'running' ? 'running' : status === 'exited' ? 'stopped' : 'other';
-            return `
-              <tr class="alodium-container-row alodium-container-${statusClass}">
-                <td class="name"><code>${name}</code></td>
-                <td class="status"><span class="status-badge ${statusClass}">${status}</span></td>
-                <td class="image"><small>${image}</small></td>
-                <td class="ports"><small>${ports}</small></td>
-              </tr>
-            `;
-          }).join('')}
-        </tbody>
-      `;
+  const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-      // Replace placeholder with table
-      placeholder.innerHTML = '';
-      placeholder.appendChild(table);
-    } catch (err) {
-      if (placeholder) {
-        placeholder.innerHTML = `<div class="alodium-containers-error">Could not load containers: ${err.message}</div>`;
-      }
+  const stateClass = (s) =>
+    s === 'running' ? 'running' : (s === 'exited' || s === 'dead') ? 'stopped' : 'other';
+
+  const dockerTableHTML = () => {
+    const foot = `<div class="alodium-containers-foot">`
+      + `<a href="${FLOOR_ORIGIN}" target="_blank" rel="noopener">Open the live floor view →</a>`
+      + `</div>`;
+    if (dockerError) {
+      return `<div class="alodium-containers-error">Could not load live containers: `
+        + `${esc(dockerError)}</div>` + foot;
     }
+    if (!dockerData) {
+      return `<div class="alodium-containers-loading">Loading live containers…</div>`;
+    }
+    if (!dockerData.length) {
+      return `<div class="alodium-containers-loading">No containers reported.</div>` + foot;
+    }
+    const rows = dockerData.map((c) => {
+      const cls = stateClass(c.state);
+      return `<tr class="alodium-container-row">`
+        + `<td class="name"><code>${esc(c.name)}</code></td>`
+        + `<td class="status"><span class="status-badge ${cls}">${esc(c.state || 'unknown')}</span></td>`
+        + `<td class="meta"><small>${esc(c.status || '')}</small></td>`
+        + `<td class="image"><small>${esc(c.image || '—')}</small></td>`
+        + `<td class="ports"><small>${esc(c.ports || '—')}</small></td>`
+        + `</tr>`;
+    }).join('');
+    const running = dockerData.filter((c) => c.state === 'running').length;
+    return `<table class="alodium-containers-table">`
+      + `<thead><tr><th>Container</th><th>State</th><th>Status</th><th>Image</th><th>Ports</th></tr></thead>`
+      + `<tbody>${rows}</tbody></table>`
+      + `<div class="alodium-containers-foot">`
+      + `<span>${running}/${dockerData.length} running</span>`
+      + `<a href="${FLOOR_ORIGIN}" target="_blank" rel="noopener">Open the live floor view →</a>`
+      + `</div>`;
   };
 
-  // Render containers table immediately and refresh every 10 seconds
-  renderContainersTable();
-  setInterval(renderContainersTable, 10000);
+  const findDockerGroup = () => {
+    for (const group of document.querySelectorAll('.services-group')) {
+      const heading = group.querySelector('h1, h2, h3')?.textContent.trim();
+      if (heading === DOCKER_GROUP_HEADING) return group;
+    }
+    return null;
+  };
+
+  // Ensure the injected panel exists inside the group's body and is current.
+  // Idempotent: safe to call on a timer to survive Homepage re-renders.
+  const paintDockerPanel = () => {
+    const group = findDockerGroup();
+    if (!group) return;                     // Operations tab not mounted yet
+    group.classList.add('alodium-docker-group');
+    const list = group.querySelector('.services-list');
+    let panel = group.querySelector('.alodium-containers-panel');
+    if (!panel) {
+      panel = document.createElement('div');
+      panel.className = 'alodium-containers-panel';
+      // Sit in the same parent as the (now hidden) native list so the panel
+      // lives inside the collapsible body and spans its full width.
+      if (list && list.parentElement) list.parentElement.insertBefore(panel, list);
+      else group.appendChild(panel);
+    }
+    panel.innerHTML = dockerTableHTML();
+  };
+
+  const refreshDockerData = async () => {
+    try {
+      const resp = await fetch(CONTAINERS_URL, { mode: 'cors' });
+      if (!resp.ok) throw new Error(`floor returned ${resp.status}`);
+      const body = await resp.json();
+      dockerData = Array.isArray(body.containers) ? body.containers : [];
+      dockerError = null;
+    } catch (err) {
+      dockerError = err.message;
+    }
+    paintDockerPanel();
+  };
+
+  refreshDockerData();
+  setInterval(refreshDockerData, 10000);   // live data refresh
+  setInterval(paintDockerPanel, 3000);     // re-inject if Homepage wiped it
 
   // --- deploy-info: last-deployed timestamp + commit link in the lower-left ---
   // Fetches /static/deploy-info.json (written by deploy.sh after each successful

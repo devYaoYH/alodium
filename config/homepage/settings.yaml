@@ -37,8 +37,9 @@ layout:
     icon: mdi-server-network
   Services (Docker):
     tab: Operations
-    style: row
-    columns: 6
+    # Full-width single column: custom.js injects one live table spanning the
+    # whole section (one row per container), so no card grid here.
+    columns: 1
     initiallyCollapsed: false
     icon: mdi-docker
   Tenant boundaries:
