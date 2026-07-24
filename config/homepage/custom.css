@@ -619,6 +619,11 @@ html.alodium-chatbar-open #page_container { padding-bottom: 11rem; }
   color: #cbd5e1;
 }
 
+.status-badge.warn {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fcd34d;
+}
+
 .alodium-containers-table .image,
 .alodium-containers-table .ports {
   font-family: ui-monospace, 'Courier New', monospace;
@@ -644,11 +649,49 @@ html.alodium-chatbar-open #page_container { padding-bottom: 11rem; }
   font-size: 0.85rem;
 }
 
+/* Sortable headers: click to sort, click again to flip. */
+.alodium-containers-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition: color 120ms ease;
+}
+.alodium-containers-table th.sortable:hover,
+.alodium-containers-table th.active {
+  color: var(--alodium-accent);
+}
+.alodium-containers-table th.sortable:focus-visible {
+  outline: 2px solid var(--alodium-accent);
+  outline-offset: -2px;
+}
+.alodium-containers-table th .sort-arrow {
+  display: inline-block;
+  width: 0.7em;
+  margin-left: 0.25rem;
+  font-size: 0.62rem;
+  vertical-align: middle;
+}
+
 /* The injected panel spans the whole collapsible section. custom.js tags the
    group with .alodium-docker-group and hides the native placeholder card so
    only the full-width table shows. */
 .alodium-docker-group .services-list {
   display: none;
+}
+
+/* Breathing room around the section header so it reads as a peer of the other
+   Operations groups (e.g. "Node & access") rather than hugging the table. */
+.alodium-docker-group {
+  margin-top: 1.5rem;
+}
+.alodium-docker-group h1,
+.alodium-docker-group h2,
+.alodium-docker-group h3 {
+  margin-bottom: 0.9rem;
+  padding-bottom: 0.4rem;
+}
+.alodium-containers-panel {
+  margin-top: 0.25rem;
 }
 
 .alodium-containers-panel {
@@ -681,6 +724,53 @@ html.alodium-chatbar-open #page_container { padding-bottom: 11rem; }
 
 .alodium-containers-foot a:hover {
   text-decoration: underline;
+}
+
+/* Grouped sidecars: a caret toggles the child rows (e.g. miniflux-db under
+   miniflux). The parent row's badge is the aggregate — warn on a mixed group. */
+.alodium-group-toggle {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: rgba(203, 213, 225, 0.7);
+  cursor: pointer;
+  font-size: 0.7rem;
+  line-height: 1;
+  width: 1.1rem;
+  padding: 0;
+  margin-right: 0.15rem;
+  transition: color 120ms ease;
+}
+.alodium-group-toggle:hover,
+.alodium-group-toggle:focus-visible {
+  color: var(--alodium-accent);
+  outline: none;
+}
+.alodium-group-spacer {
+  display: inline-block;
+  width: 1.1rem;
+  margin-right: 0.15rem;
+}
+.alodium-group-count {
+  margin-left: 0.4rem;
+  font-size: 0.65rem;
+  color: rgba(148, 163, 184, 0.7);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 0.6rem;
+  padding: 0.02rem 0.35rem;
+}
+.alodium-child-row {
+  background: rgba(2, 6, 23, 0.22);
+}
+.alodium-child-row .name.child {
+  padding-left: 1.9rem;
+}
+.alodium-child-mark {
+  color: rgba(148, 163, 184, 0.5);
+  margin-right: 0.35rem;
+}
+.alodium-child-row .name code {
+  color: rgba(167, 243, 208, 0.8);
 }
 
 @media (max-width: 640px) {
