@@ -364,6 +364,65 @@
   }, true);
   window.addEventListener('hashchange', () => switchToHashTab(window.location.hash));
 
+  // --- dynamic docker containers table ---
+  // Fetches all containers from docker-proxy and renders a live table showing
+  // name, status, image, and port mappings. Updates every 10 seconds.
+  const renderContainersTable = async () => {
+    const placeholder = document.getElementById('alodium-containers-table');
+    if (!placeholder) return;
+
+    try {
+      const resp = await fetch('http://docker-proxy:2375/containers/json?all=1');
+      if (!resp.ok) throw new Error(`docker-proxy returned ${resp.status}`);
+      const containers = await resp.json();
+
+      const table = document.createElement('table');
+      table.className = 'alodium-containers-table';
+      table.innerHTML = `
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Status</th>
+            <th>Image</th>
+            <th>Ports</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${containers.map(c => {
+            const name = (c.Names?.[0] || c.Id?.slice(0, 12) || 'unknown').replace(/^\//, '');
+            const status = c.State || 'unknown';
+            const image = c.Image || '—';
+            const ports = c.Ports?.map(p => {
+              if (p.PublicPort) return `${p.PublicPort}→${p.PrivatePort}`;
+              return `${p.PrivatePort}`;
+            }).join(', ') || '—';
+            const statusClass = status === 'running' ? 'running' : status === 'exited' ? 'stopped' : 'other';
+            return `
+              <tr class="alodium-container-row alodium-container-${statusClass}">
+                <td class="name"><code>${name}</code></td>
+                <td class="status"><span class="status-badge ${statusClass}">${status}</span></td>
+                <td class="image"><small>${image}</small></td>
+                <td class="ports"><small>${ports}</small></td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      `;
+
+      // Replace placeholder with table
+      placeholder.innerHTML = '';
+      placeholder.appendChild(table);
+    } catch (err) {
+      if (placeholder) {
+        placeholder.innerHTML = `<div class="alodium-containers-error">Could not load containers: ${err.message}</div>`;
+      }
+    }
+  };
+
+  // Render containers table immediately and refresh every 10 seconds
+  renderContainersTable();
+  setInterval(renderContainersTable, 10000);
+
   // --- deploy-info: last-deployed timestamp + commit link in the lower-left ---
   // Fetches /static/deploy-info.json (written by deploy.sh after each successful
   // deploy) and renders a small indicator showing the deployed commit hash
