@@ -294,6 +294,11 @@ html.alodium-chatbar-open #page_container { padding-bottom: 11rem; }
 .alodium-tile-group .service-site-monitor { display: none; }
 .alodium-tile-group .service-container .service-block:nth-child(n+3) { display: none; }
 
+/* One dot per service in the Node & access section: keep the container status
+   dot (shows Docker state + clickable for stats) and hide the redundant site
+   monitor dot, which creates a duplicate green indicator when both are green. */
+.alodium-node-access .service-site-monitor { display: none; }
+
 /* --- on-demand app control: REUSE Homepage's own container-status dot -------
    No dot of our own — the single indicator IS Homepage's .service-container-stats
    button (its inner .docker-status .rounded-full is the coloured light). custom.js
