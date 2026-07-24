@@ -17,6 +17,8 @@ Surface:
   GET /healthz          liveness
   GET /v1/floor         rooms + edges + sources (the map)
   GET /v1/activity      recent events + statuses (the motion), ?since=<id>
+  GET /v1/containers    flat container list (name/state/status/image/ports),
+                        CORS-enabled for the dashboard's live table
   GET /*                the isometric site (static, from ./site)
 """
 import json
@@ -170,6 +172,7 @@ class State:
         self.pr_counts = {}       # repo -> open PR count
         self.llm_spend = {}       # tenant -> last spend
         self.container_states = {}  # name -> state
+        self.containers_detail = []  # [{name,state,status,image,ports}] for /v1/containers
 
     def emit(self, kind, src, dst, label):
         with self.lock:
@@ -193,6 +196,29 @@ def poll_registry(sources):
         return []
 
 
+def _short_image(image):
+    """Drop the registry host and digest for legibility:
+    ghcr.io/gethomepage/homepage@sha256:… -> gethomepage/homepage."""
+    img = (image or "").split("@", 1)[0]
+    parts = img.split("/")
+    # a leading segment with a dot or :port is a registry host — strip it
+    if len(parts) > 1 and ("." in parts[0] or ":" in parts[0]):
+        img = "/".join(parts[1:])
+    return img[:60]
+
+
+def _format_ports(ports):
+    """Compact, de-duplicated port list: '2375/tcp', '443→8080/tcp'."""
+    seen = []
+    for p in ports or []:
+        pub, priv = p.get("PublicPort"), p.get("PrivatePort")
+        typ = p.get("Type", "tcp")
+        label = f"{pub}→{priv}/{typ}" if pub else f"{priv}/{typ}"
+        if label not in seen:
+            seen.append(label)
+    return ", ".join(seen)
+
+
 def poll_docker(sources):
     try:
         raw = http_json(f"{DOCKER_URL}/containers/json?all=1")
@@ -205,7 +231,10 @@ def poll_docker(sources):
             if project and not project.startswith("sovereign-node"):
                 continue
             name = (c.get("Names") or ["/?"])[0].lstrip("/")
-            out[name] = {"state": c.get("State", "unknown"), "status": c.get("Status", "")}
+            out[name] = {"state": c.get("State", "unknown"),
+                         "status": c.get("Status", ""),
+                         "image": _short_image(c.get("Image", "")),
+                         "ports": _format_ports(c.get("Ports"))}
         return out
     except (urllib.error.URLError, OSError, ValueError) as exc:
         sources["docker"] = f"unreachable: {exc}"
@@ -398,8 +427,10 @@ def poller():
             poll_forgejo(sources)
             poll_litellm(sources)
             snap = build_snapshot(services, containers, sources)
+            detail = [{"name": n, **v} for n, v in sorted(containers.items())]
             with STATE.lock:
                 STATE.snapshot = snap
+                STATE.containers_detail = detail
         except Exception as exc:  # the floor must never die to a poll bug
             print(f"[floor] poll error: {exc}", flush=True)
         time.sleep(POLL_SECONDS)
@@ -526,17 +557,25 @@ def _stream_container_logs(container: str, tail: int = 200):
 class Handler(BaseHTTPRequestHandler):
     server_version = "sovereign-floor/0"
 
-    def _send(self, code, body, ctype="application/json", cache=False):
+    def _send(self, code, body, ctype="application/json", cache=False, cors=False):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
         if cache:
             self.send_header("Cache-Control", "max-age=3600")
+        if cors:
+            # The dashboard (home.<domain>) reads this cross-origin. Both sit in
+            # ring 1 behind the same IP guard, so scope the grant to that one
+            # origin rather than "*" — no wildcard, no credentials, read-only.
+            domain = os.environ.get("NODE_DOMAIN", "")
+            self.send_header("Access-Control-Allow-Origin",
+                             f"https://home.{domain}" if domain else "*")
+            self.send_header("Vary", "Origin")
         self.end_headers()
         self.wfile.write(body)
 
-    def _json(self, code, obj):
-        self._send(code, json.dumps(obj).encode())
+    def _json(self, code, obj, cors=False):
+        self._send(code, json.dumps(obj).encode(), cors=cors)
 
     def do_GET(self):  # noqa: N802 (http.server API)
         path, _, query = self.path.partition("?")
@@ -545,6 +584,14 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/v1/floor":
             with STATE.lock:
                 self._json(200, STATE.snapshot)
+        elif path == "/v1/containers":
+            # Flat list of every container in this stack (name, state, status,
+            # image, ports) — the dashboard renders it as a live table. CORS-
+            # enabled for the home.<domain> origin (see _send).
+            with STATE.lock:
+                detail = list(STATE.containers_detail)
+                gen = STATE.snapshot.get("generated_at", 0)
+            self._json(200, {"generated_at": gen, "containers": detail}, cors=True)
         elif path == "/v1/activity":
             since = 0
             for part in query.split("&"):

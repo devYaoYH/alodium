@@ -51,6 +51,32 @@ paths:
                   sources:
                     type: object
                     additionalProperties: { type: string }
+  /v1/containers:
+    get:
+      summary: Flat container list for the dashboard's live table
+      description: >
+        Every container in this compose stack (name, state, status, image,
+        ports), as observed via docker-proxy. CORS-enabled for the dashboard
+        origin (home.<domain>) so the homepage can render it cross-origin.
+      responses:
+        "200":
+          description: Current container list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  generated_at: { type: integer }
+                  containers:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name: { type: string }
+                        state: { type: string }
+                        status: { type: string }
+                        image: { type: string }
+                        ports: { type: string }
   /v1/logs/{container}:
     get:
       summary: Stream filtered container logs (chunked transfer)

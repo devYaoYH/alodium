@@ -39,6 +39,11 @@ check("activity 200 json", status == 200)
 check("activity has events + cursor",
       isinstance(act.get("events"), list) and "latest_id" in act)
 
+status, body = get("/v1/containers")
+containers = json.loads(body)
+check("containers 200 json", status == 200)
+check("containers has list", isinstance(containers.get("containers"), list))
+
 status, body = get("/")
 check("site index served", status == 200 and b"<canvas" in body)
 
