@@ -245,7 +245,7 @@
     };
 
     const doStop = async () => {
-      render('starting'); // amber while it winds down
+      render('stopping'); // amber while it winds down
       await stop();
       setTimeout(async () => render(await status()), 1500);
     };
@@ -258,12 +258,14 @@
       card.classList.add('alodium-ondemand-card');
 
       const state = st0 === 'running' ? 'running'
-        : st0 === 'starting' ? 'starting' : 'stopped';
+        : st0 === 'starting' ? 'starting'
+        : st0 === 'stopping' ? 'stopping' : 'stopped';
       card.dataset.alodiumState = state;
       // State class paints the native .docker-status dot (see custom.css).
-      card.classList.remove('alodium-asleep', 'alodium-starting', 'alodium-live');
+      card.classList.remove('alodium-asleep', 'alodium-starting', 'alodium-stopping', 'alodium-live');
       card.classList.add(state === 'running' ? 'alodium-live'
-        : state === 'starting' ? 'alodium-starting' : 'alodium-asleep');
+        : state === 'starting' ? 'alodium-starting'
+        : state === 'stopping' ? 'alodium-stopping' : 'alodium-asleep');
 
       // Hover-reveal action word, tucked left of the reused dot. Created once.
       let label = card.querySelector('.alodium-ondemand-action');
@@ -274,13 +276,15 @@
         card.appendChild(label);
       }
       label.textContent = state === 'running' ? 'Stop'
-        : state === 'starting' ? 'Starting…' : 'Launch';
+        : state === 'starting' ? 'Starting…'
+        : state === 'stopping' ? 'Stopping…' : 'Launch';
 
       // Give the reused native dot an honest tooltip for its new job.
       const dotBtn = card.querySelector('.service-container-stats');
       if (dotBtn) {
         dotBtn.setAttribute('title', state === 'running' ? `Stop ${name}`
-          : state === 'starting' ? `${name} is starting…` : `Launch ${name}`);
+          : state === 'starting' ? `${name} is starting…`
+          : state === 'stopping' ? `${name} is stopping…` : `Launch ${name}`);
       }
 
       // One delegated, capturing click handler owns the whole card: it hijacks
@@ -292,7 +296,7 @@
         card.addEventListener('click', (e) => {
           const onControl = e.target.closest('.service-container-stats, .alodium-ondemand-action');
           const st = card.dataset.alodiumState;
-          if (st === 'starting') { if (onControl) { e.preventDefault(); e.stopPropagation(); } return; }
+          if (st === 'starting' || st === 'stopping') { if (onControl) { e.preventDefault(); e.stopPropagation(); } return; }
           if (onControl) {
             e.preventDefault();
             e.stopPropagation();
@@ -312,7 +316,8 @@
       // Refresh in the background, but never stomp on an in-flight launch/stop.
       setInterval(async () => {
         if (readyPoll) return;
-        if (tileEl()?.querySelector('.service-card')?.dataset.alodiumState === 'starting') return;
+        if (tileEl()?.querySelector('.service-card')?.dataset.alodiumState === 'starting' ||
+            tileEl()?.querySelector('.service-card')?.dataset.alodiumState === 'stopping') return;
         render(await status());
       }, 30000);
     };
