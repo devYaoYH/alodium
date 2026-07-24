@@ -253,6 +253,12 @@ if printf '%s\n' "$CHANGED" | grep -q "^config/homepage/"; then
   docker compose restart homepage
 fi
 
+# 7. Reconcile chat tool surface: build/start toolshims, register connections
+#     in Open WebUI.  Idempotent — no-ops when wiring is unchanged.  Safe to
+#     run even when open-webui is not running (exits cleanly).  Non-fatal so a
+#     transient toolshim issue never blocks the rest of deploy.
+./scripts/chat-tools-setup.sh || echo "deploy: WARN chat-tools-setup failed (non-fatal)"
+
 docker compose ps --format 'table {{.Name}}\t{{.Status}}'
 
 # 7. Record deployment info for the homepage deploy-info widget.
