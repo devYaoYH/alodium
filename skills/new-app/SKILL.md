@@ -20,10 +20,21 @@ Repo creation is an operator moment; everything after it is yours.
      `mcp` line from `app.toml` if this app has no agent surface.
    - `/healthz` stays, cheap and honest.
    - `tests/smoke.py`: one check per endpoint you add.
-4. Verify locally before pushing:
+4. **Build provenance (first-party apps only)**: If the app builds from its own
+   Dockerfile (rather than using a pre-built upstream image), you MUST declare:
+   - A `[build]` section in `manifest/<name>.toml` with `repo` pointing to the
+     Forgejo app repo and `ref` set to the full 40-char commit SHA.
+   - A **versioned** image tag (e.g. `:0.1.0`) — NOT `:local`. A floating
+     `:local` tag never triggers a rebuild when the source changes; a version
+     bump makes the image "missing" and the build pipeline actually runs.
+   See `manifest/calino.toml` and `manifest/search-broker.toml` for the correct
+   pattern: versioned tag + `[build]` with pinned repo+ref.
+5. Verify locally before pushing:
    `python3 app.py & APP_URL=http://localhost:8080 python3 tests/smoke.py`
-5. Open the app PR on `apps/<name>` (see the propose-change skill).
-6. Register it on the node with the register-service skill — that is a
+6. Open the app PR on `apps/<name>` (see the propose-change skill).
+7. Register it on the node with the register-service skill — that is a
    separate PR against node-config, one concern each.
-7. Any `[needs]` you declared: state the scope and why in the PR body.
+8. Any `[needs]` you declared: state the scope and why in the PR body.
+   If the app is first-party (builds from source), also declare `[build]`
+   in the manifest — see step 4 above.
    The operator mints credentials on merge, never before.

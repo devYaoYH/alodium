@@ -206,6 +206,113 @@ else
   note "SKIP: no apps/copilot/compose.yaml"
 fi
 
+# --- 7. Build provenance — every first-party image must be reproducible -------
+sec "build provenance"
+# Scans manifest/*.toml for sovereign-node/ images that have no version tag, no
+# [build] section, and no build: context in their app's compose fragment — the
+# classic "runs once from a hand-built :local image, then silently ossifies" trap.
+# Exempt: env-var references, @sha256:-pinned images, and non-sovereign-node/
+# upstream images (those are reproducible by digest/tag upstream).
+python3 -c "
+import os, sys, tomllib, yaml
+
+errors = []
+skip_example = True  # app.example.toml is not a real app
+
+manifest_dir = 'manifest'
+apps_dir = 'apps'
+
+for entry in sorted(os.listdir(manifest_dir)):
+    if not entry.endswith('.toml'):
+        continue
+    if skip_example and entry == 'app.example.toml':
+        continue
+
+    path = os.path.join(manifest_dir, entry)
+    with open(path, 'rb') as f:
+        try:
+            m = tomllib.load(f)
+        except Exception as e:
+            errors.append(f'{entry}: failed to parse TOML — {e}')
+            continue
+
+    app = m.get('app', {})
+    name = app.get('name', '')
+    image = app.get('image', '')
+
+    if not image or not name:
+        continue
+
+    # Skip env-var references (e.g. GOG_BRIDGE_IMAGE)
+    if image.startswith('\$') or '\${' in image:
+        continue
+
+    # Skip images pinned by digest
+    if '@sha256:' in image:
+        continue
+
+    # Skip non-first-party images (not from the sovereign-node org)
+    if 'sovereign-node/' not in image:
+        continue
+
+    # Check tag: extract the part after the last colon
+    tag = image.split(':')[-1] if ':' in image else None
+    # A versioned tag (e.g. :0.6.0, :0.22.7) is fine — the operator
+    # manages it. Flag :local, no tag, or empty tag.
+    is_floating = (tag is None) or (tag == '') or (tag == 'local')
+
+    if not is_floating:
+        # Has a concrete version tag — not in the floating-trap class
+        continue
+
+    # Check for [build] section
+    has_build = bool(m.get('build'))
+
+    # Check for build: context in apps/<name>/compose.yaml
+    has_compose_build = False
+    compose_path = os.path.join(apps_dir, name, 'compose.yaml')
+    if os.path.isfile(compose_path):
+        with open(compose_path) as f:
+            try:
+                compose_data = yaml.safe_load(f)
+            except Exception:
+                compose_data = None
+        if compose_data and isinstance(compose_data, dict):
+            services = compose_data.get('services', {}) or {}
+            for svc in services.values():
+                if isinstance(svc, dict) and 'build' in svc:
+                    has_compose_build = True
+                    break
+
+    if has_build:
+        # [build] section exists — provenance is declared
+        continue
+
+    if has_compose_build:
+        # compose fragment has build: context — image is built locally
+        continue
+
+    errors.append(
+        f'{entry}: image \"{image}\" is a first-party (sovereign-node/) image '
+        f'with no version tag, no [build] section, and no build: context in '
+        f'apps/{name}/compose.yaml — this image cannot be reproduced. '
+        f'Add a [build] section with pinned repo+ref, or add build: context '
+        f'to the compose fragment.'
+    )
+
+if errors:
+    for e in errors:
+        print(f'  FAIL: {e}', file=sys.stderr)
+    sys.exit(1)
+else:
+    print('OK: every first-party image has build provenance')
+" 2>/tmp/vc_build.log
+if [[ $? -ne 0 ]]; then
+  note "FAIL: build provenance errors —"; sed 's/^/    /' /tmp/vc_build.log; FAIL=1
+else
+  note "OK: all first-party images have build provenance"
+fi
+
 echo
 if [[ "$FAIL" -eq 0 ]]; then echo "verify-config: PASS"; else echo "verify-config: FAIL (fix the above before pushing)"; fi
 exit "$FAIL"
