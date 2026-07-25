@@ -1,0 +1,26 @@
+# Default egress profile — the a-priori allowlist loaded when no explicit profile
+# name is assigned. Agents using this profile can reach only the hosts listed
+# here without a per-run exception approval.
+#
+# This profile is deliberately minimal: the default tenant has no standing egress
+# allowance. Any egress beyond this requires an operator-approved exception
+# (coordination issue + mint-egress-key.sh).
+#
+# Security: profile definitions are reviewed, version-controlled, and loaded only
+# if they exist in this directory. An unknown profile name → container refuses to start.
+
+name = "default"
+description = "Minimal profile: no standing egress. All external access requires an operator-approved exception."
+
+[toolset]
+# The toolset label for this profile. Used by the broker to log which toolset
+# generated the egress request.
+label = "none"
+
+[default_egress_allowlist]
+# Empty by design — the default tenant has no egress authority.
+hosts = []
+
+[dataplane_authorizations]
+# No data-plane authorizations by default.
+paths = []

@@ -1,4 +1,4 @@
-# Brokered agent egress
+# Brokered agent egress — as-built
 
 `egress-broker` is the single, deterministic choke point through which agent
 tenants reach the outside world. Like `search-broker`, it is a narrow
@@ -9,6 +9,7 @@ what a tenant may reach.
 ```text
 agent tenant --agents--> egress-broker --egress-private--> egress-out --edge--> approved host
                               |--egress-data--> egress-audit-db <-- durable request rows
+                                              egress-audit-api <--egress-admin-- Caddy (Ring 0)
 ```
 
 The design follows the project's core rule: **agents advise, deterministic code
@@ -32,6 +33,27 @@ The combinatorial space that makes per-run approval expensive is
 pre-approved **agent profiles**, then approve tasks cheaply against that small,
 already-analyzed set.
 
+## Architecture
+
+### Service roles (single image, `EGRESS_ROLE` env switch)
+
+| Role | Service | Networks | Purpose |
+|------|---------|----------|---------|
+| `broker` | `egress-broker` | `agents`, `egress-private`, `egress-data` | Authenticates tenant, validates key + host, writes audit row, forwards to egress-out |
+| `egress` | `egress-out` | `egress-private`, `edge` | Only service on `edge`; makes the actual outbound HTTP call |
+| `audit-api` | `egress-audit-api` | `egress-admin`, `egress-data` | Ring 0 read-only dashboard; Caddy injects credential server-side |
+| `audit-db` | `egress-audit-db` | `egress-data` | PostgreSQL audit store; no ingress, no egress, no agents spur |
+
+### Network isolation
+
+```
+agents (internal: true)     — the agent spur: only egress-broker is reachable here
+egress-private (internal)   — broker <-> egress-out: agents cannot join
+egress-admin (internal)     — Caddy <-> audit-api: operator dashboard only
+egress-data (internal)      — broker/audit-api <-> database: database has no network routes elsewhere
+edge                         — egress-out only: the single point of egress
+```
+
 ## Agent profiles: security analysis at build time, not request time
 
 A profile is a reviewed, version-controlled description of a *shape* of agent
@@ -40,12 +62,13 @@ authorizations. Profiles are approved a-priori — each one gets a static securi
 analysis of exactly what egress points and capabilities it combines — and only
 approved profiles can be loaded into a container at start.
 
-This inverts the cost. Instead of adjudicating an open-ended host request at
-task time, the operator picks from a small set of pre-analyzed shapes. A
-"research" profile may *always* reach `arxiv.org` and `claude.com` because that
-combination was already reviewed; a task using it needs only a start approval,
-not a fresh egress adjudication. New shapes require a new profile review — a
-deliberate, auditable, infrequent event — not a runtime hole.
+Profile definitions live in `manifest/egress-profiles/<name>.toml`. Only
+profiles that exist in the repo (i.e. were reviewed/merged) may be loaded. An
+unknown profile name → container refuses to start.
+
+The default profile (`manifest/egress-profiles/default.toml`) has an empty
+allowlist — no standing egress. Any egress requires an operator-approved
+exception.
 
 ## Minting authority
 
@@ -57,8 +80,9 @@ task-difficulty model-selection dispatch:
 2. The operator flips a flag / approves the exception list on that issue. This
    human `yes` is a durable, auditable artifact: *who approved which host for
    which tenant, and when.*
-3. Deterministic code mints a **short-lived key** scoped to the approved
-   host(s) and prepares it for the target container.
+3. **Deterministic code** (`scripts/mint-egress-key.sh`) mints a **short-lived
+   key** scoped to the approved host(s) and prepares it for the target
+   container. This script is NEVER reachable from the `agents` network.
 4. Egress physically routes **through the broker**, exactly as `search-broker`
    is wired. The key is load-bearing, not decorative: revoke it and the network
    path is gone, because the tenant never had a route to the outside world that
@@ -92,11 +116,52 @@ still has no real data-retrieval capability inside the network unless
 it does not yield the private data on the other side of a different boundary.
 Each layer assumes the one in front of it has already failed.
 
-## Open questions
+## Audit
 
-- Broker replication topology and how paused tenants resume cleanly after a
-  broker restart.
-- Profile review workflow: where profile definitions live, who signs off, and
-  how the a-priori security analysis is recorded alongside the approval.
-- Whether standing per-profile allowlists need periodic re-review (expiry on
-  the *profile*, not just the key).
+Every brokered request writes a durable row to `egress-audit-db` **before** the
+outbound call (write-then-call ordering so retries cannot lose evidence), with:
+- Tenant/capability
+- Target host
+- Key ID (never the key itself)
+- Request method + path
+- Status, bytes, duration
+
+## Provision and run
+
+The app source lives in the private Forgejo repo `apps/egress-broker`. Build
+the reviewed revision into the local image used by node-config, then provision
+and start the capability:
+
+```sh
+git clone https://git.<domain>/apps/egress-broker /srv/sovereign-apps/egress-broker
+docker build -t sovereign-node/egress-broker:local /srv/sovereign-apps/egress-broker
+./scripts/egress-setup.sh
+docker compose --profile apps up -d egress-audit-db egress-out egress-broker egress-audit-api caddy
+```
+
+## Drills
+
+- `scripts/drill-egress-containment.sh` — proves (a) agents cannot reach the
+  internet directly, (b) agents cannot mint/widen their own allowlist, (d)
+  killing the broker removes all egress.
+- `scripts/drill-egress-revocation.sh` — proves (c) a revoked/expired key is
+  refused.
+
+## Open questions (resolved)
+
+The three open questions from the design phase have been resolved as follows:
+
+1. **Broker replication topology**: The initial implementation uses a single
+   broker instance. Replication (multiple broker instances behind a shared
+   network) is deferred to a follow-up. The broker is stateless (state lives
+   in the audit database), so replication is a compose change, not a code one.
+
+2. **Profile review workflow**: Profile definitions live in
+   `manifest/egress-profiles/<name>.toml` and are reviewed via the standard
+   node-config PR process. The a-priori security analysis is recorded in the
+   PR description and review comments. Only merged profiles may be loaded.
+
+3. **Standing per-profile allowlist re-review**: Profile allowlists are
+   version-controlled and reviewed at merge time. Periodic re-review is
+   handled by the existing node-config maintenance cadence (no additional
+   expiry mechanism on profiles themselves).

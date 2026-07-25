@@ -1,0 +1,39 @@
+# The node's single brokered egress capability. Agents discover this endpoint
+# on the internal registry, but need AGENT_EGRESS_TOKEN to call it.
+
+[app]
+name = "egress-broker"
+version = "0.1.0"
+description = "Deterministic brokered egress: agents request, the broker decides, the audit database records every byte"
+image = "sovereign-node/egress-broker:0.1.0"
+ring = 0
+
+[service]
+port = 8080
+health = "/healthz"
+
+[needs]
+# The agent owns AGENT_EGRESS_TOKEN. The egress-out companion has no agent-visible
+# credential — it authenticates to the broker via EGRESS_EGRESS_TOKEN (cold
+# configuration, never exposed to the agents spur).
+
+[resources]
+volumes = ["egress_audit_db"]
+database = "postgres"
+
+[tests]
+command = "python3 tests/smoke.py"
+timeout_seconds = 60
+
+[lifecycle]
+backup = ["egress_audit_db"]
+update_policy = "pinned"
+
+[build]
+# First-party app source lives in Forgejo at apps/egress-broker (seeded from
+# app-skeleton). scripts/build-mirrored.sh clones this repo at the pinned commit
+# and builds its Dockerfile on the host at deploy time. All four egress-* services
+# share this one image via ${EGRESS_BROKER_IMAGE}. No build args — the broker
+# takes all config via runtime env, not build-time args.
+repo = "apps/egress-broker"
+ref = "HEAD"
