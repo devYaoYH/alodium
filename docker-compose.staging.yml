@@ -28,3 +28,17 @@ services:
   memos:        { container_name: !reset "" }
   open-webui:   { container_name: !reset "" }
   docker-proxy: { container_name: !reset "" }
+  # Broker-family apps (search + egress) need staging representation: their
+  # drills run against the staging network namespace, and the audit DBs are
+  # real Postgres with throwaway volumes. Earlier iterations staged only the
+  # front-end apps and the drills silently noop'd — fixing both families here
+  # so the staging twin actually exercises the brokers and the operator's
+  # drill-egress-{containment,revocation}.sh have a real target.
+  search-broker:    { container_name: !reset "" }
+  search-egress:    { container_name: !reset "" }
+  search-audit-api: { container_name: !reset "" }
+  search-audit-db:  { container_name: !reset "" }
+  egress-broker:    { container_name: !reset "" }
+  egress-out:       { container_name: !reset "" }
+  egress-audit-api: { container_name: !reset "" }
+  egress-audit-db:  { container_name: !reset "" }
