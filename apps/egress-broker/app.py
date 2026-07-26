@@ -54,6 +54,13 @@ AUDIT_STORE = None
 _PROFILE_HOSTS = None
 
 
+# Sentinel returned by _audit_authorised() when the configuration error path
+# already wrote its own 503 response. Callers must check this BEFORE the
+# "is not True" branch so we send exactly one response on the wire (writing
+# 401 after 503 is a write-after-headers error on the same connection).
+_ALREADY_RESPONDED = object()
+
+
 def now():
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
@@ -385,10 +392,16 @@ class Handler(BaseHTTPRequestHandler):
         except RuntimeError as exc:
             print(f"[egress-audit-api] configuration error: {exc}", file=sys.stderr, flush=True)
             self._send(503, {"error": "audit dashboard unavailable"})
-            return None
+            # Signal to the caller that we already responded — returning None
+            # here used to let the caller try to send 401 on top of the 503,
+            # which raises write-after-headers on the same connection.
+            return _ALREADY_RESPONDED
 
     def _audit_dashboard(self):
-        if self._audit_authorised() is not True:
+        result = self._audit_authorised()
+        if result is _ALREADY_RESPONDED:
+            return
+        if result is not True:
             self._send(401, {"error": "unauthorized"})
             return
         try:
@@ -420,7 +433,10 @@ class Handler(BaseHTTPRequestHandler):
         self._send_html(200, html)
 
     def _audit_events(self):
-        if self._audit_authorised() is not True:
+        result = self._audit_authorised()
+        if result is _ALREADY_RESPONDED:
+            return
+        if result is not True:
             self._send(401, {"error": "unauthorized"})
             return
         try:

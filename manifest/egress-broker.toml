@@ -5,7 +5,7 @@
 name = "egress-broker"
 version = "0.1.0"
 description = "Deterministic brokered egress: agents request, the broker decides, the audit database records every byte"
-image = "sovereign-node/egress-broker:0.1.0"
+image = "sovereign-node/egress-broker:local"
 ring = 0
 
 [service]
@@ -38,12 +38,3 @@ timeout_seconds = 30
 [lifecycle]
 backup = ["egress_audit_db"]
 update_policy = "pinned"
-
-[build]
-# First-party app source lives in Forgejo at apps/egress-broker (seeded from
-# app-skeleton). scripts/build-mirrored.sh clones this repo at the pinned commit
-# and builds its Dockerfile on the host at deploy time. All four egress-* services
-# share this one image via ${EGRESS_BROKER_IMAGE}. No build args — the broker
-# takes all config via runtime env, not build-time args.
-repo = "apps/egress-broker"
-ref = "HEAD"

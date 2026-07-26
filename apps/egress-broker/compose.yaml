@@ -27,7 +27,13 @@ services:
 
   egress-broker:
     profiles: [apps]
-    image: ${EGRESS_BROKER_IMAGE:-sovereign-node/egress-broker:0.1.0}
+    # First-party image — built locally from this directory (floor precedent:
+    # build: . + image: sovereign-node/<app>:local). deploy.sh's rebuild step
+    # runs `docker compose build egress-broker`, so this is the service that
+    # must carry the build context. The other egress-* services reuse the
+    # same image via :local without their own build:.
+    build: .
+    image: sovereign-node/egress-broker:local
     container_name: egress-broker
     restart: unless-stopped
     depends_on:
@@ -60,7 +66,10 @@ services:
 
   egress-audit-api:
     profiles: [apps]
-    image: ${EGRESS_BROKER_IMAGE:-sovereign-node/egress-broker:0.1.0}
+    # Reuses the image built by the egress-broker service above. No build:
+    # here — compose builds the :local tag once and all three egress-*
+    # services share it.
+    image: sovereign-node/egress-broker:local
     container_name: egress-audit-api
     restart: unless-stopped
     depends_on:
@@ -85,7 +94,10 @@ services:
 
   egress-out:
     profiles: [apps]
-    image: ${EGRESS_BROKER_IMAGE:-sovereign-node/egress-broker:0.1.0}
+    # Reuses the image built by the egress-broker service above. No build:
+    # here — compose builds the :local tag once and all three egress-*
+    # services share it.
+    image: sovereign-node/egress-broker:local
     container_name: egress-out
     restart: unless-stopped
     environment:
