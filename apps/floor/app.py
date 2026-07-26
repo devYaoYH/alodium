@@ -473,13 +473,19 @@ def _inspect_container_tty(container: str) -> bool:
         return False
 
 
-def _stream_container_logs(container: str, tail: int = 200):
+def _stream_container_logs(container: str, tail: int = 2000):
     """Generator: yields filtered log lines from docker-proxy.
 
     Docker's multiplexed log stream prefixes every frame with an 8-byte
     header: [stream_type(1), 0,0,0, size(4)] — but ONLY when the container
     was created without a TTY (e.g. -d or no -t).  TTY containers stream
     raw text.  We inspect Config.Tty once and choose the right parser.
+
+    `tail` is the backfill of historical lines docker-proxy replays before
+    flipping into follow mode.  Raised from 200 so opening a panel gives a
+    useful chunk of history, not just the most recent blink; the frontend
+    keeps up to TERM_MAX_LINES so the user can scroll up further than the
+    backfill alone reaches on a quiet container.
     """
     is_tty = _inspect_container_tty(container)
     url = (f"{DOCKER_URL}/containers/{container}/logs"

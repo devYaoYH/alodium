@@ -37,6 +37,28 @@
     font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
     color: rgba(244,237,228,.72); pointer-events: none;
   }
+  /* Level focus pill — sits just below #pulse.  Three buttons that dim the
+     non-focused deck so the user can study ground floor or task yard in
+     isolation, or see both with the default "all". */
+  #level-toggle {
+    position: fixed; top: 54px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 2px; padding: 4px;
+    border: 1px solid rgba(124,224,211,.18); border-radius: 999px;
+    background: rgba(21,26,40,.58); backdrop-filter: blur(9px);
+    font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
+    color: rgba(244,237,228,.72); pointer-events: auto;
+    z-index: 5;
+  }
+  #level-toggle button {
+    background: transparent; border: 0; color: rgba(244,237,228,.72);
+    padding: 5px 11px; border-radius: 999px; cursor: pointer;
+    font: inherit; letter-spacing: inherit; text-transform: inherit;
+    transition: background .15s ease, color .15s ease;
+  }
+  #level-toggle button:hover { color: var(--paper); }
+  #level-toggle button[aria-pressed="true"] {
+    background: var(--brass); color: var(--ink); font-weight: 700;
+  }
   #pulse .beacon { width: 7px; height: 7px; border-radius: 50%; background: #8ac926;
                     box-shadow: 0 0 0 0 rgba(138,201,38,.55); animation: beacon 1.9s infinite; }
   #pulse .metric { color: var(--brass); font-weight: 700; }
@@ -172,6 +194,11 @@
   <div class="sub" id="nodeline">warming up…</div>
 </div>
 <div id="pulse"><span class="beacon"></span><span id="pulsecopy">awaiting topology</span></div>
+<div id="level-toggle" role="group" aria-label="Floor level focus">
+  <button type="button" data-level="all" aria-pressed="true">All</button>
+  <button type="button" data-level="ground" aria-pressed="false">Ground</button>
+  <button type="button" data-level="yard" aria-pressed="false">Yard</button>
+</div>
 <div id="legend">drag to pan · wheel to zoom · click a room to trace its paths · click agent/task for logs</div>
 <div id="ticker"></div>
 <div id="sources"></div>
