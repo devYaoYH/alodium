@@ -30,12 +30,9 @@ cd /workspace/node-config 2>/dev/null || cd /workspace
 
 # Forge follows the AGENTS.md standard in the project root; link the
 # jail's copy into whatever repo we landed in, untracked (the contract is
-# the image's business, never a commit in node-config). Same for
-# forge.config.toml — the image ships image-defaults; the workspace
-# gets a symlink so they're never pushed to node-config.
+# the image's business, never a commit in node-config).
 if [ -d .git ]; then
   [ -e AGENTS.md ] || { ln -s "$HOME/AGENTS.md" AGENTS.md; echo "AGENTS.md" >> .git/info/exclude; }
-  [ -e forge.config.toml ] || { ln -s "$HOME/forge.config.toml" forge.config.toml; echo "forge.config.toml" >> .git/info/exclude; }
 fi
 
 # AGENT_MODEL is the harness-agnostic model knob (a LiteLLM alias). The
@@ -53,6 +50,8 @@ export FORGE_SESSION__PROVIDER_ID="${FORGE_SESSION__PROVIDER_ID:-openai_compatib
 export FORGE_SESSION__MODEL_ID="${FORGE_SESSION__MODEL_ID:-${AGENT_MODEL:-deepseek-flash}}"
 # Autonomous-mode ceiling: raise the default 100-turn cap so harder tasks
 # (routing, multi-app changes) don't hit the wall mid-conversation.
+# The primary mechanism is ~/forge/.forge.toml (shipped in the image);
+# this env var is a runtime override on top of it.
 export FORGE_MAX_REQUESTS_PER_TURN="${FORGE_MAX_REQUESTS_PER_TURN:-500}"
 
 # Claude leg: same knob, its native vars. Explicit ANTHROPIC_* env wins.

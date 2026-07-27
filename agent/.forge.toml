@@ -1,12 +1,11 @@
 # ── forgecode autonomous-mode session limits ─────────────────────────────
-# This file ships inside the agent-dev jail image.  The entrypoint
-# symlinks it into the workspace so forge picks it up (and excludes it
-# from git).  Environment variables (FORGE_SESSION__*) override these
-# values at runtime — the file is the image default, not a hard lock.
+# This file ships inside the agent-dev jail image at ForgeCode's default
+# config location (~/forge/.forge.toml).  ForgeCode reads it automatically
+# on startup — no symlinks needed.  Environment variables
+# (FORGE_SESSION__*) override these values at runtime.
 #
 # References:
-#   https://forgecode.dev/docs/configuration/overview
-#   https://forgecode.dev/docs/configuration/session
+#   https://forgecode.dev/docs/forgecode-config/
 
 [session]
 # Maximum number of requests that can be made in a single turn.

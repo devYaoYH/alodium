@@ -43,9 +43,12 @@ RUN useradd -m -u 10001 agent
 # forge 2.13 ignores project .forge.toml [[providers]] despite its docs.
 COPY --chown=agent:agent AGENTS.md /home/agent/.claude/CLAUDE.md
 COPY --chown=agent:agent AGENTS.md /home/agent/AGENTS.md
-# forgecode config: session limits, model defaults, etc.  Symlinked into
-# the workspace by entrypoint (and never committed to node-config).
-COPY --chown=agent:agent forge.config.toml /home/agent/forge.config.toml
+# forgecode global config: session limits, model defaults, etc.
+# ForgeCode reads ~/forge/.forge.toml automatically — no symlinks needed.
+# The value is also exposed as FORGE_MAX_REQUESTS_PER_TURN in entrypoint.sh
+# for runtime override, but the file is the primary mechanism.
+RUN mkdir -p /home/agent/forge
+COPY --chown=agent:agent .forge.toml /home/agent/forge/.forge.toml
 USER agent
 WORKDIR /workspace
 
