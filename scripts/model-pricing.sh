@@ -39,7 +39,13 @@ fetch_all() {
 cmd_fetch() {
   local slug="${1:-}"
   [[ -n "$slug" ]] || usage
-  fetch_all | python3 -c "
+  # Fetch into a variable FIRST. Piping fetch_all straight into python means a
+  # curl failure (no egress on this host) still runs python on empty stdin,
+  # which buries the real "could not reach the API" message under a
+  # JSONDecodeError traceback. `check` already does it this way.
+  local live
+  live=$(fetch_all) || exit 2
+  printf '%s' "$live" | python3 -c "
 import sys, json
 slug = sys.argv[1]
 data = json.load(sys.stdin)['data']

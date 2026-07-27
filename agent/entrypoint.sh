@@ -48,11 +48,13 @@ export FORGE_SESSION__PROVIDER_ID="${FORGE_SESSION__PROVIDER_ID:-openai_compatib
 # Fallback when nothing is configured = deepseek-flash (operator decision:
 # the unconfigured default should be the cheap model, never a premium one).
 export FORGE_SESSION__MODEL_ID="${FORGE_SESSION__MODEL_ID:-${AGENT_MODEL:-deepseek-flash}}"
-# Autonomous-mode ceiling: raise the default 100-turn cap so harder tasks
-# (routing, multi-app changes) don't hit the wall mid-conversation.
-# The primary mechanism is ~/forge/.forge.toml (shipped in the image);
-# this env var is a runtime override on top of it.
-export FORGE_MAX_REQUESTS_PER_TURN="${FORGE_MAX_REQUESTS_PER_TURN:-500}"
+# Autonomous-mode ceiling (raise forge's default 100-request cap so harder
+# tasks don't hit the wall mid-turn): max_requests_per_turn in the image's
+# ~/forge/.forge.toml, TOP-LEVEL — nested in a table forge ignores it.
+# There is NO env override: forge 2.13.18's binaries contain no
+# FORGE_MAX_REQUESTS_PER_TURN string (unlike FORGE_SESSION__*, which they do
+# read), so the export that used to sit here was inert and read as a runtime
+# knob that did not exist. Change the cap in agent/.forge.toml and rebuild.
 
 # Claude leg: same knob, its native vars. Explicit ANTHROPIC_* env wins.
 if [ -n "${AGENT_MODEL:-}" ]; then
