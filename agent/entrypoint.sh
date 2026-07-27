@@ -49,9 +49,10 @@ export FORGE_SESSION__PROVIDER_ID="${FORGE_SESSION__PROVIDER_ID:-openai_compatib
 # the unconfigured default should be the cheap model, never a premium one).
 export FORGE_SESSION__MODEL_ID="${FORGE_SESSION__MODEL_ID:-${AGENT_MODEL:-deepseek-flash}}"
 # Autonomous-mode ceiling (raise forge's default 100-request cap so harder
-# tasks don't hit the wall mid-turn): set in ~/forge/.forge.toml, shipped in
-# the image. There is NO env override — forge 2.13.18's binary contains no
-# FORGE_MAX_REQUESTS_PER_TURN string (unlike FORGE_SESSION__*, which it does
+# tasks don't hit the wall mid-turn): max_requests_per_turn in the image's
+# ~/forge/.forge.toml, TOP-LEVEL — nested in a table forge ignores it.
+# There is NO env override: forge 2.13.18's binaries contain no
+# FORGE_MAX_REQUESTS_PER_TURN string (unlike FORGE_SESSION__*, which they do
 # read), so the export that used to sit here was inert and read as a runtime
 # knob that did not exist. Change the cap in agent/.forge.toml and rebuild.
 

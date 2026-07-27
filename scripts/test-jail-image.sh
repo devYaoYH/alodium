@@ -64,9 +64,6 @@ else
 fi
 
 # --- 2. The shipped forge config is valid TOML -----------------------------
-# Forge HARD-FAILS on a malformed .forge.toml (verified) but silently ignores
-# unknown keys, so this catches syntax only — it cannot tell you a key is
-# spelled wrong or in the wrong table.
 sec "forge config parses"
 if docker run --rm --entrypoint python3 "$IMAGE" -c \
      'import tomllib;tomllib.load(open("/home/agent/forge/.forge.toml","rb"))' 2>/tmp/tj_toml.log
@@ -75,6 +72,71 @@ then
 else
   note "FAIL: ~/forge/.forge.toml does not parse —"; sed 's/^/    /' /tmp/tj_toml.log | tail -5
   FAIL=1
+fi
+
+# --- 2b. ...and forge ACTUALLY RECOGNISES every key in it ------------------
+# Valid TOML is not enough. Forge hard-fails on malformed syntax but silently
+# ignores unknown keys, so a misspelled key — or a real key nested under a
+# table forge doesn't use — configures NOTHING and says nothing. That is how
+# `[session] max_requests_per_turn = 500` shipped: perfect TOML, zero effect,
+# the cap it was meant to raise still at forge's default of 100.
+#
+# The oracle: forge DOES type-check keys it knows. So feed each key back with
+# a deliberately wrong-typed value — a recognised key must be REJECTED. If
+# forge shrugs, that key is dead config. This turns "is it applied?" into an
+# offline, provider-free check.
+sec "forge recognises every configured key"
+# One probe per key: "<label><TAB><a .forge.toml body with that key mistyped>".
+# Built here on the host so the container side stays a plain loop.
+PROBES=$(python3 - agent/.forge.toml <<'PY'
+import sys, tomllib
+
+def walk(d, path=()):
+    for k, v in d.items():
+        if isinstance(v, dict):
+            yield from walk(v, path + (k,))
+        else:
+            # Flip the type: a key forge knows must reject this outright.
+            yield path, k, ('99999' if isinstance(v, str) else '"bogus"')
+
+with open(sys.argv[1], 'rb') as f:
+    cfg = tomllib.load(f)
+
+for path, k, bad in walk(cfg):
+    label = '.'.join(path + (k,))
+    header = '[' + '.'.join(path) + ']\\n' if path else ''
+    print(f'{label}\t{header}{k} = {bad}')
+PY
+)
+if [[ -z "$PROBES" ]]; then
+  note "SKIP: agent/.forge.toml sets no keys"
+else
+  KEYFAIL=0
+  while IFS=$'\t' read -r label body; do
+    [[ -n "$label" ]] || continue
+    OUT=$(docker run --rm --entrypoint sh \
+            -e PROBE_BODY="$body" \
+            -e OPENAI_URL=http://127.0.0.1:9/v1 -e OPENAI_API_KEY=dummy \
+            -e FORGE_SESSION__PROVIDER_ID=openai_compatible \
+            -e FORGE_SESSION__MODEL_ID=deepseek-flash \
+            "$IMAGE" -c '
+              d=$(mktemp -d) && mkdir -p "$d/forge" || exit 9
+              printf "%b\n" "$PROBE_BODY" > "$d/forge/.forge.toml"
+              cd /tmp && HOME="$d" timeout 40 forge -p ping 2>&1' 2>&1)
+    if printf '%s' "$OUT" | grep -qa "invalid type\|Config error"; then
+      note "  live: $label"
+    else
+      note "  DEAD: $label — forge accepted a wrong-typed value, so it ignores this key"
+      KEYFAIL=1
+    fi
+  done <<< "$PROBES"
+  if [[ "$KEYFAIL" -eq 0 ]]; then
+    note "OK: forge type-checks every key, so every key actually applies"
+  else
+    note "FAIL: dead config above — wrong table or misspelled."
+    note "See https://forgecode.dev/docs/forgecode-config/ (keys are TOP-LEVEL)."
+    FAIL=1
+  fi
 fi
 
 # --- 3. THE REGRESSION TEST: forge boots and reaches the provider ----------
