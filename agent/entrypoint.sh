@@ -48,6 +48,9 @@ export FORGE_SESSION__PROVIDER_ID="${FORGE_SESSION__PROVIDER_ID:-openai_compatib
 # Fallback when nothing is configured = deepseek-flash (operator decision:
 # the unconfigured default should be the cheap model, never a premium one).
 export FORGE_SESSION__MODEL_ID="${FORGE_SESSION__MODEL_ID:-${AGENT_MODEL:-deepseek-flash}}"
+# Autonomous-mode ceiling: raise the default 100-turn cap so harder tasks
+# (routing, multi-app changes) don't hit the wall mid-conversation.
+export FORGE_MAX_REQUESTS_PER_TURN="${FORGE_MAX_REQUESTS_PER_TURN:-500}"
 
 # Claude leg: same knob, its native vars. Explicit ANTHROPIC_* env wins.
 if [ -n "${AGENT_MODEL:-}" ]; then
