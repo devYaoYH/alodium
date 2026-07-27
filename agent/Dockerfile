@@ -45,9 +45,15 @@ COPY --chown=agent:agent AGENTS.md /home/agent/.claude/CLAUDE.md
 COPY --chown=agent:agent AGENTS.md /home/agent/AGENTS.md
 # forgecode global config: session limits, model defaults, etc.
 # ForgeCode reads ~/forge/.forge.toml automatically — no symlinks needed.
-# The value is also exposed as FORGE_MAX_REQUESTS_PER_TURN in entrypoint.sh
-# for runtime override, but the file is the primary mechanism.
-RUN mkdir -p /home/agent/forge
+#
+# ~/forge is ALSO forge's writable state dir: on startup it migrates provider
+# credentials from env into it. This RUN executes as root (USER agent is
+# below), and COPY --chown fixes only the FILE — so the chown here is
+# load-bearing, not tidiness. Without it forge cannot write its own config dir
+# and does not error: it BLOCKS FOREVER with no output, hanging every jail
+# session and every dispatched issue-work container.
+# Regression test: scripts/test-jail-image.sh.
+RUN mkdir -p /home/agent/forge && chown agent:agent /home/agent/forge
 COPY --chown=agent:agent .forge.toml /home/agent/forge/.forge.toml
 USER agent
 WORKDIR /workspace
