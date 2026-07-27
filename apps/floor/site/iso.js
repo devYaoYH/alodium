@@ -43,7 +43,11 @@ const WINGS = {
   overflow:{ origin: [-8.6, -2.6], cols: 2, label: "ANNEX", level: 0 },
   yard:    { origin: [4.4, -2.6], cols: 4, pitch: 2.0, label: "TASK YARD (level above)", level: 1 },
 };
-const LEVEL_HEIGHT = 78;   // screen px per level at zoom 1 — the "floor above"
+// Screen-px vertical lift per level at zoom 1: the deck above feels like a
+// separate floor, not just a half-tile offset.  Tuned for the projected
+// isometry; bigger than half a tile means yard rooms never visually intersect
+// the rooms below at any zoom.
+const LEVEL_HEIGHT = 132;
 
 const canvas = document.getElementById("floor");
 const ctx = canvas.getContext("2d");
@@ -56,6 +60,7 @@ const logClose = document.getElementById("logpanel-close");
 const logFullscreen = document.getElementById("logpanel-fullscreen");
 const logResizeHandle = document.getElementById("logpanel-resize");
 const logHeader = document.getElementById("logpanel-header");
+const levelToggle = document.getElementById("level-toggle");
 
 let cam = { x: 0, y: 0, zoom: 1 };
 let rooms = new Map();                     // name -> room (+layout gx,gy)
@@ -90,6 +95,40 @@ function sprite(kind, name) {
   }
   return sprites[key];
 }
+
+// --- level focus --------------------------------------------------------------
+// Which level is the user studying?  "all" shows every wing at full opacity;
+// "ground" and "yard" dim the other level so the focused one reads cleanly.
+// Stored here so the draw routines read it without a DOM lookup each frame.
+let levelFocus = "all";   // "all" | "ground" | "yard"
+
+function isLevelFocused(level) {
+  if (levelFocus === "all") return true;
+  if (levelFocus === "ground") return level === 0;
+  if (levelFocus === "yard") return level === 1;
+  return true;
+}
+
+function setLevelFocus(v) {
+  if (v !== "all" && v !== "ground" && v !== "yard") return;
+  levelFocus = v;
+  if (levelToggle) {
+    for (const btn of levelToggle.querySelectorAll("button[data-level]")) {
+      btn.setAttribute("aria-pressed", btn.dataset.level === v ? "true" : "false");
+    }
+  }
+}
+
+if (levelToggle) {
+  levelToggle.addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-level]");
+    if (btn) setLevelFocus(btn.dataset.level);
+  });
+}
+
+// Dimming alpha for the non-focused level.  Not zero — the user still sees
+// that something exists on the other floor; just clearly subordinate.
+const DIM_ALPHA = 0.18;
 
 // --- projection ---------------------------------------------------------------
 function proj(gx, gy, level = 0) {
@@ -266,6 +305,10 @@ function drawBackdrop(now) {
 
 function drawWingAura(wing, w, members, now) {
   if (!members.length) return;
+  // A wing whose level is not in focus fades into the backdrop so the focused
+  // floor reads cleanly.  Auras, outlines, and the wing label all follow.
+  const dim = !isLevelFocused(w.level || 0);
+  if (dim) ctx.globalAlpha = DIM_ALPHA;
   const minGx = Math.min(...members.map(r => r.gx)) - .82;
   const maxGx = Math.max(...members.map(r => r.gx)) + .82;
   const minGy = Math.min(...members.map(r => r.gy)) - .82;
@@ -287,6 +330,7 @@ function drawWingAura(wing, w, members, now) {
   ctx.stroke();
   ctx.setLineDash([]);
   ctx.lineDashOffset = 0;
+  if (dim) ctx.globalAlpha = 1;
 }
 
 function draw(now, dt) {
@@ -347,6 +391,8 @@ function draw(now, dt) {
   }
 
   for (const r of rooms.values()) {
+    const dim = !isLevelFocused(r.level || 0);
+    if (dim) ctx.globalAlpha = DIM_ALPHA;
     const [sx, sy] = proj(r.gx, r.gy, r.level);
     const [x, y] = toScreen(sx, sy);
     diamond(x, y, (TILE_W / 2 + 8) * z, (TILE_H / 2 + 4) * z);
@@ -357,6 +403,7 @@ function draw(now, dt) {
     ctx.strokeStyle = hovered === r || focused === r ? "#d9a441" : "rgba(244, 237, 228, 0.14)";
     ctx.lineWidth = hovered === r || focused === r ? 1.6 : 1;
     ctx.stroke();
+    if (dim) ctx.globalAlpha = 1;
   }
 
   // Conveyor edges are the declared, reviewable capability graph. A slow
@@ -365,6 +412,12 @@ function draw(now, dt) {
   for (const e of edges) {
     const p = roomPath(e.from, e.to);
     if (!p) continue;
+    const a = rooms.get(e.from), b = rooms.get(e.to);
+    // An edge that only connects rooms on the dimmed level fades with them.
+    // Cross-level edges (yard <-> core) stay legible — they're the lift
+    // shaft between decks, exactly what you want to see while focused.
+    const dim = a && b && !isLevelFocused(a.level || 0) && !isLevelFocused(b.level || 0);
+    if (dim) ctx.globalAlpha = DIM_ALPHA;
     const hot = (hovered && (e.from === hovered.name || e.to === hovered.name))
       || (focused && (e.from === focused.name || e.to === focused.name));
     const live = rooms.get(e.from)?.state === "running" || rooms.get(e.to)?.state === "running";
@@ -390,6 +443,7 @@ function draw(now, dt) {
       ctx.fill();
       ctx.shadowBlur = 0;
     }
+    if (dim) ctx.globalAlpha = 1;
   }
 
   // depth-sorted rooms + workers. A raised level is its own deck in front of
@@ -408,6 +462,8 @@ function draw(now, dt) {
   for (const d of drawables) {
     if (d.room) {
       const r = d.room;
+      const dim = !isLevelFocused(r.level || 0);
+      if (dim) ctx.globalAlpha = DIM_ALPHA;
       const [sx, sy] = proj(r.gx, r.gy, r.level);
       const [x, y] = toScreen(sx, sy);
       const s = (SIZE_SCALE[r.size] || 1) * z;
@@ -448,11 +504,15 @@ function draw(now, dt) {
       const cap = r.wing === "yard" ? 12 : 22;
       const shortLabel = r.label.length > cap ? r.label.slice(0, cap - 1) + "…" : r.label;
       ctx.fillText(shortLabel + suffix, x, y + (TILE_H / 2 + 16) * z);
+      if (dim) ctx.globalAlpha = 1;
       if (r.archetype === "reactor" && r.state === "running" && Math.random() < dt * 3)
         sparks.push({ x: sx, y: sy - 52, vx: (Math.random() - 0.5) * 30,
                       vy: -35 - Math.random() * 25, life: 1 });
     } else {
       const w = d.worker;
+      const a = rooms.get(w.roomA), b = rooms.get(w.roomB);
+      const dim = a && b && !isLevelFocused(a.level || 0) && !isLevelFocused(b.level || 0);
+      if (dim) ctx.globalAlpha = DIM_ALPHA;
       const [x, y] = toScreen(d.px, d.py);
       const s = 0.92 * z;
       const bob = Math.sin(now / 110 + w.bob) * 1.6 * z;
@@ -463,6 +523,7 @@ function draw(now, dt) {
       ctx.beginPath();
       ctx.arc(x, y - 46 * s + bob, 1.6 * z, 0, 7);
       ctx.fill();
+      if (dim) ctx.globalAlpha = 1;
     }
   }
 
@@ -625,7 +686,14 @@ const _SPINNER_RE = /^[⠁-⠿\-\\|\/]/;
 // control (\r, CUU, CUD, EL, SCP, RCP) so that streaming log output that
 // updates progress in-place renders cleanly instead of concatenating raw
 // control characters into every line.
-const TERM_MAX_LINES = 500;
+//
+// The buffer is bounded by TERM_MAX_LINES — past that, the oldest lines are
+// dropped (a sliding window).  The cap is a memory ceiling, not a UI choice:
+// the browser holds one <span class="logline"> per retained line, so 5000
+// lines is comfortable on desktop and 500 was clearly too few.  Sessions
+// that need unbounded history can dump the container's log file directly;
+// the panel is a live view, not a log archive.
+const TERM_MAX_LINES = 5000;
 let termBuf = [""];        // array of line strings
 let termRow = 0;            // cursor row within buffer
 let termCol = 0;            // cursor column
@@ -687,6 +755,13 @@ function handleTermEscape(final) {
 }
 
 function renderLogBuffer() {
+  // Respect the user's scroll position: capture whether they were pinned
+  // to the bottom BEFORE we add new lines (which would extend scrollHeight
+  // and make the check misleading if run after).  A user reading past
+  // history should not be yanked back to the tail on every new chunk.
+  const slack = 24;   // px of slop — being within a line of the tail counts as pinned
+  const pinned = (logBody.scrollHeight - logBody.scrollTop - logBody.clientHeight) <= slack;
+
   // Enforce max lines; adjust cursor if lines were trimmed from top
   while (termBuf.length > TERM_MAX_LINES) {
     termBuf.shift();
@@ -705,7 +780,10 @@ function renderLogBuffer() {
     span.className = "logline" + (_SPINNER_RE.test(termBuf[i]) ? " spinner" : "");
   }
   while (logBody.children.length > termBuf.length) logBody.lastChild.remove();
-  logBody.scrollTop = logBody.scrollHeight;
+
+  // Only snap to the tail if the user was already there.  Anyone scrolled up
+  // keeps their reading position and can scroll down manually when ready.
+  if (pinned) logBody.scrollTop = logBody.scrollHeight;
 }
 
 function resetTerminal() {
