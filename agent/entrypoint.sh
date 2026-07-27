@@ -30,9 +30,12 @@ cd /workspace/node-config 2>/dev/null || cd /workspace
 
 # Forge follows the AGENTS.md standard in the project root; link the
 # jail's copy into whatever repo we landed in, untracked (the contract is
-# the image's business, never a commit in node-config).
+# the image's business, never a commit in node-config). Same for
+# forge.config.toml — the image ships image-defaults; the workspace
+# gets a symlink so they're never pushed to node-config.
 if [ -d .git ]; then
   [ -e AGENTS.md ] || { ln -s "$HOME/AGENTS.md" AGENTS.md; echo "AGENTS.md" >> .git/info/exclude; }
+  [ -e forge.config.toml ] || { ln -s "$HOME/forge.config.toml" forge.config.toml; echo "forge.config.toml" >> .git/info/exclude; }
 fi
 
 # AGENT_MODEL is the harness-agnostic model knob (a LiteLLM alias). The

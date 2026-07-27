@@ -43,6 +43,9 @@ RUN useradd -m -u 10001 agent
 # forge 2.13 ignores project .forge.toml [[providers]] despite its docs.
 COPY --chown=agent:agent AGENTS.md /home/agent/.claude/CLAUDE.md
 COPY --chown=agent:agent AGENTS.md /home/agent/AGENTS.md
+# forgecode config: session limits, model defaults, etc.  Symlinked into
+# the workspace by entrypoint (and never committed to node-config).
+COPY --chown=agent:agent forge.config.toml /home/agent/forge.config.toml
 USER agent
 WORKDIR /workspace
 
