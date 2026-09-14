@@ -31,7 +31,10 @@ COPY --from=caddybin /usr/bin/caddy /usr/local/bin/caddy
 RUN npm install -g @anthropic-ai/claude-code forgecode@2.13.18
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
+# Opt-in tool tracing shim: with AGENT_TRACE=1 the entrypoint makes it forge's
+# $SHELL, timing every shell tool call (costs and rationale: file header).
+COPY trace-sh.py /usr/local/bin/trace-sh
+RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/trace-sh
 
 # unprivileged, high-uid user; rootless podman later maps this differently per-app
 RUN useradd -m -u 10001 agent

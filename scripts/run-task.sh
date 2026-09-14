@@ -19,6 +19,11 @@
 #
 # Brief format (tasks/README.md): markdown with a frontmatter block —
 #   task, model, budget_usd, expires, env (names passed through from .env).
+#
+# Tracing (off by default): AGENT_TRACE=1 keeps a wall-clock trace of the run
+# in traces/<run>/ — model requests, tool calls, setup phases — rendered by
+# scripts/trace-render.py (docs/AGENT.md, "Tracing a run"). AGENT_IMAGE swaps
+# the jail image, e.g. to trial an unmerged jail build without retagging :local.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 set -a; source .env; set +a
@@ -61,6 +66,8 @@ RUN="task-$TASK-$(date +%Y%m%d-%H%M%S)"
 PROMPT=$(awk 'NR>1 && /^---$/{f=1; next} f' "$BRIEF")
 # {ISSUE} placeholder → the validated integer (empty if not an issue-work run).
 PROMPT="${PROMPT//\{ISSUE\}/$ISSUE}"
+TRACE="${AGENT_TRACE:-0}"
+IMAGE="${AGENT_IMAGE:-sovereign-node/agent:local}"
 
 LLM=(/usr/bin/curl -sk --resolve "llm.${NODE_DOMAIN}:443:127.0.0.1" \
      -H "Authorization: Bearer $LITELLM_MASTER_KEY" -H "Content-Type: application/json")
@@ -70,7 +77,38 @@ RUN_KEY=$("${LLM[@]}" "https://llm.${NODE_DOMAIN}/key/generate" \
   -d "{\"key_alias\":\"$RUN\",\"team_id\":\"$ENG_TEAM_ID\",\"models\":[\"$MODEL\"],\"max_budget\":$BUDGET,\"duration\":\"$EXPIRES\"}" \
   | python3 -c 'import json,sys; print(json.load(sys.stdin)["key"])')
 
+# AGENT_TRACE=1 keeps the container past exit just long enough to copy its
+# trace out; this then removes it, so the workspace still dies at teardown.
+# Only .State is read from inspect: the full inspect JSON carries the run key
+# and the Forgejo token in Env. Traces hold commands and tool arguments from a
+# real run — traces/ is gitignored and 0700, operator-only like the spend logs.
+collect_trace() {
+  [[ "$TRACE" == 1 ]] || return 0
+  docker inspect "$RUN" >/dev/null 2>&1 || return 0
+  local dir="traces/$RUN" f
+  mkdir -p "$dir" && chmod 700 traces "$dir"
+  docker inspect --format '{{json .State}}' "$RUN" > "$dir/state.json"
+  python3 -c 'import json,sys; print(json.dumps(dict(zip(["run","task","harness","model","image"], sys.argv[1:]))))' \
+    "$RUN" "$TASK" "$HARNESS" "$MODEL" "$IMAGE" > "$dir/run.json"
+  docker cp "$RUN:/tmp/trace/." "$dir/" >/dev/null 2>&1 \
+    || echo "[$RUN] trace: the container wrote no /tmp/trace"
+  if [[ "$HARNESS" == forge ]]; then
+    # forge's conversation store: tool results (sizes, errors), sub-agent runs.
+    # Its home is ~/forge when that legacy dir exists — the image ships its
+    # config there — else ~/.forge. Copy ONLY the db: .credentials.json beside
+    # it holds the run key.
+    for home in /home/agent/.forge /home/agent/forge; do
+      for f in .forge.db .forge.db-wal .forge.db-shm; do
+        docker cp "$RUN:$home/$f" "$dir/forge${f#.forge}" >/dev/null 2>&1 || true
+      done
+    done
+  fi
+  docker rm -f "$RUN" >/dev/null 2>&1 || true
+  echo "[$RUN] trace saved to $dir — render: ./scripts/trace-render.py $dir"
+}
+
 teardown() {
+  collect_trace
   SPEND=$("${LLM[@]}" "https://llm.${NODE_DOMAIN}/key/info?key=$RUN_KEY" \
     | python3 -c 'import json,sys; print(json.load(sys.stdin).get("info",{}).get("spend",0))' 2>/dev/null || echo "?")
   if [[ "$KEEP_KEY" != "--keep-key" ]]; then
@@ -90,17 +128,20 @@ for name in $(front "$BRIEF" env | tr -d '[],'); do
 done
 
 # No agent_workspace mount: the resident tenant's memory is not this tenant's
-# inheritance. --rm + no volume = the workspace provably dies at teardown.
+# inheritance. --rm + no volume = the workspace provably dies at teardown
+# (with AGENT_TRACE=1, collect_trace removes the container instead of --rm).
 # Forge refuses to run without a pty (os error 6); -t allocates one inside
 # the container even when this script runs from cron. Claude stays pty-less
 # so its --output-format text pipes stay clean.
 # NB host bash is 3.2: empty-array "${a[@]}" trips set -u — use the
 # ${a[@]+"${a[@]}"} expansion for every maybe-empty array here.
 TTY_ARGS=(); [[ "$HARNESS" == forge ]] && TTY_ARGS=(-t)
-docker run --rm --name "$RUN" ${TTY_ARGS[@]+"${TTY_ARGS[@]}"} \
+RM_ARGS=(--rm); [[ "$TRACE" == 1 ]] && RM_ARGS=()
+docker run ${RM_ARGS[@]+"${RM_ARGS[@]}"} --name "$RUN" ${TTY_ARGS[@]+"${TTY_ARGS[@]}"} \
   --network sovereign-node_agents \
   -e AGENT_HARNESS="$HARNESS" \
   -e AGENT_MODEL="$MODEL" \
+  -e AGENT_TRACE="$TRACE" \
   -e ANTHROPIC_BASE_URL=http://litellm:4000 \
   -e ANTHROPIC_AUTH_TOKEN="$RUN_KEY" \
   -e OPENAI_URL=http://litellm:4000/v1 \
@@ -109,7 +150,7 @@ docker run --rm --name "$RUN" ${TTY_ARGS[@]+"${TTY_ARGS[@]}"} \
   -e NODE_CONFIG_REPO="${NODE_CONFIG_REPO:-}" \
   -e COORDINATION_REPO="${COORDINATION_REPO:-}" \
   ${ENV_ARGS[@]+"${ENV_ARGS[@]}"} \
-  sovereign-node/agent:local \
+  "$IMAGE" \
   -p "$PROMPT" $([[ "$HARNESS" == claude ]] && echo "--output-format text") \
   || echo "[$RUN] task exited nonzero — check whether it filed a 'blocked' issue"
 
