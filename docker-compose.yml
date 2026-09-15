@@ -39,8 +39,6 @@ include:
   - path: apps/fleet-sim/compose.yaml
   - path: apps/copilot/compose.yaml
     env_file: secrets/copilot.env
-  - path: apps/egress-broker/compose.yaml
-    env_file: secrets/egress-broker.env
 
 networks:
   edge:
@@ -96,20 +94,6 @@ networks:
     # Chat toolshims <-> Open WebUI only: the shim is reachable only by chat
     # sessions, not by the general `front` network. Open WebUI and toolshims
     # are the only members.
-    internal: true
-  egress-private:
-    # The egress broker and its egress-out companion meet here. Agents cannot
-    # join this network, and egress-out is the only egress service on edge.
-    # Mirror of search-private.
-    internal: true
-  egress-admin:
-    # The Ring 0 egress audit route joins this with Caddy and the read-only
-    # audit API. Neither agent tenants nor the egress-out companion can read
-    # egress history.
-    internal: true
-  egress-data:
-    # The egress audit database is reachable only by the broker and audit API;
-    # it has no ingress or egress path, and never joins the agents spur.
     internal: true
   
 
