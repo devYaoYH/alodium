@@ -12,7 +12,8 @@
 #      adapts+validates — with dummy env values, since validation is about
 #      syntax/structure, not real secrets. This is what catches header_up
 #      misplacement, bad matchers, brace nesting, etc.
-#   2. YAML parses (docker-compose.yml, apps/*/compose.yaml, config/*.yaml).
+#   2. YAML parses STRICTLY (docker-compose*.yml, apps/*/compose.yaml,
+#      config/*.yaml): duplicate keys and duplicate compose includes fail.
 #   3. Shell scripts pass shellcheck (syntax + common bugs).
 # Exit non-zero on the first failure; prints what failed and where.
 set -uo pipefail
@@ -54,16 +55,72 @@ else
 fi
 
 # --- 2. YAML parse ----------------------------------------------------------
+# Strict: a duplicated mapping key FAILS here, as it does for Docker Compose.
+# PyYAML's safe_load silently keeps the last value — that is how the #93 merge
+# shipped a docker-compose.yml defining every egress network twice (and
+# including apps/egress-broker twice): this check said OK while every
+# `docker compose` command on main failed. Compose's own tags (!reset /
+# !override in docker-compose.staging.yml) are accepted.
 sec "yaml parse"
-YAML_FILES=$(ls docker-compose.yml apps/*/compose.yaml config/*.yaml 2>/dev/null)
-for f in $YAML_FILES; do
-  if python3 -c "import sys,yaml; list(yaml.safe_load_all(open(sys.argv[1])))" "$f" 2>/tmp/vc_yaml.log; then
-    :
-  else
-    note "FAIL: $f —"; sed 's/^/    /' /tmp/vc_yaml.log | tail -4; FAIL=1
-  fi
-done
-[[ "$FAIL" -eq 0 ]] && note "OK: all YAML parses" || true
+YAML_FILES=$(ls docker-compose.yml docker-compose.staging.yml apps/*/compose.yaml config/*.yaml 2>/dev/null)
+# shellcheck disable=SC2086  # the file list is word-split on purpose
+if python3 - $YAML_FILES >/tmp/vc_yaml.log 2>&1 <<'PY'
+import sys
+import yaml
+
+
+class StrictLoader(yaml.SafeLoader):
+    pass
+
+
+def strict_mapping(loader, node, deep=True):
+    seen = {}
+    for key_node, _ in node.value:
+        key = loader.construct_object(key_node, deep=True)
+        if key in seen:
+            raise yaml.constructor.ConstructorError(
+                "while constructing a mapping", node.start_mark,
+                "duplicate key %r (first defined on line %d)" % (key, seen[key]),
+                key_node.start_mark)
+        seen[key] = key_node.start_mark.line + 1
+    return yaml.SafeLoader.construct_mapping(loader, node, deep=True)
+
+
+def compose_tag(loader, suffix, node):  # !reset / !override: parse the value underneath
+    if isinstance(node, yaml.MappingNode):
+        return strict_mapping(loader, node)
+    if isinstance(node, yaml.SequenceNode):
+        return loader.construct_sequence(node, deep=True)
+    return loader.construct_scalar(node)
+
+
+StrictLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, strict_mapping)
+StrictLoader.add_multi_constructor("!", compose_tag)
+
+failed = False
+for path in sys.argv[1:]:
+    try:
+        with open(path) as f:
+            docs = list(yaml.load_all(f, Loader=StrictLoader))
+    except yaml.YAMLError as e:
+        print("FAIL: %s — %s" % (path, " ".join(str(e).split())))
+        failed = True
+        continue
+    for doc in docs:
+        seen = set()
+        for entry in (doc.get("include") or []) if isinstance(doc, dict) else []:
+            target = str(entry.get("path") if isinstance(entry, dict) else entry)
+            if target in seen:
+                print("FAIL: %s — include lists %s more than once" % (path, target))
+                failed = True
+            seen.add(target)
+sys.exit(1 if failed else 0)
+PY
+then
+  note "OK: all YAML parses (no duplicate keys or includes)"
+else
+  sed 's/^/  /' /tmp/vc_yaml.log | tail -12; FAIL=1
+fi
 
 # --- 3. Dispatch tiers reconciled with litellm ---------------------------------
 sec "dispatch tiers vs litellm"

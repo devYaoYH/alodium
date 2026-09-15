@@ -30,16 +30,51 @@ loadenv() {
 loadenv
 
 AUTH_URL="https://auth.${NODE_DOMAIN}"
+: "${POCKET_ID_API_KEY:?set POCKET_ID_API_KEY in .env (mint one in Pocket ID: Settings -> Admin -> API Keys)}"
 CURL=(/usr/bin/curl -sk -H "X-API-KEY: $POCKET_ID_API_KEY" -H "Content-Type: application/json")
 [[ "$NODE_DOMAIN" == "localhost" ]] && CURL+=(--resolve "auth.localhost:443:127.0.0.1")
+
+# pid_api <METHOD> <path> [curl args...] — one Pocket ID admin API call; prints
+# the response body. A non-2xx answer fails with Pocket ID's own error and a
+# hint, instead of a later `KeyError: 'data'` from parsing an error body as
+# data — which is all an expired POCKET_ID_API_KEY used to look like.
+pid_api() {
+  local method=$1 path=$2 body code err
+  shift 2
+  body=$(mktemp)
+  code=$("${CURL[@]}" -X "$method" -o "$body" -w '%{http_code}' "$@" "$AUTH_URL$path") || code=000
+  if [[ "$code" != 2* ]]; then
+    err=$(python3 -c '
+import json, sys
+raw = open(sys.argv[1], errors="replace").read()
+try:
+    d = json.loads(raw)
+    print(d.get("error") or d.get("message") or "" if isinstance(d, dict) else "")
+except ValueError:
+    print(" ".join(raw.split())[:200])' "$body")
+    rm -f "$body"
+    echo "sso-setup: Pocket ID $method $path -> HTTP $code${err:+: $err}" >&2
+    case "$code" in
+      401|403) echo "sso-setup: Pocket ID rejected POCKET_ID_API_KEY — it is expired or revoked. Mint a new key in Pocket ID ($AUTH_URL -> Settings -> Admin -> API Keys), put it in .env as POCKET_ID_API_KEY, and re-run." >&2 ;;
+      000)     echo "sso-setup: could not reach $AUTH_URL — are pocket-id and caddy running?" >&2 ;;
+    esac
+    return 1
+  fi
+  cat "$body"
+  rm -f "$body"
+}
+
+# Preflight: fail fast, with the reason, before touching anything.
+pid_api GET /api/oidc/clients >/dev/null
 saveenv() {  # saveenv <key> <value> [file=.env]
   local f="${3:-.env}"
   grep -q "^$1=" "$f" && sed -i '' "s|^$1=.*|$1=$2|" "$f" || printf '%s=%s\n' "$1" "$2" >> "$f"
 }
 
 mint_client() {  # mint_client <name> <comma-separated callbacks> <ENV_PREFIX> [envfile]
-  local name=$1 callbacks=$2 prefix=$3 envfile="${4:-.env}" id secret client payload changed
-  id=$("${CURL[@]}" "$AUTH_URL/api/oidc/clients" | python3 -c '
+  local name=$1 callbacks=$2 prefix=$3 envfile="${4:-.env}" id secret client payload changed clients created
+  clients=$(pid_api GET /api/oidc/clients)
+  id=$(printf '%s' "$clients" | python3 -c '
 import json, sys
 for client in json.load(sys.stdin)["data"]:
     if client["name"] == sys.argv[1]:
@@ -49,7 +84,7 @@ for client in json.load(sys.stdin)["data"]:
   if [[ -n "$id" ]]; then
     # Pocket ID's PUT endpoint expects the full supported DTO. Preserve it,
     # adding a callback only when a new browser surface needs one.
-    client=$("${CURL[@]}" "$AUTH_URL/api/oidc/clients/$id")
+    client=$(pid_api GET "/api/oidc/clients/$id")
     changed=$(printf '%s' "$client" | python3 -c '
 import json, sys
 current = set(json.load(sys.stdin).get("callbackURLs", []))
@@ -68,7 +103,7 @@ payload = {field: client.get(field) for field in fields}
 payload["callbackURLs"] = list(dict.fromkeys(client.get("callbackURLs", []) + [u for u in sys.argv[1].split(",") if u]))
 print(json.dumps(payload))
 ' "$callbacks")
-      "${CURL[@]}" -X PUT "$AUTH_URL/api/oidc/clients/$id" -d "$payload" >/dev/null
+      pid_api PUT "/api/oidc/clients/$id" -d "$payload" >/dev/null
       echo "   client '$name' callbacks updated"
     else
       echo "   client '$name' exists — callbacks current"
@@ -78,15 +113,15 @@ print(json.dumps(payload))
 import json, sys
 print(json.dumps({"name": sys.argv[1], "callbackURLs": [u for u in sys.argv[2].split(",") if u]}))
 ' "$name" "$callbacks")
-    id=$("${CURL[@]}" -X POST "$AUTH_URL/api/oidc/clients" -d "$payload" \
-      | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+    created=$(pid_api POST /api/oidc/clients -d "$payload")
+    id=$(printf '%s' "$created" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
   fi
   if [[ -n "$(eval echo \${${prefix}_CLIENT_SECRET:-})" ]]; then
     saveenv "${prefix}_CLIENT_ID" "$id" "$envfile"
     return
   fi
-  secret=$("${CURL[@]}" -X POST "$AUTH_URL/api/oidc/clients/$id/secret" \
-      | python3 -c 'import json,sys; print(json.load(sys.stdin)["secret"])')
+  created=$(pid_api POST "/api/oidc/clients/$id/secret")
+  secret=$(printf '%s' "$created" | python3 -c 'import json,sys; print(json.load(sys.stdin)["secret"])')
   saveenv "${prefix}_CLIENT_ID" "$id" "$envfile"
   saveenv "${prefix}_CLIENT_SECRET" "$secret" "$envfile"
   echo "   minted '$name' ($id) -> $envfile"
@@ -114,11 +149,12 @@ fi
 loadenv   # pick up whatever was just minted
 
 echo "== 2/5 operator = LiteLLM UI admin =="
-ADMIN_ID=$("${CURL[@]}" "$AUTH_URL/api/users" | python3 -c "
+USERS_JSON=$(pid_api GET /api/users)
+ADMIN_ID=$(printf '%s' "$USERS_JSON" | python3 -c "
 import json,sys
 users=[u for u in json.load(sys.stdin)['data'] if u.get('isAdmin')]
 print(users[0]['id'] if users else '')")
-OP_USERNAME=$("${CURL[@]}" "$AUTH_URL/api/users" | python3 -c "
+OP_USERNAME=$(printf '%s' "$USERS_JSON" | python3 -c "
 import json,sys
 users=[u for u in json.load(sys.stdin)['data'] if u.get('isAdmin')]
 print(users[0].get('username','') if users else '')")

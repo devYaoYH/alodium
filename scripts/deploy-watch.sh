@@ -57,17 +57,25 @@ git fetch -q forgejo main
 LOCAL=$(git rev-parse HEAD)
 REMOTE=$(git rev-parse forgejo/main)
 
-# Deployed hash is tracked in deploy-info.json (written at the end of each
-# successful deploy.sh run). If deploy-info.json doesn't exist or can't be read,
-# treat it as nil — first deploy ever or the file was lost. Use deployed hash
-# to trigger, not LOCAL: if a deploy.sh fails, DEPLOYED won't advance and the
-# next loop retries. Once DEPLOYED == REMOTE, nothing changes until the next
-# merge. This decouples "what's checked out" (LOCAL, operator's concern) from
-# "what's actually deployed" (DEPLOYED, this script's concern).
+# Deployed hash = `deployed_commit` in deploy-info.json: the last commit
+# deploy.sh applied SUCCESSFULLY (ok or warning). A failed run records its HEAD
+# under `commit` (for the widget) but carries `deployed_commit` forward, so
+# DEPLOYED doesn't advance and the failure is retried once, then stamped and
+# reported below. Files written before that field existed count `commit` only
+# if their status isn't "failed". Missing/unreadable file = nil (first deploy
+# ever, or the file was lost). Use the deployed hash to trigger, not LOCAL:
+# this decouples "what's checked out" (LOCAL, operator's concern) from "what's
+# actually deployed" (DEPLOYED, this script's concern).
 DEPLOYED=""
 if [[ -f "config/homepage/static/deploy-info.json" ]]; then
-  DEPLOYED=$(python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('commit',''))" \
-    < "config/homepage/static/deploy-info.json" 2>/dev/null || echo "")
+  DEPLOYED=$(python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+if "deployed_commit" in d:
+    print(d["deployed_commit"] or "")
+elif d.get("status") != "failed":
+    print(d.get("commit", ""))
+' < "config/homepage/static/deploy-info.json" 2>/dev/null || echo "")
 fi
 
 if [[ "$DEPLOYED" == "$REMOTE" ]]; then
@@ -114,7 +122,12 @@ fi
 
 if [[ "$DRY" == "--dry-run" ]]; then
   echo "[deploy-watch] would deploy ${DEPLOYED:0:12}..${REMOTE:0:12}:"
-  git log --oneline "${DEPLOYED}..${REMOTE}" 2>/dev/null | sed 's/^/    /' || echo "    (cannot show log; deployed hash not in current tree)"
+  if [[ -n "$DEPLOYED" ]]; then
+    git log --oneline "${DEPLOYED}..${REMOTE}" 2>/dev/null | sed 's/^/    /' || echo "    (cannot show log; deployed hash not in current tree)"
+  else
+    echo "    (no successful deploy recorded — last commits on forgejo/main:)"
+    git log --oneline -10 "$REMOTE" | sed 's/^/    /'
+  fi
   exit 0
 fi
 

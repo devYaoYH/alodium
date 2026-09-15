@@ -20,6 +20,11 @@ cd "$(dirname "$0")/.."
 # silently. Warnings are collected via record_msg (below, replacing the old
 # `|| echo "deploy: WARN ..."` sites); hard aborts under `set -e` are caught by
 # the ERR trap, which flags the deploy failed with the failing command.
+#
+# Two commits live in that file: `commit` is what THIS run deployed or tried
+# to (the widget links it), and `deployed_commit` is the last commit that
+# deployed successfully (ok or warning). scripts/deploy-watch.sh keys off
+# `deployed_commit`, so a failed run is retried instead of looking deployed.
 DEPLOY_INFO="config/homepage/static/deploy-info.json"
 DEPLOY_MSGS="$(mktemp)"
 trap 'rm -f "$DEPLOY_MSGS"' EXIT
@@ -46,8 +51,24 @@ write_deploy_info() {
   DEPLOY_COMMIT="$commit" DEPLOY_SHORT="$short" \
   DEPLOY_URL="https://git.${domain}/${repo}/commit/${commit}" \
   DEPLOY_MSGS_FILE="$DEPLOY_MSGS" \
-  python3 - > "$DEPLOY_INFO" <<'PY'
+  DEPLOY_PREV_FILE="$DEPLOY_INFO" \
+  python3 - > "$DEPLOY_INFO.tmp" <<'PY'
 import json, os
+status = os.environ["DEPLOY_STATUS"]
+if status == "failed":
+    # Carry the last successful deploy forward. Files written before
+    # `deployed_commit` existed count their `commit` only if that run succeeded.
+    try:
+        with open(os.environ["DEPLOY_PREV_FILE"]) as f:
+            prev = json.load(f)
+    except (OSError, ValueError):
+        prev = {}
+    if "deployed_commit" in prev:
+        deployed = prev["deployed_commit"] or ""
+    else:
+        deployed = prev.get("commit", "") if prev.get("status") != "failed" else ""
+else:
+    deployed = os.environ["DEPLOY_COMMIT"]
 msgs = []
 try:
     with open(os.environ["DEPLOY_MSGS_FILE"]) as f:
@@ -64,10 +85,12 @@ print(json.dumps({
     "commit": os.environ["DEPLOY_COMMIT"],
     "short_hash": os.environ["DEPLOY_SHORT"],
     "url": os.environ["DEPLOY_URL"],
-    "status": os.environ["DEPLOY_STATUS"],
+    "status": status,
+    "deployed_commit": deployed,
     "messages": msgs,
 }, indent=2))
 PY
+  mv "$DEPLOY_INFO.tmp" "$DEPLOY_INFO"
 }
 
 # On any unhandled failure under `set -e`, flag the deploy failed and record the
@@ -165,7 +188,19 @@ if [[ -z "$ALL_PROFILES" ]]; then
   ALL_PROFILES=$(docker compose config --profiles 2>/dev/null | paste -sd, - || echo "on-demand")
 fi
 echo "   rebuilding with profiles: $ALL_PROFILES"
-BUILDABLE=$(COMPOSE_PROFILES="$ALL_PROFILES" docker compose config --services 2>/dev/null)
+# This is also the first full parse of the merged compose tree, so a broken
+# file stops the deploy HERE — with compose's own error in the log and in
+# deploy-info, not a bare "step failed (exit 1)" (#93's duplicate keys hid
+# behind a 2>/dev/null at exactly this line).
+COMPOSE_ERR=$(mktemp)
+if ! BUILDABLE=$(COMPOSE_PROFILES="$ALL_PROFILES" docker compose config --services 2>"$COMPOSE_ERR"); then
+  cat "$COMPOSE_ERR" >&2
+  record_msg ERROR "docker compose config failed; no containers were changed: $(grep -v '^[[:space:]]*$' "$COMPOSE_ERR" | tail -1)"
+  rm -f "$COMPOSE_ERR"
+  write_deploy_info failed || true
+  exit 1
+fi
+rm -f "$COMPOSE_ERR"
 for app in $(printf '%s\n' "$CHANGED" | sed -n 's#^apps/\([^/]*\)/.*#\1#p' | sort -u); do
   # Build inputs = context files baked into the image; exclude compose/proxy
   # metadata (same exclusion the step-6 restart pass uses). No baked-in file
@@ -212,6 +247,30 @@ for name, svc in cfg.get('services', {}).items():
   done
 fi
 
+# 4d. Rebuild the agent jail image when agent/ changed. Tenants run from
+#     sovereign-node/agent:local (scripts/run-task.sh; the agent/assistant
+#     compose services), but nothing above rebuilds it — 4b only covers apps/*
+#     and 4c only builds a MISSING image — so merged jail fixes never reached
+#     dispatched runs (the image once sat two months stale). Build a candidate,
+#     gate it on the jail smoke test, and only then move :local. A failed build
+#     or test keeps the current :local and flags the deploy "warning".
+if printf '%s\n' "$CHANGED" | grep -q '^agent/'; then
+  AGENT_CANDIDATE="sovereign-node/agent:candidate"
+  AGENT_BUILD_LOG=$(mktemp)
+  echo "   rebuilding agent jail image (agent/ changed) -> $AGENT_CANDIDATE"
+  if docker build -t "$AGENT_CANDIDATE" ./agent >"$AGENT_BUILD_LOG" 2>&1 \
+     && JAIL_IMAGE="$AGENT_CANDIDATE" ./scripts/test-jail-image.sh --no-build; then
+    docker tag "$AGENT_CANDIDATE" sovereign-node/agent:local
+    echo "   agent jail image passed its smoke test -> sovereign-node/agent:local"
+  else
+    tail -20 "$AGENT_BUILD_LOG" >&2
+    record_msg WARN "agent jail image build or smoke test failed — kept the existing sovereign-node/agent:local (see deploy log)"
+  fi
+  # Drops the candidate tag; a promoted image lives on as :local.
+  docker image rm "$AGENT_CANDIDATE" >/dev/null 2>&1 || true
+  rm -f "$AGENT_BUILD_LOG"
+fi
+
 # 5. Apply: recreate any service whose spec changed (env/image/etc).
 #    Two passes, because "which profiles are enabled" is the OPERATOR's call,
 #    not this script's: first the core plane (default profile), then every
@@ -252,7 +311,17 @@ fi
 # so unrelated deploys do not perform external configuration work.
 if printf '%s\n' "$CHANGED" | grep -qE '^(scripts/sso-setup\.sh|docker-compose\.yml|caddy/Caddyfile|apps/[^/]+/(compose\.yaml|route\.caddy))$'; then
   echo "   refreshing SSO wiring (callback or proxy configuration changed)"
-  ./scripts/sso-setup.sh
+  # Keep sso-setup's reason (e.g. an expired POCKET_ID_API_KEY) in deploy-info.
+  SSO_ERR=$(mktemp)
+  if ! ./scripts/sso-setup.sh 2>"$SSO_ERR"; then
+    cat "$SSO_ERR" >&2
+    record_msg ERROR "sso-setup.sh failed: $(grep -v '^[[:space:]]*$' "$SSO_ERR" | tail -1)"
+    rm -f "$SSO_ERR"
+    write_deploy_info failed || true
+    exit 1
+  fi
+  cat "$SSO_ERR" >&2
+  rm -f "$SSO_ERR"
 fi
 
 # 6. Bind-mounted CONTENT changes don't recreate containers — compose only
