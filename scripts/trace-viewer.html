@@ -1,0 +1,330 @@
+<!doctype html>
+<!-- Template for scripts/trace-render.py: the trace JSON replaces __TRACE_DATA__.
+     Self-contained on purpose — no network, opens straight from disk. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent run trace</title>
+<style>
+  :root {
+    --bg: #f5f4ef; --panel: #fffefa; --ink: #1c1b18; --muted: #6b685f; --rule: #e0ddd3; --grid: #edeae1;
+    --llm: #2f6bd6; --llm-pre: #b9cbf1; --llm-side: #8795ae; --shell: #cf6d1d; --builtin: #e2b13f;
+    --setup: #a09c90; --harness: #8a63c6; --idle: #d8d4c8; --focus: #1c1b18;
+    --labw: 170px;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141412; --panel: #1c1b19; --ink: #ecebe5; --muted: #9d9a90; --rule: #34322d; --grid: #262521;
+      --llm: #6a97f0; --llm-pre: #2d4474; --llm-side: #66728a; --shell: #eb9043; --builtin: #c89d3b;
+      --setup: #77746b; --harness: #a688de; --idle: #3a3833; --focus: #ecebe5;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 var(--sans); }
+  main { max-width: 1440px; margin: 0 auto; padding: 28px 24px 64px; }
+  h1 { font: 600 19px/1.25 var(--mono); margin: 0 0 6px; overflow-wrap: anywhere; }
+  .meta { color: var(--muted); display: flex; flex-wrap: wrap; gap: 2px 18px; }
+  .warn { margin: 14px 0 0; padding: 8px 12px; border-left: 3px solid var(--shell); background: var(--panel); }
+  section { margin-top: 28px; }
+  h2 { font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+  .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .stack { display: flex; height: 16px; border-radius: 3px; overflow: hidden; background: var(--idle); }
+  .stack > div + div { box-shadow: inset 1px 0 0 var(--panel); }
+  .legend { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 6px 28px; margin-top: 12px; }
+  .legend > div { display: flex; align-items: baseline; gap: 8px; }
+  .legend .num { margin-left: auto; color: var(--muted); }
+  .sw { width: 10px; height: 10px; border-radius: 2px; flex: none; transform: translateY(1px); }
+  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 8px; color: var(--muted); }
+  .controls input { width: 200px; max-width: 45vw; }
+  button { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--rule); border-radius: 4px; padding: 1px 10px; cursor: pointer; }
+  .tl { overflow-x: auto; border: 1px solid var(--rule); border-radius: 6px; background: var(--panel); }
+  .tl-inner { position: relative; }
+  .row { display: flex; height: 30px; border-top: 1px solid var(--grid); }
+  .row.axis { height: 24px; border-top: 0; }
+  .lab { position: sticky; left: 0; z-index: 3; flex: none; width: var(--labw); padding: 0 10px; display: flex; align-items: center;
+         background: var(--panel); border-right: 1px solid var(--rule); color: var(--muted); font-size: 12px;
+         white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .track { position: relative; flex: none; }
+  .gridlines { position: absolute; top: 24px; bottom: 0; left: var(--labw); pointer-events: none; }
+  .tick { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--grid); }
+  .tick span { position: absolute; top: 5px; left: 4px; font: 11px var(--mono); color: var(--muted); white-space: nowrap; }
+  .span { position: absolute; top: 5px; height: 20px; min-width: 2px; border-radius: 3px; cursor: pointer; overflow: hidden; }
+  .span b { position: absolute; left: 0; top: 0; bottom: 0; background: var(--llm-pre); }
+  .span i { position: relative; display: block; padding: 0 6px; font: 11px/20px var(--mono); font-style: normal;
+            color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .span.builtin { background-image: repeating-linear-gradient(135deg, transparent 0 4px, rgba(255,255,255,.3) 4px 7px); }
+  .span.builtin i, .span.setup i { color: #1c1b18; }
+  .span:focus-visible, .span.sel { outline: 2px solid var(--focus); outline-offset: 1px; z-index: 2; }
+  .caption { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
+  #tip { position: fixed; z-index: 10; pointer-events: none; max-width: 380px; padding: 6px 9px; border-radius: 5px;
+         background: var(--ink); color: var(--bg); font-size: 12px; }
+  #tip div:first-child { font-family: var(--mono); font-weight: 600; overflow-wrap: anywhere; }
+  .detail { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 14px 16px; }
+  .detail .empty { color: var(--muted); }
+  .detail h3 { margin: 0; font: 600 14px var(--mono); overflow-wrap: anywhere; }
+  .detail dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 18px; margin: 10px 0 0; }
+  .detail dt { color: var(--muted); }
+  .detail dd { margin: 0; font-family: var(--mono); font-size: 13px; overflow-wrap: anywhere; }
+  .detail pre { margin: 0; white-space: pre-wrap; font: 12px/1.45 var(--mono); max-height: 280px; overflow: auto; }
+  .table-wrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: 6px; }
+  table { border-collapse: collapse; width: 100%; background: var(--panel); }
+  th, td { text-align: left; padding: 6px 12px; border-top: 1px solid var(--grid); white-space: nowrap; }
+  th { font-size: 12px; color: var(--muted); font-weight: 600; border-top: 0; }
+  th.num, td.num { text-align: right; }
+  td.cmd { font-family: var(--mono); font-size: 12px; max-width: 620px; overflow: hidden; text-overflow: ellipsis; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover { background: var(--grid); }
+  td.none { color: var(--muted); cursor: default; }
+  @media (max-width: 640px) { :root { --labw: 96px; } main { padding: 18px 16px 40px; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1 id="run"></h1>
+    <div class="meta" id="meta"></div>
+    <div id="warnings"></div>
+  </header>
+
+  <section>
+    <h2>Where the wall-clock went</h2>
+    <div class="stack" id="stack"></div>
+    <div class="legend" id="legend"></div>
+  </section>
+
+  <section>
+    <h2>Timeline</h2>
+    <div class="controls">
+      <label for="zoom">Zoom</label>
+      <input id="zoom" type="range" min="0" max="100" value="0">
+      <button id="fit" type="button">Fit</button>
+      <span id="zoomlabel" class="num"></span>
+    </div>
+    <div class="tl" id="tl"><div class="tl-inner" id="tl-inner"></div></div>
+    <p class="caption">Model bars: light = waiting for the first token, dark = generating.
+      Hatched spans are tool calls with no measurement (forge built-ins, or shell calls from an untraced run),
+      inferred from the gap before the next model request; the shell tools lane is measured.</p>
+  </section>
+
+  <section>
+    <h2>Selected span</h2>
+    <div class="detail" id="detail"><span class="empty">Hover or click a span on the timeline, or a row below.</span></div>
+  </section>
+
+  <section>
+    <h2>Slowest tool calls</h2>
+    <div class="table-wrap"><table id="slowest"></table></div>
+  </section>
+
+  <section>
+    <h2>Model requests</h2>
+    <div class="table-wrap"><table id="requests"></table></div>
+  </section>
+</main>
+<div id="tip" hidden></div>
+
+<script id="trace-data" type="application/json">__TRACE_DATA__</script>
+<script>
+const D = JSON.parse(document.getElementById('trace-data').textContent);
+const LANE_COLOR = { setup: 'var(--setup)', llm: 'var(--llm)', 'llm-side': 'var(--llm-side)',
+                     shell: 'var(--shell)', builtin: 'var(--builtin)', harness: 'var(--harness)' };
+const CAT_COLOR = { 'model wait': 'var(--llm)', 'shell tools': 'var(--shell)', 'unmeasured tools (inferred)': 'var(--builtin)',
+                    'container setup': 'var(--setup)', 'harness shell': 'var(--harness)', 'harness / unaccounted': 'var(--idle)' };
+const laneName = Object.fromEntries(D.lanes.map(l => [l.id, l.name]));
+const $ = id => document.getElementById(id);
+
+function h(tag, props = {}, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (v == null) continue;
+    if (k === 'style') Object.assign(e.style, v);
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v);
+  }
+  for (const kid of kids) if (kid != null) e.append(kid);   // strings become text nodes, never HTML
+  return e;
+}
+function fmt(ms) {
+  if (ms == null || Number.isNaN(ms)) return '–';
+  if (ms < 1000) return `${Math.round(ms)} ms`;
+  if (ms < 60000) return `${(ms / 1000).toFixed(ms < 10000 ? 2 : 1)} s`;
+  return `${Math.floor(ms / 60000)}m ${String(Math.floor((ms % 60000) / 1000)).padStart(2, '0')}s`;
+}
+const dur = s => s.end_ms - s.start_ms;
+const mb = kb => `${(kb / 1024).toFixed(kb < 10240 ? 1 : 0)} MB`;
+
+// ---- header + breakdown ----------------------------------------------------
+document.title = `Trace · ${D.run}`;
+$('run').textContent = D.run;
+const m = D.meta || {};
+for (const t of [m.harness && `harness ${m.harness}`, m.model && `model ${m.model}`,
+                 m.started_at && `started ${m.started_at.replace('T', ' ').slice(0, 19)} UTC`,
+                 `wall ${fmt(D.wall_ms)}`, m.exit_code != null && `exit ${m.exit_code}`,
+                 `${D.summary.model.requests} model requests · $${D.summary.model.cost_usd.toFixed(4)}`]) {
+  if (t) $('meta').append(h('span', {}, t));
+}
+for (const w of D.warnings) $('warnings').append(h('p', { class: 'warn' }, w));
+for (const c of D.summary.categories) {
+  $('stack').append(h('div', { title: `${c.name}: ${fmt(c.ms)}`, style: { width: `${c.pct}%`, background: CAT_COLOR[c.name] } }));
+  $('legend').append(h('div', {}, h('span', { class: 'sw', style: { background: CAT_COLOR[c.name] } }), c.name,
+                          h('span', { class: 'num' }, `${fmt(c.ms)} · ${c.pct.toFixed(1)}%`)));
+}
+
+// ---- timeline ----------------------------------------------------------------
+const tl = $('tl'), inner = $('tl-inner'), zoom = $('zoom'), tip = $('tip');
+let selectedIndex = null, pxPerMsPrev = null;
+const spanEls = new Map();
+const labW = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--labw')) || 170;
+
+function niceStep(pxPerMs) {
+  const steps = [100, 200, 500, 1e3, 2e3, 5e3, 1e4, 15e3, 3e4, 6e4, 12e4, 3e5, 6e5, 9e5, 18e5, 36e5];
+  return steps.find(s => s * pxPerMs >= 90) || steps[steps.length - 1];
+}
+function tickLabel(t, step) {
+  if (step < 1000) return `${(t / 1000).toFixed(1)}s`;
+  if (t < 60000) return `${t / 1000}s`;
+  const s = Math.round((t % 60000) / 1000);
+  return `${Math.floor(t / 60000)}m${s ? String(s).padStart(2, '0') + 's' : ''}`;
+}
+
+function render() {
+  const lw = labW();
+  const fitW = Math.max(240, tl.clientWidth - lw - 14);
+  const mult = Math.pow(2, zoom.value / 10);
+  const pxPerMs = fitW / Math.max(D.wall_ms, 1) * mult;
+  const W = Math.ceil(D.wall_ms * pxPerMs) + 12;
+  const centerMs = pxPerMsPrev ? (tl.scrollLeft + (tl.clientWidth - lw) / 2) / pxPerMsPrev : 0;
+  $('zoomlabel').textContent = `${mult.toFixed(1)}×`;
+
+  inner.replaceChildren();
+  spanEls.clear();
+  inner.style.width = `${lw + W}px`;
+  const step = niceStep(pxPerMs);
+  const axis = h('div', { class: 'track', style: { width: `${W}px` } });
+  const grid = h('div', { class: 'gridlines', style: { width: `${W}px` } });
+  for (let t = 0; t <= D.wall_ms; t += step) {
+    axis.append(h('div', { class: 'tick', style: { left: `${t * pxPerMs}px` } }, h('span', {}, tickLabel(t, step))));
+    grid.append(h('div', { class: 'tick', style: { left: `${t * pxPerMs}px` } }));
+  }
+  inner.append(h('div', { class: 'row axis' }, h('div', { class: 'lab' }), axis), grid);
+
+  for (const lane of D.lanes) {
+    const track = h('div', { class: 'track', style: { width: `${W}px` } });
+    D.spans.forEach((s, i) => {
+      if (s.lane !== lane.id) return;
+      const w = Math.max(2, dur(s) * pxPerMs);
+      const el = h('div', {
+        class: `span ${s.lane}${i === selectedIndex ? ' sel' : ''}`, tabindex: 0, role: 'button',
+        'aria-label': `${laneName[s.lane]}: ${s.label}, ${fmt(dur(s))}`,
+        style: { left: `${s.start_ms * pxPerMs}px`, width: `${w}px`, backgroundColor: LANE_COLOR[s.lane] },
+        onpointerenter: e => showTip(s, e), onpointermove: moveTip, onpointerleave: () => { tip.hidden = true; },
+        onclick: () => select(i), onfocus: () => select(i),
+      });
+      if (s.first_token_ms != null && dur(s) > 0) {
+        el.append(h('b', { style: { width: `${Math.min(100, (s.first_token_ms - s.start_ms) / dur(s) * 100)}%` } }));
+      }
+      if (w > 48) el.append(h('i', {}, s.label));
+      spanEls.set(i, el);
+      track.append(el);
+    });
+    inner.append(h('div', { class: 'row' }, h('div', { class: 'lab', title: lane.name }, lane.name), track));
+  }
+  if (pxPerMsPrev) tl.scrollLeft = centerMs * pxPerMs - (tl.clientWidth - lw) / 2;
+  pxPerMsPrev = pxPerMs;
+}
+
+function showTip(s, e) {
+  tip.replaceChildren(h('div', {}, s.label), h('div', {}, `${laneName[s.lane]} · ${fmt(dur(s))} · at +${fmt(s.start_ms)}`));
+  tip.hidden = false;
+  moveTip(e);
+}
+function moveTip(e) {
+  const r = tip.getBoundingClientRect();
+  tip.style.left = `${Math.max(8, Math.min(e.clientX + 12, innerWidth - r.width - 8))}px`;
+  tip.style.top = `${Math.min(e.clientY + 16, innerHeight - r.height - 8)}px`;
+}
+
+// ---- detail panel ----------------------------------------------------------
+const LABELS = {
+  first_token_ms: 'time to first token', tokens_in: 'tokens in', tokens_out: 'tokens out', cost_usd: 'cost',
+  status: 'status', tool_calls: 'tool calls returned', exit: 'exit status', cpu_user_ms: 'CPU user',
+  cpu_sys_ms: 'CPU system', max_rss_kb: 'peak RSS (largest process)', inblock: 'blocks read', oublock: 'blocks written',
+  pid: 'pid', result_chars: 'result size', is_error: 'tool error', command: 'command', calls: 'calls', inferred: 'timing',
+};
+function value(k, v) {
+  if (k === 'inferred') return 'inferred from the gap before the next model request';
+  if (k.endsWith('_ms')) return fmt(v);
+  if (k === 'max_rss_kb') return mb(v);
+  if (k === 'cost_usd') return `$${Number(v).toFixed(5)}`;
+  if (k === 'result_chars') return `${v.toLocaleString()} chars`;
+  if (k === 'tool_calls') return v.join(', ');
+  if (k === 'command') return h('pre', {}, v);
+  if (typeof v === 'object') return h('pre', {}, JSON.stringify(v, null, 2));
+  return String(v);
+}
+function select(i, scroll = false) {
+  const s = D.spans[i];
+  spanEls.get(selectedIndex)?.classList.remove('sel');
+  selectedIndex = i;
+  const el = spanEls.get(i);
+  el?.classList.add('sel');
+  if (scroll && el) el.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+  const dl = h('dl', {}, h('dt', {}, 'lane'), h('dd', {}, laneName[s.lane]),
+                        h('dt', {}, 'starts at'), h('dd', {}, `+${fmt(s.start_ms)}`),
+                        h('dt', {}, 'duration'), h('dd', {}, fmt(dur(s))));
+  for (const [k, v] of Object.entries(s.detail || {})) dl.append(h('dt', {}, LABELS[k] || k), h('dd', {}, value(k, v)));
+  $('detail').replaceChildren(h('h3', {}, s.label), dl);
+}
+
+// ---- tables ------------------------------------------------------------------
+function table(el, headers, rows, empty) {
+  el.append(h('thead', {}, h('tr', {}, ...headers.map(([t, cls]) => h('th', { class: cls }, t)))));
+  const body = h('tbody');
+  for (const r of rows) body.append(r);
+  if (!rows.length) body.append(h('tr', {}, h('td', { class: 'none', colspan: headers.length }, empty)));
+  el.append(body);
+}
+table($('slowest'),
+  [['duration', 'num'], ['tool'], ['exit', 'num'], ['CPU', 'num'], ['peak RSS', 'num'], ['result', 'num'], ['call']],
+  D.summary.slowest.map(i => {
+    const s = D.spans[i], d = s.detail || {};
+    return h('tr', { onclick: () => select(i, true) },
+      h('td', { class: 'num' }, fmt(dur(s))),
+      h('td', {}, s.lane === 'shell' ? 'shell' : 'inferred'),
+      h('td', { class: 'num' }, d.exit ?? '–'),
+      h('td', { class: 'num' }, d.cpu_user_ms != null ? fmt(d.cpu_user_ms + d.cpu_sys_ms) : '–'),
+      h('td', { class: 'num' }, d.max_rss_kb != null ? mb(d.max_rss_kb) : '–'),
+      h('td', { class: 'num' }, d.result_chars != null ? d.result_chars.toLocaleString() : '–'),
+      h('td', { class: 'cmd', title: d.command || s.label }, d.command || s.label));
+  }), 'No tool calls recorded.');
+
+let n = 0;
+table($('requests'),
+  [['#', 'num'], ['starts at', 'num'], ['first token', 'num'], ['duration', 'num'], ['tokens in', 'num'],
+   ['tokens out', 'num'], ['cost', 'num'], ['model'], ['tool calls returned']],
+  D.spans.flatMap((s, i) => {
+    if (s.lane !== 'llm' && s.lane !== 'llm-side') return [];
+    const d = s.detail || {};
+    return [h('tr', { onclick: () => select(i, true) },
+      h('td', { class: 'num' }, ++n),
+      h('td', { class: 'num' }, `+${fmt(s.start_ms)}`),
+      h('td', { class: 'num' }, fmt(d.first_token_ms)),
+      h('td', { class: 'num' }, fmt(dur(s))),
+      h('td', { class: 'num' }, d.tokens_in?.toLocaleString() ?? '–'),
+      h('td', { class: 'num' }, d.tokens_out?.toLocaleString() ?? '–'),
+      h('td', { class: 'num' }, d.cost_usd != null ? `$${d.cost_usd.toFixed(5)}` : '–'),
+      h('td', {}, s.label + (s.lane === 'llm-side' ? ' (side)' : '')),
+      h('td', { class: 'cmd' }, (d.tool_calls || []).join(', ') || '–'))];
+  }), 'No model requests found in the LiteLLM spend logs for this run.');
+
+zoom.addEventListener('input', render);
+$('fit').addEventListener('click', () => { zoom.value = 0; pxPerMsPrev = null; tl.scrollLeft = 0; render(); });
+let resizeTimer;
+addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(render, 120); });
+render();
+</script>
+</body>
+</html>

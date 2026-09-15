@@ -6,6 +6,17 @@
 # ANTHROPIC_BASE_URL.
 set -eu
 
+# Opt-in wall-clock tracing (AGENT_TRACE=1, off by default). scripts/run-task.sh
+# sets it and copies /tmp/trace out of the stopped container; nothing leaves
+# the jail on its own. These marks time the entrypoint's phases; forge's shell
+# tool is timed by trace-sh (see the SHELL export below).
+trace_mark() {
+  [ "${AGENT_TRACE:-0}" = 1 ] || return 0
+  mkdir -p /tmp/trace
+  printf '{"t_ns":%s,"event":"%s"}\n' "$(date +%s%N)" "$1" >> /tmp/trace/events.jsonl
+}
+trace_mark entrypoint_start
+
 if [ -n "${AGENT_FORGEJO_TOKEN:-}" ]; then
   # Which tenant identity this session runs as (agent-dev, assistant, ...)
   GIT_USER="${AGENT_GIT_USER:-agent-dev}"
@@ -34,6 +45,7 @@ cd /workspace/node-config 2>/dev/null || cd /workspace
 if [ -d .git ]; then
   [ -e AGENTS.md ] || { ln -s "$HOME/AGENTS.md" AGENTS.md; echo "AGENTS.md" >> .git/info/exclude; }
 fi
+trace_mark workspace_ready
 
 # AGENT_MODEL is the harness-agnostic model knob (a LiteLLM alias). The
 # tenant's virtual-key allowlist is the authority — this is only a request.
@@ -48,6 +60,13 @@ export FORGE_SESSION__PROVIDER_ID="${FORGE_SESSION__PROVIDER_ID:-openai_compatib
 # Fallback when nothing is configured = deepseek-flash (operator decision:
 # the unconfigured default should be the cheap model, never a premium one).
 export FORGE_SESSION__MODEL_ID="${FORGE_SESSION__MODEL_ID:-${AGENT_MODEL:-deepseek-flash}}"
+# Autonomous-mode ceiling (raise forge's default 100-request cap so harder
+# tasks don't hit the wall mid-turn): max_requests_per_turn in the image's
+# ~/forge/.forge.toml, TOP-LEVEL — nested in a table forge ignores it.
+# There is NO env override: forge 2.13.18's binaries contain no
+# FORGE_MAX_REQUESTS_PER_TURN string (unlike FORGE_SESSION__*, which they do
+# read), so the export that used to sit here was inert and read as a runtime
+# knob that did not exist. Change the cap in agent/.forge.toml and rebuild.
 
 # Claude leg: same knob, its native vars. Explicit ANTHROPIC_* env wins.
 if [ -n "${AGENT_MODEL:-}" ]; then
@@ -56,5 +75,14 @@ if [ -n "${AGENT_MODEL:-}" ]; then
 fi
 
 HARNESS="${AGENT_HARNESS:-forge}"
+
+# Forge runs its shell tool as `$SHELL -c <command>`, so pointing SHELL at
+# trace-sh (agent/trace-sh.py) times every command. Forge only: that is the
+# path scripts/test-jail-image.sh proves; Claude Code is untested with the shim.
+if [ "${AGENT_TRACE:-0}" = 1 ] && [ "$HARNESS" = forge ]; then
+  export SHELL=/usr/local/bin/trace-sh TOOL_TRACE_LOG=/tmp/trace/tools.jsonl
+fi
+
 echo "[jail] harness: $HARNESS (AGENT_HARNESS=forge|claude), model: ${AGENT_MODEL:-image default} (AGENT_MODEL=<litellm alias>)"
+trace_mark harness_exec
 exec "$HARNESS" "$@"

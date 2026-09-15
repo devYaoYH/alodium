@@ -9,6 +9,14 @@
 #    never know or care where inference physically runs.
 
 model_list:
+  # ONBOARDING A MODEL: pricing is NOT automatic. See skills/onboard-model.
+  # LiteLLM keys its cost map on litellm_params.model VERBATIM, and upstream
+  # carries almost no `openrouter/*` entries — an unmapped key bills $0.00,
+  # which silently exempts that model from max_budget below. The provider-cost
+  # fallback (OpenRouter's usage.cost) lands only on NON-streaming calls, and
+  # agent traffic streams, so it rescues nothing here. Every openrouter/* entry
+  # therefore pins its own rates; scripts/model-pricing.sh fetches them and
+  # verify-config.sh refuses a PR that adds one without them.
   - model_name: claude-sonnet
     litellm_params:
       model: anthropic/claude-sonnet-4-6
@@ -32,11 +40,24 @@ model_list:
       model: openrouter/deepseek/deepseek-v4-flash
       api_key: os.environ/OPENROUTER_API_KEY
       reasoning_effort: xhigh
+      # OpenRouter pricing, 2026-07-27 (scripts/model-pricing.sh check).
+      input_cost_per_token: 0.00000014
+      output_cost_per_token: 0.00000028
+      cache_read_input_token_cost: 0.000000028
 
   - model_name: minimax-m3
     litellm_params:
       model: openrouter/minimax/minimax-m3
       api_key: os.environ/OPENROUTER_API_KEY
+      # OpenRouter pricing, 2026-07-27 (scripts/model-pricing.sh check).
+      input_cost_per_token: 0.0000003
+      output_cost_per_token: 0.0000012
+      cache_read_input_token_cost: 0.00000006
+    # Capability metadata lives per-entry, so onboarding a vision-capable model
+    # is just another model_info flag — no forge/harness changes. LiteLLM uses
+    # this for /model/info and to stop drop_params from stripping image blocks.
+    model_info:
+      supports_vision: true
 
   # reasoning_effort pinned to high — a different effort would be a separate alias.
   - model_name: glm-5.2
@@ -44,6 +65,10 @@ model_list:
       model: openrouter/z-ai/glm-5.2
       api_key: os.environ/OPENROUTER_API_KEY
       reasoning_effort: high
+      # OpenRouter pricing, 2026-07-27 (scripts/model-pricing.sh check).
+      input_cost_per_token: 0.0000008106
+      output_cost_per_token: 0.0000025476
+      cache_read_input_token_cost: 0.00000015054
 
   # Tier 4 preview — local inference via an OpenAI-compatible server (Ollama,
   # vLLM, MLX, a DGX box). Uncomment and point at your hardware:
@@ -55,7 +80,6 @@ model_list:
 
 litellm_settings:
   drop_params: true
-  capture_cost_from_provider: true
   num_retries: 2
   request_timeout: 120
   # GLOBAL spend ceiling across ALL keys, resetting monthly. This is the real

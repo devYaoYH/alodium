@@ -336,6 +336,42 @@ else
   note "OK: all first-party images have build provenance"
 fi
 
+# --- 8. Model pricing pinned — an unpriced model escapes max_budget -----------
+# LiteLLM prices by looking up litellm_params.model verbatim in its cost map,
+# which carries almost no openrouter/* keys. A miss bills $0.00 silently, so the
+# model never counts against litellm_settings.max_budget and the spend ceiling
+# stops being a ceiling. Offline check: the pins EXIST. Whether they are CURRENT
+# is scripts/model-pricing.sh check (needs network).
+sec "model pricing"
+python3 -c "
+import sys, yaml
+
+with open('config/litellm.yaml') as f:
+    cfg = yaml.safe_load(f)
+
+missing = []
+for entry in cfg.get('model_list') or []:
+    params = entry.get('litellm_params') or {}
+    if not str(params.get('model', '')).startswith('openrouter/'):
+        continue
+    name = entry.get('model_name', params.get('model'))
+    for field in ('input_cost_per_token', 'output_cost_per_token'):
+        if params.get(field) is None:
+            missing.append(f'{name}: {field}')
+
+if missing:
+    for m in missing:
+        print(f'  FAIL: {m} not pinned in litellm_params', file=sys.stderr)
+    print('  Fetch the real rates: ./scripts/model-pricing.sh fetch <slug>', file=sys.stderr)
+    sys.exit(1)
+print('OK: every openrouter/* model pins input+output cost')
+" 2>/tmp/vc_pricing.log
+if [[ $? -ne 0 ]]; then
+  note "FAIL: unpriced model deployment —"; sed 's/^/    /' /tmp/vc_pricing.log; FAIL=1
+else
+  note "OK: every openrouter/* model pins its own pricing"
+fi
+
 echo
 if [[ "$FAIL" -eq 0 ]]; then echo "verify-config: PASS"; else echo "verify-config: FAIL (fix the above before pushing)"; fi
 exit "$FAIL"

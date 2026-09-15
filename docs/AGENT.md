@@ -133,6 +133,40 @@ The first real task, exercising every mechanism above:
 - **Never:** an LLM in the request-authorization path. Unauthenticated
   internet traffic must not be able to talk its way in.
 
+## Tracing a run
+
+Where does an ephemeral run's wall-clock go — waiting on the model, or in a
+slow tool? Opt in per run, then render:
+
+    AGENT_TRACE=1 ./scripts/run-task.sh tasks/<brief>.md
+    ./scripts/trace-render.py traces/<run>      # writes trace.html + trace.json
+
+`run-task.sh` keeps the stopped container just long enough to copy
+`/tmp/trace` and forge's conversation store into `traces/<run>/`, then
+removes it. The renderer joins the sources on the run name (= key alias):
+
+| Lane | Source | Timing |
+|---|---|---|
+| Model requests | LiteLLM spend logs (`session_id = key:<run>`): start, first token, end, tokens, cost | measured |
+| Shell tools | `agent/trace-sh.py` as forge's `$SHELL`: wall time, exit, CPU, peak RSS, block IO | measured |
+| Unmeasured tools: forge built-ins (`read`, `patch`, `fs_search`, …), untraced shell calls | the gap before the next model request | inferred |
+| Container setup | container start + entrypoint marks (`events.jsonl`) | measured |
+
+The jail does not widen: no capability, mount, or network is added, and the
+host pulls the trace out after exit. Forge only for now — Claude Code's route
+is OpenTelemetry, not wired yet. The shim adds ~9 ms of startup per shell
+command, excluded from recorded durations. Traces contain commands and tool
+arguments from real runs; `traces/` is gitignored and 0700 — treat it like the
+spend logs. LiteLLM writes spend logs in batches, so a render straight after a
+run can miss the model lane; pass `--wait 300`, or re-render a minute later.
+
+**Dispatched issues:** add the `trace` label to a coordination issue (as the
+operator) before assigning it to agent-dev. Every run of that issue is then
+traced, and `dispatch-run.sh` comments a link —
+`https://traces.<domain>/<run>/trace.html` — with a short summary. That door
+is ring 0 + passkey + operator email, and serves only `trace.html` /
+`trace.json`. Details: host/dispatch/README.md, "Tracing a dispatched run".
+
 ## Bring-up
 
 The jail is three files in `agent/` (Dockerfile, entrypoint, AGENTS.md

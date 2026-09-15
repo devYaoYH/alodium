@@ -1,0 +1,21 @@
+# ── forgecode global config ───────────────────────────────────────────────
+# Ships inside the agent-dev jail image at ~/forge/.forge.toml, which forge
+# reads automatically on startup (the docs name ~/.forge/.forge.toml; forge
+# 2.13.18 reads BOTH — verified against the binary).
+#
+# EVERY KEY HERE IS TOP-LEVEL. Forge hard-fails on malformed TOML, but an
+# unknown key — including a real key nested in a table forge doesn't use —
+# is silently IGNORED. So a typo or a stray [table] header does not warn,
+# it just quietly does nothing (that is exactly how the [session] version of
+# this file shipped a cap that was never applied).
+#
+# There is no env-var override: forge 2.13.18's binaries contain no
+# FORGE_MAX_REQUESTS_PER_TURN string. Change it here and rebuild the image.
+# scripts/test-jail-image.sh proves each key below is one forge recognizes.
+#
+# Reference: https://forgecode.dev/docs/forgecode-config/
+
+# Maximum number of requests that can be made in a single turn.
+# Raised from forge's built-in default of 100 so that harder autonomous
+# tasks (routing, multi-app config changes) don't hit the cap mid-turn.
+max_requests_per_turn = 500

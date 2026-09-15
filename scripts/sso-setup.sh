@@ -100,7 +100,7 @@ mint_client litellm "https://llm.${NODE_DOMAIN}/sso/callback" LITELLM_OIDC
 mint_client miniflux "https://feeds.${NODE_DOMAIN}/oauth2/oidc/callback" MINIFLUX_OIDC secrets/miniflux.env
 mint_client open-webui "https://chat.${NODE_DOMAIN}/oauth/oidc/callback" OPENWEBUI_OIDC secrets/open-webui.env
 mint_client memos "https://notes.${NODE_DOMAIN}/auth/callback" MEMOS_OIDC secrets/memos.env
-mint_client oauth2-proxy "https://cal.${NODE_DOMAIN}/oauth2/callback,https://calino.${NODE_DOMAIN}/oauth2/callback,https://copilot.${NODE_DOMAIN}/oauth2/callback" OAUTH2_PROXY
+mint_client oauth2-proxy "https://cal.${NODE_DOMAIN}/oauth2/callback,https://calino.${NODE_DOMAIN}/oauth2/callback,https://copilot.${NODE_DOMAIN}/oauth2/callback,https://traces.${NODE_DOMAIN}/oauth2/callback" OAUTH2_PROXY
 if [[ -z "${OAUTH2_PROXY_COOKIE_SECRET:-}" ]]; then
   saveenv OAUTH2_PROXY_COOKIE_SECRET "$(openssl rand -base64 32 | head -c 32)"
   echo "   generated authshim cookie secret -> .env"
@@ -226,7 +226,7 @@ services:
       # Chrome refuses Domain=.localhost cookies (public-suffix rule), which
       # silently drops the shim's CSRF cookie -> 403 on the OAuth callback.
       # Host-scope the cookies in local dev; real domains keep .${NODE_DOMAIN}.
-      OAUTH2_PROXY_COOKIE_DOMAINS: cal.localhost,calino.localhost,copilot.localhost
+      OAUTH2_PROXY_COOKIE_DOMAINS: cal.localhost,calino.localhost,copilot.localhost,traces.localhost
     volumes:
       - ./.local-ca-bundle.pem:/certs/local-bundle.pem:ro
 EOF

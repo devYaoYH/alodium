@@ -9,9 +9,11 @@ services:
   # --- chat: the assistant in a browser ----------------------------------------
   # Open WebUI (mirrored at mirrors/open-webui) pointed at LiteLLM with the
   # ASSISTANT'S budgeted virtual key — chat.<domain> is a conversation surface
-  # with the assistant's brain and budget. Honest limit: no tools here yet —
-  # the issue-filing, registry-reading assistant is the terminal session; the
-  # full tool-wielding chat bridge is the roadmap's next step. Ring 0.
+  # with the assistant's brain and budget. Tool integrations (Radicale calendar,
+  # web search) are registered via [expose.chat] manifests (chat-tools-setup.sh)
+  # and enabled by default in new sessions. Egress-less by design: the
+  # search-broker's own edge-connected component handles web search egress.
+  # Ring 0.
   open-webui:
     profiles: [chat]
     image: ghcr.io/open-webui/open-webui:main@sha256:a26effeb220e132482bf7e0560b3404843e7bc40d23051144e062960df8df6b0
@@ -46,6 +48,9 @@ services:
       # Built-in notes stays ON as the model-facing scratchpad; memos is
       # the HUMAN notes app (operator decision 2026-07-18) and is not
       # chat-wired. Two surfaces, two audiences, no shared silo.
+      # Enable tool servers (Radicale calendar, web search) registered by
+      # chat-tools-setup.sh; on by default in new sessions.
+      ENABLE_TOOLS: "true"
     volumes:
       - openwebui_data:/app/backend/data
     # `front`, not `edge`: this surface needs no internet egress. Caddy routes

@@ -31,7 +31,10 @@ COPY --from=caddybin /usr/bin/caddy /usr/local/bin/caddy
 RUN npm install -g @anthropic-ai/claude-code forgecode@2.13.18
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
+# Opt-in tool tracing shim: with AGENT_TRACE=1 the entrypoint makes it forge's
+# $SHELL, timing every shell tool call (costs and rationale: file header).
+COPY trace-sh.py /usr/local/bin/trace-sh
+RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/trace-sh
 
 # unprivileged, high-uid user; rootless podman later maps this differently per-app
 RUN useradd -m -u 10001 agent
@@ -43,6 +46,18 @@ RUN useradd -m -u 10001 agent
 # forge 2.13 ignores project .forge.toml [[providers]] despite its docs.
 COPY --chown=agent:agent AGENTS.md /home/agent/.claude/CLAUDE.md
 COPY --chown=agent:agent AGENTS.md /home/agent/AGENTS.md
+# forgecode global config: session limits, model defaults, etc.
+# ForgeCode reads ~/forge/.forge.toml automatically — no symlinks needed.
+#
+# ~/forge is ALSO forge's writable state dir: on startup it migrates provider
+# credentials from env into it. This RUN executes as root (USER agent is
+# below), and COPY --chown fixes only the FILE — so the chown here is
+# load-bearing, not tidiness. Without it forge cannot write its own config dir
+# and does not error: it BLOCKS FOREVER with no output, hanging every jail
+# session and every dispatched issue-work container.
+# Regression test: scripts/test-jail-image.sh.
+RUN mkdir -p /home/agent/forge && chown agent:agent /home/agent/forge
+COPY --chown=agent:agent .forge.toml /home/agent/forge/.forge.toml
 USER agent
 WORKDIR /workspace
 

@@ -90,6 +90,42 @@ registry.{$NODE_DOMAIN} {
 	reverse_proxy registry:8090
 }
 
+# Ring 0 — agent run traces: timelines rendered by scripts/trace-render.py into
+# ./traces, linked from an issue's comments when the operator adds the `trace`
+# label (host/dispatch/README.md). They hold commands and tool arguments from
+# real runs, so this door matches copilot's: operator LAN/VPN + passkey SSO +
+# operator email. Only the rendered page and its JSON are served; forge.db
+# (the whole conversation) and the raw jsonl never leave the host.
+traces.{$NODE_DOMAIN} {
+	import ring0
+
+	handle /oauth2/* {
+		reverse_proxy oauth2-proxy:4180
+	}
+
+	handle {
+		import authed
+
+		@operator header X-Auth-Request-Email {$RADICALE_OPERATOR_EMAIL:nobody@node.invalid}
+		handle @operator {
+			# /, /<run>, /<run>/, /<run>/trace.html, /<run>/trace.json — nothing else.
+			@viewable path_regexp ^/([A-Za-z0-9][A-Za-z0-9._-]*(/(trace\.(html|json))?)?)?$
+			handle @viewable {
+				root * /srv/traces
+				file_server browse {
+					hide .gitkeep forge.db* *.jsonl state.json run.json summary.md
+				}
+			}
+			handle {
+				respond 404
+			}
+		}
+		handle {
+			respond "operator only" 403
+		}
+	}
+}
+
 # --- app doors ---------------------------------------------------------------
 # Each app fragment ships its own route: apps/<name>/route.caddy (mounted at
 # /srv/apps). Snippets above (ring0/ring1/authed) are in scope for them.
