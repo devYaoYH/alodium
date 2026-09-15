@@ -85,6 +85,12 @@ fi
 # a deliberately wrong-typed value — a recognised key must be REJECTED. If
 # forge shrugs, that key is dead config. This turns "is it applied?" into an
 # offline, provider-free check.
+#
+# The wrong-typed value is an array, `[1]`, for every key. Forge coerces
+# scalars INTO string keys (`services_url = 99999` and `= true` are both
+# accepted), so flipping a string to a number would call a live string key
+# dead. An array is rejected by string and integer keys alike, while a
+# misspelled key still swallows it silently — verified against forge 2.13.18.
 sec "forge recognises every configured key"
 # One probe per key: "<label><TAB><a .forge.toml body with that key mistyped>".
 # Built here on the host so the container side stays a plain loop.
@@ -96,8 +102,8 @@ def walk(d, path=()):
         if isinstance(v, dict):
             yield from walk(v, path + (k,))
         else:
-            # Flip the type: a key forge knows must reject this outright.
-            yield path, k, ('99999' if isinstance(v, str) else '"bogus"')
+            # An array fits no scalar key: a key forge knows must reject it.
+            yield path, k, '[1]'
 
 with open(sys.argv[1], 'rb') as f:
     cfg = tomllib.load(f)
@@ -162,6 +168,63 @@ else
   note "FAIL: forge exited $RC without reaching the provider —"
   sed 's/^/    /' /tmp/tj_forge.log | tail -12
   FAIL=1
+fi
+
+# --- 3b. Edits never wait on forge's remote syntax check -------------------
+# After every successful write/patch/multi_patch, forge uploads the edited
+# file to services_url for a remote syntax check (forge_services
+# fs_write.rs / fs_patch.rs -> validate_file) and ignores the outcome. With
+# forge's default (https://api.forgecode.dev/) the jail cannot resolve it, so
+# every edit silently waited out a 5s DNS timeout. agent/.forge.toml points
+# services_url at a loopback port that refuses instantly. Forge says nothing
+# either way — the tool result is identical — so THIS check is the alarm.
+# Both halves: the resolved value must be the loopback target shipped in
+# agent/.forge.toml, and the gap between the mock model sending a `write`
+# tool call and forge's next request (tool run + upload attempt) must stay
+# under a second. Whole-turn wall time is NOT a usable signal: with the
+# default URL a plain `read` turn also takes ~5s, so write-vs-read hides it.
+sec "forge edits don't wait on services_url"
+WANT=$(python3 -c 'import tomllib,sys; print(tomllib.load(open(sys.argv[1],"rb")).get("services_url",""))' agent/.forge.toml)
+GOT=$(timeout 60 docker run --rm --network none --entrypoint sh "$IMAGE" -c \
+  'forge config list --porcelain 2>/dev/null' 2>/dev/null \
+  | sed -n 's/^services_url *= *"\(.*\)"$/\1/p' | head -1)
+# shellcheck disable=SC2016  # $TOOL_ARGS and the python expand inside the container
+timeout 120 docker run --rm --network none -v "$PWD/scripts/testdata:/testdata:ro" --entrypoint sh \
+  -e OPENAI_URL=http://127.0.0.1:8765/v1 -e OPENAI_API_KEY=dummy \
+  -e FORGE_SESSION__PROVIDER_ID=openai_compatible \
+  -e FORGE_SESSION__MODEL_ID=deepseek-flash \
+  -e MOCK_LOG=/tmp/mock.jsonl \
+  -e TOOL_ARGS='{"file_path":"/tmp/probe-w.txt","content":"x"}' \
+  "$IMAGE" -c '
+    python3 /testdata/mock-openai.py write "$TOOL_ARGS" & sleep 1
+    cd /tmp && timeout 60 forge -p ping >/dev/null 2>&1
+    echo "written=$(cat /tmp/probe-w.txt 2>/dev/null)"
+    python3 -c "
+import json
+rows = [json.loads(l) for l in open(\"/tmp/mock.jsonl\")]
+sent = [r[\"t\"] for r in rows if r[\"event\"] == \"tool_call_sent\"]
+after = [r[\"t\"] for r in rows if r[\"event\"] == \"request\" and sent and r[\"t\"] > sent[0]]
+print(\"gap_ms=%d\" % ((after[0] - sent[0]) * 1000) if after else \"gap_ms=\")"' >/tmp/tj_edit.log 2>&1
+GAP_MS=$(sed -n 's/^gap_ms=//p' /tmp/tj_edit.log)
+if [[ -z "$WANT" ]]; then
+  note "FAIL: agent/.forge.toml sets no services_url — forge would upload every edited file to"
+  note "      https://api.forgecode.dev/ and, in the jail, stall ~5s per edit waiting on DNS."
+  FAIL=1
+elif [[ "$GOT" != "$WANT" ]] || ! [[ "$GOT" =~ ^https?://(127\.[0-9.]+|localhost)(:[0-9]+)?/ ]]; then
+  note "FAIL: forge resolves services_url to '${GOT:-<unset>}', not the loopback target '$WANT'"
+  note "      from agent/.forge.toml — edited files would go to a remote syntax-check service."
+  FAIL=1
+elif ! grep -q '^written=x' /tmp/tj_edit.log || [[ -z "$GAP_MS" ]]; then
+  note "FAIL: could not time a forge write against the mock model —"
+  sed 's/^/    /' /tmp/tj_edit.log | tail -8
+  FAIL=1
+elif [[ "$GAP_MS" -gt 1000 ]]; then
+  note "FAIL: forge took ${GAP_MS} ms between a write tool call and its next model request."
+  note "      Forge is waiting on its remote syntax check (services_url) again: every"
+  note "      edit in a run will stall like this. Check services_url in agent/.forge.toml."
+  FAIL=1
+else
+  note "OK: services_url is $GOT; write tool call -> next request in ${GAP_MS} ms"
 fi
 
 # --- 4. The backup harness still runs --------------------------------------
