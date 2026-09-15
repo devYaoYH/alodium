@@ -173,6 +173,45 @@ else
   FAIL=1
 fi
 
+# --- 5. Opt-in tool tracing (AGENT_TRACE=1) ---------------------------------
+# trace-sh must be invisible to the command it wraps (output, exit status) and
+# write exactly one record per command — none when tracing is off.
+sec "trace-sh shim"
+OUT=$(docker run --rm --network none --entrypoint sh "$IMAGE" -c '
+  TOOL_TRACE_LOG=/tmp/t.jsonl trace-sh -c "echo shim-out; exit 7"; echo "rc=$?"
+  trace-sh -c true
+  python3 -c "import json; r=[json.loads(l) for l in open(\"/tmp/t.jsonl\")]; print(\"records=%d exit=%s\" % (len(r), r[0][\"exit\"]))"
+' 2>&1)
+if printf '%s' "$OUT" | grep -q "shim-out" && printf '%s' "$OUT" | grep -q "rc=7" \
+   && printf '%s' "$OUT" | grep -q "records=1 exit=7"; then
+  note "OK: output + exit status pass through; one record per command; silent when off"
+else
+  note "FAIL: trace-sh misbehaved —"; printf '%s\n' "$OUT" | sed 's/^/    /' | tail -8
+  FAIL=1
+fi
+
+# The load-bearing check: forge must really run its shell tool through $SHELL.
+# If a forge upgrade stops honouring it, every trace silently loses its tool
+# lane. Drive the REAL entrypoint with AGENT_TRACE=1 against an offline mock
+# model that asks for one slow shell command, then require its record.
+sec "forge shell tool is traced end to end"
+docker run --rm --network none -v "$PWD/scripts/testdata:/testdata:ro" --entrypoint sh \
+  -e AGENT_TRACE=1 -e OPENAI_URL=http://127.0.0.1:8765/v1 -e OPENAI_API_KEY=dummy \
+  -e TOOL_ARGS='{"command":"sleep 1; echo traced-by-shim","cwd":"/tmp"}' \
+  "$IMAGE" -c '
+    python3 /testdata/mock-openai.py shell "$TOOL_ARGS" & sleep 1
+    timeout 60 /usr/local/bin/entrypoint.sh -p ping >/dev/null 2>&1; echo "entrypoint rc=$?"
+    cat /tmp/trace/events.jsonl /tmp/trace/tools.jsonl' >/tmp/tj_trace.log 2>&1
+WALL=$(grep -a 'traced-by-shim' /tmp/tj_trace.log | head -1 \
+  | python3 -c 'import json,sys; print(int(json.loads(sys.stdin.readline())["wall_ms"]))' 2>/dev/null || echo 0)
+if grep -q '"event":"harness_exec"' /tmp/tj_trace.log && [[ "$WALL" -ge 1000 ]]; then
+  note "OK: forge's shell tool call recorded (${WALL} ms), entrypoint phases marked"
+else
+  note "FAIL: no timed record of forge's shell tool call —"
+  sed 's/^/    /' /tmp/tj_trace.log | tail -12
+  FAIL=1
+fi
+
 echo
 if [[ "$FAIL" -eq 0 ]]; then echo "test-jail-image: PASS"; else echo "test-jail-image: FAIL"; fi
 exit "$FAIL"
