@@ -84,11 +84,12 @@ choice as *policy* that can be retuned without changing labels or wiring.
 2. `dispatch-run.sh` reads the issue timeline, finds the label, and verifies
    the actor is the operator (agent self-labeling is **ignored** — same
    anti-escalation as assignment).
-3. The label is resolved through `config/dispatch-tiers.yaml`:
+3. The label is resolved through `config/dispatch-tiers.yaml` — that file is
+   the source of truth; at the time of writing it maps:
    - `trivial`  → `deepseek-flash` @ $0.50
-   - `easy`     → `deepseek-flash` @ $1.00
-   - `moderate` → `claude-haiku`   @ $2.00 (this is the **default** — no label = moderate)
-   - `hard`     → `claude-sonnet`  @ $4.00
+   - `easy`     → `deepseek-flash` @ $1.00 (the **default** — no label = easy)
+   - `moderate` → `minimax-m3`     @ $2.00
+   - `hard`     → `glm-5.2`        @ $4.00
 4. Before launch, `dispatch-run.sh` checks that the resolved model is live in
    LiteLLM. If not, it falls back to `deepseek-flash` + a loud comment.
 5. At PR time, `verify-config.sh` enforces that every tier model exists in
@@ -96,15 +97,15 @@ choice as *policy* that can be retuned without changing labels or wiring.
 
 ### One-time setup
 
-The four `difficulty:*` labels are created automatically by `deploy.sh`
-(via `scripts/ensure-tier-labels.sh`) on every deploy — no manual setup
-needed. The script is safe to re-run: it checks for label existence via the
+The four `difficulty:*` labels — and the `trace` label (see "Tracing a
+dispatched run" below) — are created automatically by `deploy.sh` (via
+`scripts/ensure-tier-labels.sh`) on every deploy — no manual setup needed. The script is safe to re-run: it checks for label existence via the
 API before creating, avoiding the triplication problem (Forgejo does **not**
 deduplicate label creation by name — see the `in-progress` note in
 `task-dispatcher.sh`).
 
-The operator's token must have `write` on coordination (the same scope the
-agent holds).
+The script creates labels with `AGENT_FORGEJO_TOKEN`, so that token needs
+`write` on coordination — the scope agent-dev already holds.
 
 ### Test it
 
