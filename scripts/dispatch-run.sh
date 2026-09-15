@@ -36,6 +36,38 @@ INPROG_ID=$(A "$GAPI/labels?limit=100" \
 RUN="issue-$NUM"   # coarse tag for the audit line; run-task mints its own key alias
 FSTAMP=".task-dispatch/issue-$NUM"
 
+# Operator-gated labels (difficulty:*, trace) take two checks:
+#   1 — the label is in the issue's CURRENT labels ($ISSUE_LABELS below): a
+#       removed label is simply absent, no add/remove bookkeeping needed.
+#   2 — label_added_by_operator: the most recent ADD of it in the timeline was
+#       the operator's. Forgejo label events: add → body='1', remove →
+#       body=''; there is no 'removed' boolean field.
+# Sets LABEL_ACTOR to whoever made that add, for the log line.
+label_added_by_operator() {
+  LABEL_ACTOR=$(A "$GAPI/issues/$NUM/timeline?limit=100" | python3 -c '
+import json, sys
+target = sys.argv[1]
+try:
+    events = json.load(sys.stdin)
+except ValueError:
+    sys.exit(0)
+for e in reversed(events):
+    if e.get("type") == "label" and e.get("body") == "1" \
+            and (e.get("label") or {}).get("name") == target:
+        print((e.get("user") or {}).get("login", ""))
+        break
+' "$1")
+  [[ -n "$LABEL_ACTOR" && "$LABEL_ACTOR" == "$OPERATOR_LOGIN" ]]
+}
+
+ISSUE_LABELS=$(A "$GAPI/issues/$NUM" | python3 -c '
+import json, sys
+try:
+    print("\n".join(l.get("name", "") for l in json.load(sys.stdin).get("labels", [])))
+except ValueError:
+    pass
+')
+
 # --- difficulty tier resolution -------------------------------------------------
 # Resolve the issue's difficulty label (if any) to a model + budget.
 # Gates (each independently sufficient to fall back):
@@ -60,52 +92,11 @@ except Exception as e:
     print(json.dumps({'error': str(e)}))
 " 2>/dev/null || echo '{"error":"yaml parse failed"}')
 
-# Check if the operator applied a difficulty:* label
-# Two-step gate:
-#   Step 1 — read the issue's CURRENT labels (source of truth for what's
-#   applied now).  A removed label is not in the current set, so we don't
-#   need to distinguish add vs remove from the timeline for that.
-#   Step 2 — verify via timeline that the most recent ADD event (body='1')
-#   for that label was by the operator.  Forgejo label events: add →
-#   body='1', remove → body=''; there is no 'removed' boolean field.
-DIFF_LABEL=$(A "$GAPI/issues/$NUM" | python3 -c "
-import json,sys
-try:
-    issue = json.load(sys.stdin)
-except:
-    sys.exit(0)
-for l in issue.get('labels', []):
-    name = l.get('name', '')
-    if name.startswith('difficulty:'):
-        print(name)
-        sys.exit(0)
-print('')
-")
-
-if [[ -n "$DIFF_LABEL" ]]; then
-  # Step 2: verify the operator made the most recent add for this label
-  DIFF_ACTOR=$(A "$GAPI/issues/$NUM/timeline?limit=100" | python3 -c "
-import json,sys
-op = sys.argv[1]
-target = sys.argv[2]
-try:
-    events = json.load(sys.stdin)
-except:
-    sys.exit(0)
-for e in reversed(events):
-    if e.get('type') == 'label' and e.get('body') == '1':
-        ln = (e.get('label') or {}).get('name', '')
-        if ln == target:
-            actor = (e.get('user') or {}).get('login', '')
-            print(actor)
-            sys.exit(0)
-print('')
-" "$OPERATOR_LOGIN" "$DIFF_LABEL")
-
-  if [[ "$DIFF_ACTOR" != "$OPERATOR_LOGIN" ]]; then
-    echo "[dispatch-run] #$NUM: label '$DIFF_LABEL' present but not added by operator (actor='${DIFF_ACTOR:-none}'); ignoring"
-    DIFF_LABEL=""
-  fi
+# The operator's difficulty:* label, if any (both gates: see label_added_by_operator).
+DIFF_LABEL=$(printf '%s\n' "$ISSUE_LABELS" | grep -m1 '^difficulty:' || true)
+if [[ -n "$DIFF_LABEL" ]] && ! label_added_by_operator "$DIFF_LABEL"; then
+  echo "[dispatch-run] #$NUM: label '$DIFF_LABEL' present but not added by operator (actor='${LABEL_ACTOR:-none}'); ignoring"
+  DIFF_LABEL=""
 fi
 
 if [[ -n "$DIFF_LABEL" ]]; then
@@ -218,10 +209,26 @@ else:
   fi
 fi
 
+# --- tracing: the `trace` label ------------------------------------------------
+# Operator-applied `trace` -> run-task.sh --trace, then a comment linking the
+# rendered timeline (end of this script). Same gate as difficulty: an agent
+# adding `trace` to its own issue is ignored — tracing grants no privilege, but
+# it keeps the container until teardown and writes to the host's traces/.
+TRACE=""
+if printf '%s\n' "$ISSUE_LABELS" | grep -qx 'trace'; then
+  if label_added_by_operator trace; then
+    TRACE=1
+    echo "[dispatch-run] #$NUM: operator-applied label 'trace' -> tracing this run"
+  else
+    echo "[dispatch-run] #$NUM: label 'trace' present but not added by operator (actor='${LABEL_ACTOR:-none}'); ignoring"
+  fi
+fi
+
 # Build the extra args for run-task.sh
 DISPTCH_ARGS=()
 [[ -n "$DIFF_MODEL" ]] && DISPTCH_ARGS+=(--model "$DIFF_MODEL")
 [[ -n "$DIFF_BUDGET" ]] && DISPTCH_ARGS+=(--budget "$DIFF_BUDGET")
+[[ -n "$TRACE" ]] && DISPTCH_ARGS+=(--trace)
 
 if OUT=$(./scripts/run-task.sh tasks/issue-work.md --issue "$NUM" ${DISPTCH_ARGS[@]+"${DISPTCH_ARGS[@]}"} 2>&1); then RC=0; else RC=$?; fi
 
@@ -240,4 +247,24 @@ $CLEAN
 \`\`\`
 Fix the cause, then re-assign or wait for the cooldown."
   audit failed "rc=$RC"
+fi
+
+# --- trace link -----------------------------------------------------------------
+# run-task.sh --trace names its saved directory on a "trace saved to
+# traces/<run>" line. Render it (--wait rides out LiteLLM's batched spend-log
+# writes) and post the link as its own comment, so the completion comment above
+# is never held back. The summary names tools and durations only, never command
+# text: every tenant can read coordination, and a command line holds whatever
+# the model typed. The page itself sits behind the traces.<domain> door.
+if [[ -n "$TRACE" ]]; then
+  TDIR=$(printf '%s\n' "$OUT" | sed -n 's#.*trace saved to \(traces/[A-Za-z0-9._-]*\).*#\1#p' | tail -1)
+  if [[ -n "$TDIR" && -d "$TDIR" ]] && ./scripts/trace-render.py "$TDIR" --wait 300 >/dev/null 2>&1; then
+    say "$NUM" "**Run trace:** https://traces.${NODE_DOMAIN}/${TDIR#traces/}/trace.html
+
+$(cat "$TDIR/summary.md")"
+    audit traced "${TDIR#traces/}"
+  else
+    say "$NUM" "Tracing was requested (\`trace\` label) but no trace was rendered for this run (${TDIR:-run-task.sh reported no trace directory}). Render by hand on the host: \`./scripts/trace-render.py traces/<run>\`."
+    audit trace_failed "${TDIR:-no trace directory}"
+  fi
 fi

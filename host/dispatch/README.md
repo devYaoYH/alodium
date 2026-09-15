@@ -115,3 +115,56 @@ agent holds).
 - Apply a `difficulty:hard` label as the operator, run dry-run, confirm the
   dispatch log shows the resolved model and budget. Apply an agent label,
   confirm it's ignored.
+
+## Tracing a dispatched run — the `trace` label
+
+Want to see where an issue's runs spend their time (model wait vs. slow
+tools)? Add the `trace` label, then assign the issue to agent-dev.
+
+### How it works
+
+1. **Order matters.** The doorbell fires on `assigned` and `unlabeled`, not
+   `labeled`. Add `trace` first, then assign — or add it at any point and it
+   applies from the next revision run (removing `in-progress`).
+2. `dispatch-run.sh` honours `trace` only if the operator added it: the label
+   must be current on the issue, and its latest add in the timeline must be by
+   the operator — the same gate as `difficulty:*`. An agent labeling its own
+   issue is logged and ignored: tracing grants no privilege, but it keeps the
+   container until teardown and writes to the host's `traces/`.
+3. It passes `--trace` to `run-task.sh` (the `AGENT_TRACE=1` path in
+   docs/AGENT.md, "Tracing a run"). The run name includes the issue number:
+   `task-issue-work-<N>-<timestamp>`.
+4. When the run ends, `dispatch-run.sh` posts its usual completion comment,
+   then renders the trace — waiting up to 5 minutes for LiteLLM's batched
+   spend-log writes — and posts a second comment:
+
+       **Run trace:** https://traces.<domain>/task-issue-work-52-20260915-101500/trace.html
+       wall 13m25s · model wait 92.9% · unmeasured tools (inferred) 7.1% · …
+
+   The summary names tools and durations only, never command text: every
+   tenant can read coordination, and a command line holds whatever the model
+   typed. Failed runs are traced and linked too.
+5. The label stays on the issue, so every revision run is traced and linked.
+   Remove it to stop.
+
+### The traces.<domain> door
+
+Caddy serves `./traces` (read-only mount) at `traces.<domain>`: **ring 0 +
+passkey SSO + operator email**, the same door as copilot. Traces hold commands
+and tool arguments from real runs. Only `/`, `/<run>/`, `trace.html` and
+`trace.json` are served — never `forge.db` (the whole conversation) or the raw
+jsonl. Agents can't reach it: tenants live on the `agents` network, Caddy
+doesn't.
+
+Merging wires it: `deploy.sh` re-runs `sso-setup.sh` on Caddyfile/compose
+changes, which registers the `traces.<domain>/oauth2/callback` in Pocket ID;
+oauth2-proxy's redirect allow-list names the host. On a real domain, add DNS
+(or a tunnel route) for `traces.<domain>` like any other subdomain.
+
+### Test it
+
+- Add `trace` to an issue as the operator, assign it, and watch
+  `.task-dispatch/` logs for `operator-applied label 'trace' -> tracing this run`,
+  then for the `Run trace:` comment on the issue.
+- Add `trace` as agent-dev (API) and confirm the log says it was ignored.
+- Render by hand any time: `./scripts/trace-render.py traces/<run> --wait 300`.

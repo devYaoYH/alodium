@@ -20,7 +20,7 @@
 # Brief format (tasks/README.md): markdown with a frontmatter block —
 #   task, model, budget_usd, expires, env (names passed through from .env).
 #
-# Tracing (off by default): AGENT_TRACE=1 keeps a wall-clock trace of the run
+# Tracing (off by default): AGENT_TRACE=1 or --trace keeps a wall-clock trace of the run
 # in traces/<run>/ — model requests, tool calls, setup phases — rendered by
 # scripts/trace-render.py (docs/AGENT.md, "Tracing a run"). AGENT_IMAGE swaps
 # the jail image, e.g. to trial an unmerged jail build without retagging :local.
@@ -28,7 +28,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 set -a; source .env; set +a
 
-BRIEF="${1:?usage: run-task.sh <tasks/brief.md> [--keep-key] [--issue N] [--model <name>] [--budget <usd>]}"
+BRIEF="${1:?usage: run-task.sh <tasks/brief.md> [--keep-key] [--issue N] [--model <name>] [--budget <usd>] [--trace]}"
 [[ -f "$BRIEF" ]] || { echo "no such brief: $BRIEF"; exit 1; }
 shift
 KEEP_KEY=""      # --keep-key: drill mode — let expiry, not revocation, kill it
@@ -38,9 +38,11 @@ ISSUE=""         # --issue N: substitute {ISSUE} in the brief with a bare number
                  #   so a hostile issue body can't smuggle instructions via us.
 OVERRIDE_MODEL=""   # --model <name>: override the brief's model (from dispatch-run.sh)
 OVERRIDE_BUDGET=""  # --budget <usd>: override the brief's budget (from dispatch-run.sh)
+FORCE_TRACE=""      # --trace: trace this run whatever AGENT_TRACE says (dispatch-run.sh, `trace` label)
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --keep-key) KEEP_KEY="--keep-key" ;;
+    --trace)    FORCE_TRACE=1 ;;
     --issue)    ISSUE="${2:-}"; shift
                 [[ "$ISSUE" =~ ^[0-9]+$ ]] || { echo "run-task: --issue must be an integer, got '$ISSUE'"; exit 2; } ;;
     --model)    OVERRIDE_MODEL="${2:-}"; shift
@@ -62,11 +64,14 @@ BUDGET=$(front "$BRIEF" budget_usd); BUDGET=${BUDGET:-0.50}
 [[ -n "$OVERRIDE_MODEL" ]] && MODEL="$OVERRIDE_MODEL"
 [[ -n "$OVERRIDE_BUDGET" ]] && BUDGET="$OVERRIDE_BUDGET"
 EXPIRES=$(front "$BRIEF" expires);   EXPIRES=${EXPIRES:-2h}
-RUN="task-$TASK-$(date +%Y%m%d-%H%M%S)"
+# Issue runs carry the number: two issues dispatched in the same second must
+# not share a container name, key alias, or traces/ directory.
+RUN="task-$TASK${ISSUE:+-$ISSUE}-$(date +%Y%m%d-%H%M%S)"
 PROMPT=$(awk 'NR>1 && /^---$/{f=1; next} f' "$BRIEF")
 # {ISSUE} placeholder → the validated integer (empty if not an issue-work run).
 PROMPT="${PROMPT//\{ISSUE\}/$ISSUE}"
 TRACE="${AGENT_TRACE:-0}"
+[[ -n "$FORCE_TRACE" ]] && TRACE=1   # the flag wins: .env (sourced above) can't switch it back off
 IMAGE="${AGENT_IMAGE:-sovereign-node/agent:local}"
 
 LLM=(/usr/bin/curl -sk --resolve "llm.${NODE_DOMAIN}:443:127.0.0.1" \
@@ -104,6 +109,7 @@ collect_trace() {
     done
   fi
   docker rm -f "$RUN" >/dev/null 2>&1 || true
+  # dispatch-run.sh parses "trace saved to traces/<run>" from this line — keep it.
   echo "[$RUN] trace saved to $dir — render: ./scripts/trace-render.py $dir"
 }
 

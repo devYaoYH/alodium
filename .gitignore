@@ -15,8 +15,10 @@ __pycache__/
 .task-dispatch/
 .task-sut/
 # Per-run agent traces (AGENT_TRACE=1 scripts/run-task.sh): commands and tool
-# arguments from real runs — operator-only, never committed.
-traces/
+# arguments from real runs — operator-only, never committed. The directory
+# itself is tracked (.gitkeep) because Caddy bind-mounts it for traces.<domain>.
+traces/*
+!traces/.gitkeep
 
 # The skill-discovery symlink IS tracked (global gitignores often exclude
 # .claude); everything else under .claude (session state, local settings)
