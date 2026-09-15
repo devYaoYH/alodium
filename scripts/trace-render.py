@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Render an agent run trace (AGENT_TRACE=1) as a wall-clock timeline.
 
-    ./scripts/trace-render.py traces/<run>      # writes trace.json + trace.html, prints a summary
+    ./scripts/trace-render.py traces/<run>      # writes trace.json + trace.html + summary.md
+    ./scripts/trace-render.py traces/<run> --wait 300   # right after a run: wait for spend logs
 
 Joins these sources on the run name (= LiteLLM key alias = container name):
   - LiteLLM spend logs, session key:<run>: every model request — start, first
@@ -24,6 +25,7 @@ import re
 import sqlite3
 import subprocess
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -126,6 +128,23 @@ def fetch_model_requests(run, container):
     return json.loads(p.stdout.strip() or "[]"), None
 
 
+def fetch_settled(run, container, wait_s, poll_s=15):
+    """Spend-log rows for the run. LiteLLM writes them in batches, so with
+    wait_s > 0 poll until rows exist and one poll brings no new ones, or until
+    wait_s runs out (then render whatever arrived)."""
+    reqs, err = fetch_model_requests(run, container)
+    deadline = time.monotonic() + wait_s
+    while not err and time.monotonic() < deadline:
+        time.sleep(max(0.0, min(poll_s, deadline - time.monotonic())))
+        again, again_err = fetch_model_requests(run, container)
+        if again_err:
+            return (reqs, None) if reqs else (again, again_err)
+        if again and len(again) == len(reqs):
+            return again, None
+        reqs = again
+    return reqs, err
+
+
 def forge_tool_results(db):
     """(tool, args) -> [{result_chars, is_error}] in call order, across sub-agent conversations."""
     results = {}
@@ -171,7 +190,7 @@ def charge(spans, t0, t1):
     return totals
 
 
-def build(trace_dir, container):
+def build(trace_dir, container, wait_s=0):
     run_meta = read_json(trace_dir / "run.json", {})
     run = run_meta.get("run") or trace_dir.name
     state = read_json(trace_dir / "state.json", {})
@@ -189,7 +208,7 @@ def build(trace_dir, container):
         add("setup", a, b, SETUP_LABEL.get(event, event))
 
     # Model requests. Forge also sends a tool-less side request per run.
-    reqs, err = fetch_model_requests(run, container)
+    reqs, err = fetch_settled(run, container, wait_s)
     if err:
         warnings.append(err)
     elif not reqs:
@@ -333,16 +352,42 @@ def fmt(ms):
     return f"{int(ms // 60_000)}m{int(ms / 1000 % 60):02d}s"
 
 
+def summary_markdown(data):
+    """Issue-comment summary (dispatch-run.sh). Categories, tool NAMES and
+    durations only — never commands or arguments: every tenant can read the
+    coordination repo, and a command line holds whatever the model typed."""
+    m, spans = data["summary"]["model"], data["spans"]
+    head = [f"wall **{fmt(data['wall_ms'])}**"]
+    head += [f"{c['name']} {c['pct']:.1f}%" for c in data["summary"]["categories"]]
+    head.append(f"{m['requests']} model requests (first token p50 {fmt(m['first_token_p50_ms'])}), "
+                f"${m['cost_usd']:.4f}")
+    lines = [" · ".join(head)]
+    slowest = data["summary"]["slowest"][:5]
+    if slowest:
+        lines += ["", "| slowest tool calls | duration | timing |", "|---|---:|---|"]
+        for i in slowest:
+            s = spans[i]
+            measured = s["lane"] == "shell"
+            # Tool names come from model output; keep them to a plain charset.
+            name = "shell" if measured else re.sub(r"[^A-Za-z0-9_, -]", "", s["label"])[:80]
+            lines.append(f"| {name} | {fmt(s['end_ms'] - s['start_ms'])} | {'measured' if measured else 'inferred'} |")
+    lines += [""] + [f"> {w}" for w in data["warnings"]]
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def main():
     ap = argparse.ArgumentParser(description="Render an AGENT_TRACE=1 run as a wall-clock timeline.")
     ap.add_argument("trace_dir", type=Path, help="traces/<run> as written by run-task.sh")
     ap.add_argument("--litellm-db-container", default=os.environ.get("LITELLM_DB_CONTAINER", "litellm-db"))
+    ap.add_argument("--wait", type=int, default=0, metavar="SECONDS",
+                    help="poll up to SECONDS for LiteLLM's batched spend-log writes (use right after a run)")
     a = ap.parse_args()
     if not a.trace_dir.is_dir():
         sys.exit(f"trace-render: no such directory: {a.trace_dir}")
 
-    data = build(a.trace_dir, a.litellm_db_container)
+    data = build(a.trace_dir, a.litellm_db_container, a.wait)
     (a.trace_dir / "trace.json").write_text(json.dumps(data, indent=1))
+    (a.trace_dir / "summary.md").write_text(summary_markdown(data))
     page = VIEWER.read_text().replace("__TRACE_DATA__", json.dumps(data).replace("</", "<\\/"))
     html_path = a.trace_dir / "trace.html"
     html_path.write_text(page)

@@ -158,7 +158,14 @@ is OpenTelemetry, not wired yet. The shim adds ~9 ms of startup per shell
 command, excluded from recorded durations. Traces contain commands and tool
 arguments from real runs; `traces/` is gitignored and 0700 — treat it like the
 spend logs. LiteLLM writes spend logs in batches, so a render straight after a
-run can miss the model lane; re-render a minute later.
+run can miss the model lane; pass `--wait 300`, or re-render a minute later.
+
+**Dispatched issues:** add the `trace` label to a coordination issue (as the
+operator) before assigning it to agent-dev. Every run of that issue is then
+traced, and `dispatch-run.sh` comments a link —
+`https://traces.<domain>/<run>/trace.html` — with a short summary. That door
+is ring 0 + passkey + operator email, and serves only `trace.html` /
+`trace.json`. Details: host/dispatch/README.md, "Tracing a dispatched run".
 
 ## Bring-up
 

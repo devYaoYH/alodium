@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Idempotent helper: ensure the four difficulty:* labels exist in the
-# coordination repo. Operator-run once (or whenever the tier table changes).
+# Idempotent helper: ensure the dispatch labels — the four difficulty:* tiers
+# and `trace` — exist in the coordination repo. deploy.sh runs it every deploy.
 #
 #   ./scripts/ensure-tier-labels.sh            # create missing labels
 #   ./scripts/ensure-tier-labels.sh --verify   # dry-run: validate label definitions (no API calls)
@@ -39,6 +39,9 @@ LABELS=(
   "difficulty:easy|#00cec9|Easy — single file, well-understood change"
   "difficulty:moderate|#74b9ff|Moderate — multi-file, needs design attention"
   "difficulty:hard|#a29bfe|Hard — cross-cutting, risky, or complex"
+  # Not a tier: an operator-applied `trace` makes dispatch-run.sh trace the
+  # run and comment a traces.<domain> link (host/dispatch/README.md).
+  "trace|#fdcb6e|Trace runs of this issue — timeline linked in a comment (operator-applied only)"
 )
 
 # Shared helper: validate a single label definition by constructing its
