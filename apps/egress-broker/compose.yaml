@@ -27,7 +27,13 @@ services:
 
   egress-broker:
     profiles: [apps]
-    image: ${EGRESS_BROKER_IMAGE:-sovereign-node/egress-broker:0.1.0}
+    # First-party image — built locally from this directory (floor precedent:
+    # build: . + image: sovereign-node/<app>:local). deploy.sh's rebuild step
+    # runs `docker compose build egress-broker`, so this is the service that
+    # must carry the build context. The other egress-* services reuse the
+    # same image via :local without their own build:.
+    build: .
+    image: sovereign-node/egress-broker:local
     container_name: egress-broker
     restart: unless-stopped
     depends_on:
@@ -48,10 +54,22 @@ services:
     security_opt: [no-new-privileges:true]
     cap_drop: [ALL]
     networks: [agents, egress-private, egress-data]
+    healthcheck:
+      # /healthz probes the audit DB so this only flips green once the broker
+      # is durable-write capable. Without the DB check, an audit-silent broker
+      # would look healthy and `depends_on` would start letting traffic through.
+      test: ["CMD-SHELL", "python3 -c \"import os, urllib.request as u; u.urlopen('http://localhost:8080/healthz', timeout=2)\""]
+      interval: 30s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
 
   egress-audit-api:
     profiles: [apps]
-    image: ${EGRESS_BROKER_IMAGE:-sovereign-node/egress-broker:0.1.0}
+    # Reuses the image built by the egress-broker service above. No build:
+    # here — compose builds the :local tag once and all three egress-*
+    # services share it.
+    image: sovereign-node/egress-broker:local
     container_name: egress-audit-api
     restart: unless-stopped
     depends_on:
@@ -67,10 +85,19 @@ services:
     security_opt: [no-new-privileges:true]
     cap_drop: [ALL]
     networks: [egress-admin, egress-data]
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import os, urllib.request as u; u.urlopen('http://localhost:8082/healthz', timeout=2)\""]
+      interval: 30s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
 
   egress-out:
     profiles: [apps]
-    image: ${EGRESS_BROKER_IMAGE:-sovereign-node/egress-broker:0.1.0}
+    # Reuses the image built by the egress-broker service above. No build:
+    # here — compose builds the :local tag once and all three egress-*
+    # services share it.
+    image: sovereign-node/egress-broker:local
     container_name: egress-out
     restart: unless-stopped
     environment:
@@ -85,6 +112,12 @@ services:
     security_opt: [no-new-privileges:true]
     cap_drop: [ALL]
     networks: [egress-private, edge]
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import os, urllib.request as u; u.urlopen('http://localhost:8081/healthz', timeout=2)\""]
+      interval: 30s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
 
 networks:
   # Declared here (matching search-broker's fragment) so the fragment is

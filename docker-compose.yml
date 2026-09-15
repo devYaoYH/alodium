@@ -31,6 +31,8 @@ include:
   - path: apps/launcher/compose.yaml
   - path: apps/search-broker/compose.yaml
     env_file: secrets/search-broker.env
+  - path: apps/egress-broker/compose.yaml
+    env_file: secrets/egress-broker.env
   - path: apps/floor/compose.yaml
     env_file: secrets/floor.env
   - path: apps/calino/compose.yaml
@@ -74,6 +76,19 @@ networks:
     # Neither agent tenants nor the egress companion can read search history.
     internal: true
   search-data:
+    # The audit database is reachable only by the broker and audit API; it has
+    # no ingress or egress path, and never joins the agents spur.
+    internal: true
+  egress-private:
+    # The egress-broker and its egress-out companion meet here. Agents cannot
+    # join this network, and egress-out is the only egress service on edge.
+    # Mirror of search-private — same shape, same threat model.
+    internal: true
+  egress-admin:
+    # The Ring 0 audit route joins this with Caddy and the read-only audit API.
+    # Neither agent tenants nor the egress-out companion can read egress history.
+    internal: true
+  egress-data:
     # The audit database is reachable only by the broker and audit API; it has
     # no ingress or egress path, and never joins the agents spur.
     internal: true
@@ -140,6 +155,10 @@ services:
       # Shared only with search-broker. Caddy injects this upstream credential
       # for the Ring 0 audit dashboard; browsers and agents never receive it.
       SEARCH_AUDIT_TOKEN: ${SEARCH_AUDIT_TOKEN:-}
+      # Same shape as SEARCH_AUDIT_TOKEN but for the egress-broker audit
+      # dashboard (egress.{$NODE_DOMAIN}). Injected server-side into the
+      # egress-audit-api upstream only.
+      EGRESS_AUDIT_TOKEN: ${EGRESS_AUDIT_TOKEN:-}
     volumes:
       - ./caddy:/etc/caddy:ro     # Caddyfile + untracked local/*.caddy overrides
       # app fragments' route.caddy files; /etc/caddy is itself a ro mount, so
@@ -163,6 +182,9 @@ services:
         # by hairpinning through the door — with the real certificate.
         aliases: ["auth.${NODE_DOMAIN}"]
       search-admin:
+      # Ring 0 egress audit dashboard — same shape as search-admin: Caddy is
+      # the only thing allowed here, never agent tenants, never the egress
+      # companion.
       egress-admin:
 
   litellm:

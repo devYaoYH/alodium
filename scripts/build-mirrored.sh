@@ -51,11 +51,21 @@ for toml in "${toml_files[@]}"; do
   #   image\trepo\tref\targ1\targ2\t...
   # and exits with a code we dispatch on:
   #   0 = build needed, 2 = no [build], 3 = missing fields, 4 = invalid ref.
-  # NOTE: stderr (e.g. the exit-4 error message) is NOT redirected to stdout
-  # so it doesn't get parsed as a data line.
-  if OUTPUT=$(python3 "$PARSE_SCRIPT" "$toml"); then EXIT_CODE=0; else EXIT_CODE=$?; fi
+  # NOTE: stderr (e.g. the exit-4 error message) is captured separately below
+  # so the parser's diagnostic reaches deploy logs even when $(...) only
+  # captures stdout.
+  PARSE_ERR_FILE=$(mktemp)
+  if OUTPUT=$(python3 "$PARSE_SCRIPT" "$toml" 2>"$PARSE_ERR_FILE"); then
+    EXIT_CODE=0
+  else
+    EXIT_CODE=$?
+  fi
+  PARSE_ERR=$(cat "$PARSE_ERR_FILE")
+  rm -f "$PARSE_ERR_FILE"
 
-  # Exit code 2 = no [build] section, skip silently.
+  # Exit code 2 = no [build] section, skip silently. Most first-party apps
+  # (floor, egress-broker, etc.) declare no [build] and are built by their
+  # compose fragment's `build: .` — that's correct, not a defect.
   if [[ "$EXIT_CODE" -eq 2 ]]; then
     continue
   fi
@@ -64,9 +74,20 @@ for toml in "${toml_files[@]}"; do
     echo "  build-mirrored: skipping $toml (missing image, repo, or ref)"
     continue
   fi
-  # Exit code 4 = invalid ref (message already on stderr).
+  # Exit code 4 = invalid ref. This is a CONFIGURATION ERROR for a first-party
+  # mirrored build — the deploy script would otherwise silently skip the build
+  # and `compose up` would fail much later with a missing image. Abort the
+  # deploy loudly instead, surfacing the parser's message so it's greppable in
+  # the deploy log. (verify-config also catches this pre-merge as of #93.)
   if [[ "$EXIT_CODE" -eq 4 ]]; then
-    continue
+    echo "  build-mirrored: ERROR $toml — [build].ref is not a 40-char SHA" >&2
+    if [[ -n "$PARSE_ERR" ]]; then
+      echo "    $PARSE_ERR" >&2
+    fi
+    echo "  build-mirrored: aborting deploy (a mis-pinned [build].ref is a" >&2
+    echo "    configuration error, not an optional app — pin to a real commit" >&2
+    echo "    SHA or remove the [build] section)" >&2
+    exit 4
   fi
   # Non-zero for any other reason — show Python's output and abort.
   if [[ "$EXIT_CODE" -ne 0 ]]; then

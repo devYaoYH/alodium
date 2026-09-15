@@ -213,11 +213,16 @@ sec "build provenance"
 # classic "runs once from a hand-built :local image, then silently ossifies" trap.
 # Exempt: env-var references, @sha256:-pinned images, and non-sovereign-node/
 # upstream images (those are reproducible by digest/tag upstream).
-python3 -c "
-import os, sys, tomllib, yaml
+python3 - <<'PY' 2>/tmp/vc_build.log
+import os, sys, tomllib, yaml, re
 
 errors = []
 skip_example = True  # app.example.toml is not a real app
+
+# Same rule _build_mirrored_parse.py uses — build-mirrored.sh rejects anything
+# that isn't a 40-char hex SHA, so verify-config must agree pre-merge or a
+# bad ref passes the gate and only blows up at deploy time.
+SHA_RE = re.compile(r"[0-9a-f]{40}")
 
 manifest_dir = 'manifest'
 apps_dir = 'apps'
@@ -244,7 +249,7 @@ for entry in sorted(os.listdir(manifest_dir)):
         continue
 
     # Skip env-var references (e.g. GOG_BRIDGE_IMAGE)
-    if image.startswith('\$') or '\${' in image:
+    if image.startswith('$') or '${' in image:
         continue
 
     # Skip images pinned by digest
@@ -266,7 +271,24 @@ for entry in sorted(os.listdir(manifest_dir)):
         continue
 
     # Check for [build] section
-    has_build = bool(m.get('build'))
+    build = m.get('build')
+    has_build = bool(build)
+
+    # If [build] is declared, [build].ref MUST be a 40-char hex SHA — the same
+    # rule scripts/_build_mirrored_parse.py enforces at deploy time. A
+    # mis-pinned ref used to sail through verify-config (this script only
+    # checked provenance, not the ref format), which is how a stray HEAD
+    # literal for egress-broker reached review. Catch it here so the agent /
+    # operator sees it before pushing.
+    if has_build and isinstance(build, dict):
+        ref = build.get('ref', '')
+        if not SHA_RE.fullmatch(ref or ''):
+            errors.append(
+                f'{entry}: [build].ref "{ref}" is not a 40-char hex SHA — '
+                f'pin it to a real commit (or remove the [build] section and '
+                f'use compose `build: .` instead, like floor).'
+            )
+            continue
 
     # Check for build: context in apps/<name>/compose.yaml
     has_compose_build = False
@@ -285,7 +307,8 @@ for entry in sorted(os.listdir(manifest_dir)):
                     break
 
     if has_build:
-        # [build] section exists — provenance is declared
+        # [build] section exists (and ref validated above) — provenance is
+        # declared
         continue
 
     if has_compose_build:
@@ -293,7 +316,7 @@ for entry in sorted(os.listdir(manifest_dir)):
         continue
 
     errors.append(
-        f'{entry}: image \"{image}\" is a first-party (sovereign-node/) image '
+        f'{entry}: image "{image}" is a first-party (sovereign-node/) image '
         f'with no version tag, no [build] section, and no build: context in '
         f'apps/{name}/compose.yaml — this image cannot be reproduced. '
         f'Add a [build] section with pinned repo+ref, or add build: context '
@@ -306,7 +329,7 @@ if errors:
     sys.exit(1)
 else:
     print('OK: every first-party image has build provenance')
-" 2>/tmp/vc_build.log
+PY
 if [[ $? -ne 0 ]]; then
   note "FAIL: build provenance errors —"; sed 's/^/    /' /tmp/vc_build.log; FAIL=1
 else

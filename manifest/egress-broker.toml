@@ -5,7 +5,7 @@
 name = "egress-broker"
 version = "0.1.0"
 description = "Deterministic brokered egress: agents request, the broker decides, the audit database records every byte"
-image = "sovereign-node/egress-broker:0.1.0"
+image = "sovereign-node/egress-broker:local"
 ring = 0
 
 [service]
@@ -22,18 +22,19 @@ volumes = ["egress_audit_db"]
 database = "postgres"
 
 [tests]
-command = "python3 tests/smoke.py"
-timeout_seconds = 60
+# run-tests.sh executes this inside curlimages/curl (no python3). The full
+# auth/allowlist/audit contract — missing token, invalid token, non-allowlisted
+# host, audit-api token gate, egress-out tokenless rejection — lives in
+# tests/smoke.py and runs inside the app's own image (operator-driven:
+#   docker run --rm --network <egress-net> sovereign-node/egress-broker:local \
+#     python3 tests/smoke.py
+# ). The behavioral contract is also exercised by scripts/drill-egress-
+# {containment,revocation}.sh against the staging twin. Here the gate only
+# needs a live-wire check: /healthz reachable + the broker refuses a tokenless
+# POST /v1/egress with 403.
+command = "curl -fsS $APP_URL/healthz && curl -sS -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' -d '{\"host\":\"https://example.com\",\"path\":\"/\"}' $APP_URL/v1/egress | grep -q '^40[13]'"
+timeout_seconds = 30
 
 [lifecycle]
 backup = ["egress_audit_db"]
 update_policy = "pinned"
-
-[build]
-# First-party app source lives in Forgejo at apps/egress-broker (seeded from
-# app-skeleton). scripts/build-mirrored.sh clones this repo at the pinned commit
-# and builds its Dockerfile on the host at deploy time. All four egress-* services
-# share this one image via ${EGRESS_BROKER_IMAGE}. No build args — the broker
-# takes all config via runtime env, not build-time args.
-repo = "apps/egress-broker"
-ref = "HEAD"
