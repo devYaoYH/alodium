@@ -9,7 +9,7 @@
 <style>
   :root {
     --bg: #f5f4ef; --panel: #fffefa; --ink: #1c1b18; --muted: #6b685f; --rule: #e0ddd3; --grid: #edeae1;
-    --llm: #2f6bd6; --llm-pre: #b9cbf1; --llm-side: #8795ae; --shell: #cf6d1d; --builtin: #e2b13f;
+    --llm: #2f6bd6; --llm-pre: #b9cbf1; --llm-side: #8795ae; --shell: #cf6d1d; --builtin: #e2b13f; --inferred: #efd9a4;
     --setup: #a09c90; --harness: #8a63c6; --idle: #d8d4c8; --focus: #1c1b18;
     --labw: 170px;
     --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -18,7 +18,7 @@
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #141412; --panel: #1c1b19; --ink: #ecebe5; --muted: #9d9a90; --rule: #34322d; --grid: #262521;
-      --llm: #6a97f0; --llm-pre: #2d4474; --llm-side: #66728a; --shell: #eb9043; --builtin: #c89d3b;
+      --llm: #6a97f0; --llm-pre: #2d4474; --llm-side: #66728a; --shell: #eb9043; --builtin: #c89d3b; --inferred: #6f5c33;
       --setup: #77746b; --harness: #a688de; --idle: #3a3833; --focus: #ecebe5;
     }
   }
@@ -55,8 +55,9 @@
   .span b { position: absolute; left: 0; top: 0; bottom: 0; background: var(--llm-pre); }
   .span i { position: relative; display: block; padding: 0 6px; font: 11px/20px var(--mono); font-style: normal;
             color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .span.builtin { background-image: repeating-linear-gradient(135deg, transparent 0 4px, rgba(255,255,255,.3) 4px 7px); }
+  .span.inferred { background-image: repeating-linear-gradient(135deg, transparent 0 4px, rgba(255,255,255,.3) 4px 7px); }
   .span.builtin i, .span.setup i { color: #1c1b18; }
+  .span.inferred i { color: var(--ink); }
   .span:focus-visible, .span.sel { outline: 2px solid var(--focus); outline-offset: 1px; z-index: 2; }
   .caption { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
   #tip { position: fixed; z-index: 10; pointer-events: none; max-width: 380px; padding: 6px 9px; border-radius: 5px;
@@ -105,8 +106,9 @@
     </div>
     <div class="tl" id="tl"><div class="tl-inner" id="tl-inner"></div></div>
     <p class="caption">Model bars: light = waiting for the first token, dark = generating.
-      Hatched spans are tool calls with no measurement (forge built-ins, or shell calls from an untraced run),
-      inferred from the gap before the next model request; the shell tools lane is measured.</p>
+      Shell tools are measured by the shell shim. Built-in tools start when forge prints their status line and end at
+      the next status line or model request. Hatched spans had no measurement and are inferred from the gap before the
+      next model request.</p>
   </section>
 
   <section>
@@ -130,8 +132,8 @@
 <script>
 const D = JSON.parse(document.getElementById('trace-data').textContent);
 const LANE_COLOR = { setup: 'var(--setup)', llm: 'var(--llm)', 'llm-side': 'var(--llm-side)',
-                     shell: 'var(--shell)', builtin: 'var(--builtin)', harness: 'var(--harness)' };
-const CAT_COLOR = { 'model wait': 'var(--llm)', 'shell tools': 'var(--shell)', 'unmeasured tools (inferred)': 'var(--builtin)',
+                     shell: 'var(--shell)', builtin: 'var(--builtin)', inferred: 'var(--inferred)', harness: 'var(--harness)' };
+const CAT_COLOR = { 'model wait': 'var(--llm)', 'shell tools': 'var(--shell)', 'built-in tools (measured start)': 'var(--builtin)', 'unmeasured tools (inferred)': 'var(--inferred)',
                     'container setup': 'var(--setup)', 'harness shell': 'var(--harness)', 'harness / unaccounted': 'var(--idle)' };
 const laneName = Object.fromEntries(D.lanes.map(l => [l.id, l.name]));
 const $ = id => document.getElementById(id);
@@ -252,10 +254,11 @@ const LABELS = {
   first_token_ms: 'time to first token', tokens_in: 'tokens in', tokens_out: 'tokens out', cost_usd: 'cost',
   status: 'status', tool_calls: 'tool calls returned', exit: 'exit status', cpu_user_ms: 'CPU user',
   cpu_sys_ms: 'CPU system', max_rss_kb: 'peak RSS (largest process)', inblock: 'blocks read', oublock: 'blocks written',
-  pid: 'pid', result_chars: 'result size', is_error: 'tool error', command: 'command', calls: 'calls', inferred: 'timing',
+  pid: 'pid', result_chars: 'result size', is_error: 'tool error', command: 'command', calls: 'calls', inferred: 'timing', measured_start: 'timing', title: 'status line',
 };
 function value(k, v) {
   if (k === 'inferred') return 'inferred from the gap before the next model request';
+  if (k === 'measured_start') return "start measured from forge's status line; ends at the next status line or model request";
   if (k.endsWith('_ms')) return fmt(v);
   if (k === 'max_rss_kb') return mb(v);
   if (k === 'cost_usd') return `$${Number(v).toFixed(5)}`;
@@ -293,7 +296,7 @@ table($('slowest'),
     const s = D.spans[i], d = s.detail || {};
     return h('tr', { onclick: () => select(i, true) },
       h('td', { class: 'num' }, fmt(dur(s))),
-      h('td', {}, s.lane === 'shell' ? 'shell' : 'inferred'),
+      h('td', {}, s.lane === 'shell' ? 'shell' : s.lane === 'builtin' ? 'built-in (measured start)' : 'inferred'),
       h('td', { class: 'num' }, d.exit ?? '–'),
       h('td', { class: 'num' }, d.cpu_user_ms != null ? fmt(d.cpu_user_ms + d.cpu_sys_ms) : '–'),
       h('td', { class: 'num' }, d.max_rss_kb != null ? mb(d.max_rss_kb) : '–'),

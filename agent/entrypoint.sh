@@ -85,4 +85,10 @@ fi
 
 echo "[jail] harness: $HARNESS (AGENT_HARNESS=forge|claude), model: ${AGENT_MODEL:-image default} (AGENT_MODEL=<litellm alias>)"
 trace_mark harness_exec
+# Built-in tools (read, write, patch, ...) run inside forge, where no shim
+# reaches; ui-trace (agent/ui-trace.py) timestamps the status line forge
+# prints as each one starts. Output, exit status and signals pass through.
+if [ "${AGENT_TRACE:-0}" = 1 ] && [ "$HARNESS" = forge ]; then
+  FORGE_UI_TRACE=/tmp/trace/ui.jsonl exec /usr/local/bin/ui-trace "$HARNESS" "$@"
+fi
 exec "$HARNESS" "$@"

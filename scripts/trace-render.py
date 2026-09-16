@@ -3,6 +3,7 @@
 
     ./scripts/trace-render.py traces/<run>      # writes trace.json + trace.html + summary.md
     ./scripts/trace-render.py traces/<run> --wait 300   # right after a run: wait for spend logs
+    ./scripts/trace-render.py traces/<run> --requests-json requests.jsonl   # offline: mock model log
 
 Joins these sources on the run name (= LiteLLM key alias = container name):
   - LiteLLM spend logs, session key:<run>: every model request — start, first
@@ -12,11 +13,18 @@ Joins these sources on the run name (= LiteLLM key alias = container name):
   - events.jsonl (entrypoint phases), state.json (container start/finish) and
     forge.db (tool results, for output sizes) — copied out by run-task.sh.
 
-Tool calls without a measurement — forge's built-ins (read, patch, fs_search,
-...) always, shell calls when the run was not traced — span the gap before the
-next model request, marked inferred. A directory holding only run.json
-({"run": "<run name>"}) therefore renders any past run from spend logs alone. Host-side and ring 0: it reads the LiteLLM database through docker
-exec, and the output holds commands and tool arguments — keep it operator-only.
+  - ui.jsonl from agent/ui-trace.py: the moment forge printed each built-in
+    tool's status line ("Read …", "Create …", "Replace …"). Paired with the
+    model's tool calls by order and kind, a built-in tool starts there and ends
+    at the next status line or the next model request (measured start).
+
+Tool calls with no measurement — `task` sub-agents (no status line), anything
+from a run traced before ui-trace existed, shell calls when the run was not
+traced — span the gap before the next model request, marked inferred. A
+directory holding only run.json ({"run": "<run name>"}) therefore renders any
+past run from spend logs alone. Host-side and ring 0: it reads the LiteLLM
+database through docker exec, and the output holds commands, tool arguments
+and status lines — keep it operator-only.
 """
 import argparse
 import json
@@ -36,18 +44,19 @@ LANES = [
     ("llm", "model requests"),
     ("llm-side", "model side requests"),
     ("shell", "shell tools"),
-    ("builtin", "unmeasured tools"),
+    ("builtin", "built-in tools"),
+    ("inferred", "unmeasured tools"),
     ("harness", "harness shell"),
 ]
 # Overlapping spans charge wall-clock to the lane listed first, so the
 # breakdown sums to the run's wall time exactly once.
-CHARGE_ORDER = ["llm", "llm-side", "shell", "builtin", "setup", "harness"]
+CHARGE_ORDER = ["llm", "llm-side", "shell", "builtin", "inferred", "setup", "harness"]
 CATEGORY = {
     "llm": "model wait", "llm-side": "model wait", "shell": "shell tools",
-    "builtin": "unmeasured tools (inferred)", "setup": "container setup",
-    "harness": "harness shell", None: "harness / unaccounted",
+    "builtin": "built-in tools (measured start)", "inferred": "unmeasured tools (inferred)",
+    "setup": "container setup", "harness": "harness shell", None: "harness / unaccounted",
 }
-CATEGORY_ORDER = ["model wait", "shell tools", "unmeasured tools (inferred)",
+CATEGORY_ORDER = ["model wait", "shell tools", "built-in tools (measured start)", "unmeasured tools (inferred)",
                   "container setup", "harness shell", "harness / unaccounted"]
 # Setup spans end at an entrypoint mark; each is named for what led up to it.
 SETUP_LABEL = {"entrypoint_start": "container start",
@@ -145,6 +154,19 @@ def fetch_settled(run, container, wait_s, poll_s=15):
     return reqs, err
 
 
+def load_requests(path):
+    """Model requests from a file instead of LiteLLM (offline renders, tests):
+    a JSON array or JSON lines, rows shaped like the spend-log query above —
+    scripts/testdata/mock-openai-seq.py writes exactly this."""
+    try:
+        text = Path(path).read_text()
+        rows = (json.loads(text) if text.lstrip().startswith("[")
+                else [json.loads(line) for line in text.splitlines() if line.strip()])
+    except (OSError, ValueError) as e:
+        return [], f"could not read model requests from {path}: {e}"
+    return sorted(rows, key=lambda r: r["start_us"]), None
+
+
 def forge_tool_results(db):
     """(tool, args) -> [{result_chars, is_error}] in call order, across sub-agent conversations."""
     results = {}
@@ -190,7 +212,7 @@ def charge(spans, t0, t1):
     return totals
 
 
-def build(trace_dir, container, wait_s=0):
+def build(trace_dir, container, wait_s=0, requests_json=None):
     run_meta = read_json(trace_dir / "run.json", {})
     run = run_meta.get("run") or trace_dir.name
     state = read_json(trace_dir / "state.json", {})
@@ -208,10 +230,13 @@ def build(trace_dir, container, wait_s=0):
         add("setup", a, b, SETUP_LABEL.get(event, event))
 
     # Model requests. Forge also sends a tool-less side request per run.
-    reqs, err = fetch_settled(run, container, wait_s)
+    if requests_json:
+        reqs, err = load_requests(requests_json)
+    else:
+        reqs, err = fetch_settled(run, container, wait_s)
     if err:
         warnings.append(err)
-    elif not reqs:
+    elif not reqs and not requests_json:
         warnings.append(f"No LiteLLM spend-log rows for session key:{run} yet. LiteLLM writes "
                         "spend logs in batches — re-render in a minute.")
     for r in reqs:
@@ -288,10 +313,43 @@ def build(trace_dir, container, wait_s=0):
         else:
             add("harness", start, end, first_line(cmd), **detail)
 
+    # Built-in tools: forge prints a status line as each one starts, and
+    # ui-trace timestamps it. Pair lines with the model's still-unmeasured
+    # calls, gap by gap, in order and by kind. A tool ends at the next status
+    # line (it started the next tool) or the next model request, whichever
+    # comes first — so the span includes forge's own work after the tool.
+    ui = sorted((r for r in read_jsonl(trace_dir / "ui.jsonl") if r.get("kind") and "t_ns" in r),
+                key=lambda r: r["t_ns"])
+    ui_start = [r["t_ns"] // 1000 for r in ui]
+    used_ui = set()
+
+    def ui_end(start, limit):
+        return min([limit] + [t for t in ui_start if t > start][:1])
+
+    for gap in gaps:
+        for call in gap["calls"]:
+            if call["measured"]:
+                continue
+            k = next((k for k, r in enumerate(ui) if k not in used_ui and r["kind"] == call["tool"]
+                      and gap["lo"] - 2_000_000 <= ui_start[k] <= gap["hi"] + 500_000), None)
+            if k is None:
+                continue
+            used_ui.add(k)
+            call["measured"] = True
+            add("builtin", ui_start[k], ui_end(ui_start[k], gap["hi"]), call["tool"], measured_start=True,
+                title=ui[k].get("title"), **(call["result"] or {}))
+    if not main:  # no model lane to pair with: every tool status line becomes a span
+        shim_timed = (trace_dir / "tools.jsonl").exists()
+        for k, r in enumerate(ui):
+            if k in used_ui or (r["kind"] == "shell" and shim_timed):
+                continue
+            add("builtin", ui_start[k], ui_end(ui_start[k], max(run_end, ui_start[k])), r["kind"],
+                measured_start=True, title=r.get("title"))
+
     for gap in gaps:
         todo = [c for c in gap["calls"] if not c["measured"]]
         if todo:
-            add("builtin", gap["lo"], gap["hi"], ", ".join(c["tool"] for c in todo), inferred=True,
+            add("inferred", gap["lo"], gap["hi"], ", ".join(c["tool"] for c in todo), inferred=True,
                 calls=[{"tool": c["tool"], "args": c["args"], **(c["result"] or {})} for c in todo])
 
     starts =[s["start"] for s in spans] + ([started] if started else [])
@@ -316,7 +374,7 @@ def build(trace_dir, container, wait_s=0):
         out_spans.append(o)
 
     totals = charge(spans, t0, t1)
-    tools = [i for i, s in enumerate(out_spans) if s["lane"] in ("shell", "builtin")]
+    tools = [i for i, s in enumerate(out_spans) if s["lane"] in ("shell", "builtin", "inferred")]
     llm = [s for s in out_spans if s["lane"] in ("llm", "llm-side")]
     ttfts = sorted(s["detail"]["first_token_ms"] for s in llm if "first_token_ms" in s["detail"])
     durs = sorted(s["end_ms"] - s["start_ms"] for s in llm)
@@ -367,10 +425,11 @@ def summary_markdown(data):
         lines += ["", "| slowest tool calls | duration | timing |", "|---|---:|---|"]
         for i in slowest:
             s = spans[i]
-            measured = s["lane"] == "shell"
-            # Tool names come from model output; keep them to a plain charset.
-            name = "shell" if measured else re.sub(r"[^A-Za-z0-9_, -]", "", s["label"])[:80]
-            lines.append(f"| {name} | {fmt(s['end_ms'] - s['start_ms'])} | {'measured' if measured else 'inferred'} |")
+            timing = {"shell": "measured", "builtin": "measured start"}.get(s["lane"], "inferred")
+            # Labels are tool names (never status-line titles); those come from
+            # model output, so keep them to a plain charset.
+            name = "shell" if s["lane"] == "shell" else re.sub(r"[^A-Za-z0-9_, -]", "", s["label"])[:80]
+            lines.append(f"| {name} | {fmt(s['end_ms'] - s['start_ms'])} | {timing} |")
     lines += [""] + [f"> {w}" for w in data["warnings"]]
     return "\n".join(lines).rstrip() + "\n"
 
@@ -381,11 +440,14 @@ def main():
     ap.add_argument("--litellm-db-container", default=os.environ.get("LITELLM_DB_CONTAINER", "litellm-db"))
     ap.add_argument("--wait", type=int, default=0, metavar="SECONDS",
                     help="poll up to SECONDS for LiteLLM's batched spend-log writes (use right after a run)")
+    ap.add_argument("--requests-json", type=Path, metavar="FILE",
+                    help="read model requests from FILE (JSON array or lines, e.g. a mock model's log) "
+                         "instead of LiteLLM — for offline renders and tests")
     a = ap.parse_args()
     if not a.trace_dir.is_dir():
         sys.exit(f"trace-render: no such directory: {a.trace_dir}")
 
-    data = build(a.trace_dir, a.litellm_db_container, a.wait)
+    data = build(a.trace_dir, a.litellm_db_container, a.wait, a.requests_json)
     (a.trace_dir / "trace.json").write_text(json.dumps(data, indent=1))
     (a.trace_dir / "summary.md").write_text(summary_markdown(data))
     page = VIEWER.read_text().replace("__TRACE_DATA__", json.dumps(data).replace("</", "<\\/"))
@@ -396,14 +458,14 @@ def main():
     print(f"{data['run']}  {data['meta'].get('harness', '?')} / {data['meta'].get('model', '?')}  "
           f"wall {fmt(data['wall_ms'])}")
     for c in data["summary"]["categories"]:
-        print(f"  {c['name']:<28} {fmt(c['ms']):>8}  {c['pct']:5.1f}%")
+        print(f"  {c['name']:<32} {fmt(c['ms']):>8}  {c['pct']:5.1f}%")
     print(f"model: {m['requests']} requests ({m['side_requests']} side), first token p50 "
           f"{fmt(m['first_token_p50_ms'])}, duration p50 {fmt(m['duration_p50_ms'])}, ${m['cost_usd']:.4f}")
     if data["summary"]["slowest"]:
         print("slowest tool calls:")
         for i in data["summary"]["slowest"][:8]:
             s = spans[i]
-            kind = "shell" if s["lane"] == "shell" else "inferred"
+            kind = {"shell": "shell", "builtin": "built-in"}.get(s["lane"], "inferred")
             print(f"  {fmt(s['end_ms'] - s['start_ms']):>8}  {kind:<9}  {s['label']}")
     for w in data["warnings"]:
         print(f"warning: {w}")
