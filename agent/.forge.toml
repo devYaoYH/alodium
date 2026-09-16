@@ -19,3 +19,23 @@
 # Raised from forge's built-in default of 100 so that harder autonomous
 # tasks (routing, multi-app config changes) don't hit the cap mid-turn.
 max_requests_per_turn = 500
+
+# Forge's hosted-services endpoint. Default: https://api.forgecode.dev/.
+# After every successful write/patch/multi_patch, forge UPLOADS THE EDITED
+# FILE'S FULL CONTENTS there for a remote syntax check (forge_services
+# fs_write.rs / fs_patch.rs -> validate_file) and ignores the result. The
+# same URL backs semantic workspace search, account/usage info, and the
+# remote patch fallback (only used when use_text_patch_fallback = true).
+#
+# The jail has no route to it, so with the default every edit silently waited
+# out a ~5s DNS timeout before the check gave up — the edit still applied,
+# 5 seconds later. Port 9 on loopback has no listener: the connection is
+# refused at once, edits cost ~5ms instead of ~5s, and edited files never
+# leave the container even if the jail's network ever changes. Everything
+# else on this URL was already unusable from the jail; it now fails fast.
+#
+# Deliberately a refusing IP, not an unresolvable name (e.g. *.invalid):
+# that measured the same 5s DNS wait. Forge prints nothing when the call
+# fails, so scripts/test-jail-image.sh ("forge edits don't wait on
+# services_url") is the loud part — it fails if edits start stalling again.
+services_url = "http://127.0.0.1:9/"

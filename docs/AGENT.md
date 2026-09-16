@@ -55,6 +55,14 @@ Never, structurally (not policy — absence):
   and Forgejo (git). It is not on `edge`; radicale, homepage, and the IdP are
   unreachable at the wire level, and databases are on networks it isn't in.
 
+One harness default is switched off by config rather than absence: forge
+uploads every file it edits to its `services_url` (api.forgecode.dev by
+default) for a remote syntax check. The jail can't reach it — every edit used
+to stall ~5s on DNS instead — and `agent/.forge.toml` now points it at a
+loopback port that refuses instantly, so edited files never leave the
+container. `scripts/test-jail-image.sh` fails if edits start waiting on it
+again.
+
 Compromise analysis: a fully hostile agent (prompt-injected via a mirrored
 repo's README, say) can burn its LLM budget and open ugly PRs. It cannot
 merge them, deploy anything, read a secret, or touch another service's data.
