@@ -23,7 +23,12 @@ authorization moment; nothing you do is applied until then.
      on merge. Missing credential? Name it here; do not work around it.
 - **Request the operator's review on every PR** — otherwise it never
   appears in their Forgejo dashboard (that tab only shows PRs created by,
-  assigned to, or review-requested to them). After creating the PR:
+  assigned to, or review-requested to them). After creating the PR,
+  use the `forgejo` helper (preferred; see `skills/coordination`):
+
+      forgejo pr request-review "$PR_NUM" operator
+
+  Raw-curl fallback (for tenants without the helper, or debugging it):
 
       curl -s -H "Authorization: token $AGENT_FORGEJO_TOKEN" \
         -H 'Content-Type: application/json' \

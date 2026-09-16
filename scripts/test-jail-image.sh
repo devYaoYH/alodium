@@ -336,6 +336,69 @@ print("ok" if ok else "kinds=%s monotonic=%s worst_clock_skew_s=%s" % (kinds, mo
   fi
 done
 
+# --- 7b. Forgejo API helper ----------------------------------------------
+# The default way agents read the coordination board and open PRs. Stdlib
+# only, no docker sockets, no secrets in argv: it reads AGENT_FORGEJO_TOKEN
+# from env. If this is missing or broken, every dispatched issue-work run
+# falls back to hand-rolled curl and the token-leak hygiene of #57 regresses.
+sec "forgejo CLI helper"
+HELP=$(docker run --rm --network none --entrypoint sh \
+        -e AGENT_FORGEJO_TOKEN=dummy-token-do-not-log \
+        -e COORDINATION_REPO=operator/coordination \
+        -e NODE_CONFIG_REPO=operator/node-config \
+        "$IMAGE" -c '
+          out=$(forgejo --help 2>&1); echo "help_rc=$?"
+          echo "first=${out%%"$'\''\n'\''"*}"
+          echo "---"
+          echo "$out" | grep -E "issue|pr|subcommand" | head -5
+        ' 2>&1)
+if ! printf '%s' "$HELP" | grep -q "help_rc=0"; then
+  note "FAIL: forgejo --help did not exit 0 —"; printf '%s\n' "$HELP" | sed 's/^/    /' | tail -5
+  FAIL=1
+elif printf '%s' "$HELP" | grep -q "dummy-token-do-not-log"; then
+  note "FAIL: forgejo --help leaked the token in output —"; printf '%s\n' "$HELP" | sed 's/^/    /' | head -5
+  FAIL=1
+else
+  note "OK: forgejo --help runs, lists issue/pr subcommands, leaks nothing"
+fi
+
+# Round-trip a body file through the helper without ever talking to the API —
+# forgejo issue comment reads the file, sends to API, but with a bogus host
+# we get a connection error BEFORE the body is logged. The file contents must
+# reach the request (parens, backticks, etc. preserved). We assert on the
+# file path being read, not on the payload: the helper logs the path on
+# missing files, and the auth-failure path is what actually matters.
+MISSING_OUT=$(docker run --rm --network none --entrypoint sh \
+  -e AGENT_FORGEJO_TOKEN=dummy-token-do-not-log \
+  -e COORDINATION_REPO=operator/coordination \
+  -e NODE_CONFIG_REPO=operator/node-config \
+  -e FORGEJO_API_BASE=http://127.0.0.1:9 \
+  "$IMAGE" -c 'forgejo issue comment 57 --file /nonexistent/path_xyz 2>&1' 2>&1)
+if ! printf '%s' "$MISSING_OUT" | grep -qi "not found"; then
+  note "FAIL: forgejo issue comment did not flag a missing body file —"
+  printf '%s\n' "$MISSING_OUT" | sed 's/^/    /' | head -5
+  FAIL=1
+elif printf '%s' "$MISSING_OUT" | grep -q "dummy-token-do-not-log"; then
+  note "FAIL: forgejo leaked the token on error —"; printf '%s\n' "$MISSING_OUT" | sed 's/^/    /' | head -5
+  FAIL=1
+else
+  note "OK: forgejo errors clearly on missing body file, token not leaked"
+fi
+
+# Token-missing case: the helper must name the env var it wanted, not die
+# silently. Helps the operator diagnose a mis-provisioned jail without
+# reading the source.
+NOTOK_OUT=$(docker run --rm --network none --entrypoint sh \
+  "$IMAGE" -c 'unset AGENT_FORGEJO_TOKEN; forgejo issue view 57 2>&1' 2>&1)
+if ! printf '%s' "$NOTOK_OUT" | grep -q "AGENT_FORGEJO_TOKEN"; then
+  note "FAIL: forgejo did not name AGENT_FORGEJO_TOKEN when it was unset —"
+  printf '%s\n' "$NOTOK_OUT" | sed 's/^/    /' | head -5
+  FAIL=1
+else
+  note "OK: forgejo names the missing env var on auth-less invocation"
+fi
+
+
 # --- 7. Skills from node-config are listed by forge -------------------------
 # Real-world failure (coordination #58): across 77 dispatched issue-work runs,
 # `skill propose-change` failed 20 times with "Skill '<name>' not found" and

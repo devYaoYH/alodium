@@ -37,7 +37,12 @@ COPY trace-sh.py /usr/local/bin/trace-sh
 # ...and ui-trace runs forge under a pty, timestamping its per-tool status
 # lines so built-in tools (read, write, patch, ...) get measured starts.
 COPY ui-trace.py /usr/local/bin/ui-trace
-RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/trace-sh /usr/local/bin/ui-trace
+# Forgejo API helper — the default way agents talk to coordination + node-config
+# (issue view/comment/label, PR list/view/create/request-review). Stdlib only,
+# no docker sockets, no secrets in argv: reads AGENT_FORGEJO_TOKEN from env.
+COPY forgejo.py /usr/local/bin/forgejo
+RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/trace-sh \
+              /usr/local/bin/ui-trace /usr/local/bin/forgejo
 
 # unprivileged, high-uid user; rootless podman later maps this differently per-app
 RUN useradd -m -u 10001 agent

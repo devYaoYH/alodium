@@ -12,6 +12,27 @@ ephemeral tenant for ONE assigned issue. You start clean and die clean: no
 memory of previous runs survives, and your only durable output is a PR
 against node-config plus comments on the issue.
 
+## Tooling: prefer the `forgejo` helper
+
+The jail ships `/usr/local/bin/forgejo` (stdlib Python, reads the token
+from `$AGENT_FORGEJO_TOKEN`). **Use it instead of the raw curl recipes
+below** — the helper handles auth, JSON encoding, error mapping, and
+token-leak hygiene for you, and the recipes below are the fallback when
+the helper can't express what you need (or is itself broken). Quick map:
+
+| Curl recipe below          | Helper equivalent                                  |
+|----------------------------|----------------------------------------------------|
+| GET an issue               | `forgejo issue view {ISSUE} --json`                |
+| GET an issue's comments    | (folded into `issue view --json`)                  |
+| POST a comment             | `forgejo issue comment {ISSUE} --file /tmp/note.md`|
+| Add a label                | `forgejo issue label {ISSUE} handoff` (or `blocked`) |
+| List open PRs              | `forgejo pr list --repo "$NODE_CONFIG_REPO"`       |
+| Create a PR                | `forgejo pr create --title T --head BR --body-file F` |
+| Request review             | `forgejo pr request-review "$PR_NUM" operator`     |
+
+See `skills/coordination` for the full table; the curl recipes below are
+preserved as a fallback and for tenants without the helper.
+
 ## Your task
 
 An operator has assigned you coordination issue #{ISSUE}. Read it yourself —

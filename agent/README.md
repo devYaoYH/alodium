@@ -15,6 +15,8 @@ is docs/AGENT.md, and the dispatch path is host/dispatch/README.md.
 | `.forge.toml` | forge's global config, shipped at `~/forge/.forge.toml` |
 | `trace-sh.py` | `$SHELL` shim: times every shell tool call when `AGENT_TRACE=1` |
 | `ui-trace.py` | pty wrapper: timestamps forge's per-tool status lines when `AGENT_TRACE=1` |
+| `forgejo.py` | stdlib CLI for the coordination + node-config Forgejo API; the default way agents read the board, file notes, label issues, and open PRs. Reads `AGENT_FORGEJO_TOKEN` from env, never from argv |
+| `test_forgejo.py` | offline unit tests for `forgejo.py` — body-file round-trips, error paths, mock HTTP; run from the repo root, no docker required |
 
 ## What is in the image
 
