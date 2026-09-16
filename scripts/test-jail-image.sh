@@ -336,6 +336,53 @@ print("ok" if ok else "kinds=%s monotonic=%s worst_clock_skew_s=%s" % (kinds, mo
   fi
 done
 
+# --- 7. Skills from node-config are listed by forge -------------------------
+# Real-world failure (coordination #58): across 77 dispatched issue-work runs,
+# `skill propose-change` failed 20 times with "Skill '<name>' not found" and
+# every successful `skill` call loaded a forge built-in. Forge 2.13.18
+# discovers skills from `.forge/skills/<name>/SKILL.md` relative to its CWD,
+# and nothing pointed that at the library in `skills/`.
+#
+# The wiring is now IN THE REPO — a tracked `.forge/skills -> ../skills`
+# symlink — so the honest test is to clone this repo the way the jail does,
+# mount it where the clone lands, and run the image's REAL entrypoint. A test
+# that re-implements the wiring inline would pass against an image (or a repo)
+# that has none of it, which is precisely the regression we are hunting.
+sec "skills from node-config are listed by forge"
+WS=$(mktemp -d)
+# Clone, so only COMMITTED content is under test: delete the symlink and this
+# fails, exactly as a fresh jail clone would. World-writable because the
+# entrypoint links AGENTS.md and appends to .git/info/exclude as uid agent.
+if git clone -q . "$WS/node-config" 2>/tmp/tj_clone.log; then
+  chmod -R a+w "$WS/node-config"
+  # The entrypoint execs its arguments as the harness, so these args run forge
+  # after the full workspace setup — the same boot path a real session takes.
+  timeout 90 docker run --rm --network none \
+    -v "$WS/node-config:/workspace/node-config" \
+    "$IMAGE" list skills --porcelain >/tmp/tj_skills.log 2>&1
+  # Every skill in the library must list, and list FROM .forge/skills — a
+  # forge:// path would mean a built-in shadowed it, not our library loading.
+  MISSING=""
+  for d in skills/*/; do
+    n=$(basename "$d")
+    grep -Eq "^${n}[[:space:]]+\.forge/skills/${n}/SKILL\.md" /tmp/tj_skills.log \
+      || MISSING="$MISSING $n"
+  done
+  if [[ -z "$MISSING" ]]; then
+    note "OK: forge lists every skill in skills/ from .forge/skills (library is wired)"
+  else
+    note "FAIL: forge did not list these skills from skills/ —$MISSING"
+    sed 's/^/    /' /tmp/tj_skills.log | tail -12
+    note "(is the tracked .forge/skills -> ../skills symlink still committed?)"
+    FAIL=1
+  fi
+else
+  note "FAIL: could not clone the repo for the skills check —"
+  sed 's/^/    /' /tmp/tj_clone.log | tail -5
+  FAIL=1
+fi
+rm -rf "$WS"
+
 echo
 if [[ "$FAIL" -eq 0 ]]; then echo "test-jail-image: PASS"; else echo "test-jail-image: FAIL"; fi
 exit "$FAIL"

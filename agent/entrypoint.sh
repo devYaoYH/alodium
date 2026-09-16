@@ -44,6 +44,17 @@ cd /workspace/node-config 2>/dev/null || cd /workspace
 # the image's business, never a commit in node-config).
 if [ -d .git ]; then
   [ -e AGENTS.md ] || { ln -s "$HOME/AGENTS.md" AGENTS.md; echo "AGENTS.md" >> .git/info/exclude; }
+
+  # Skill discovery needs no boot-time work: `.forge/skills` is a TRACKED
+  # symlink to `../skills` in node-config, exactly like `.claude/skills`, so
+  # it arrives with the clone. Forge 2.13.18 discovers skills from
+  # `.forge/skills/<name>/SKILL.md` (CWD-relative, and it follows the
+  # symlink); there is NO config key to redirect that path — `forge config
+  # list` exposes no skills knob and the binary's only skill strings are the
+  # built-in `forge://skills/...` entries. Keeping it a symlink (not a copy)
+  # means an agent that improves a skill edits `skills/` itself, so the edit
+  # shows up in `git status` and can go out as a PR instead of dying with the
+  # container. scripts/test-jail-image.sh asserts the library actually lists.
 fi
 trace_mark workspace_ready
 
