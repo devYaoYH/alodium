@@ -701,12 +701,56 @@ let termSavedRow = 0;       // saved cursor row (SCP/RCP)
 let termSavedCol = 0;       // saved cursor col
 let termEscState = "";      // "" | "ESC" | "CSI"
 let termCsiParams = "";
+// Columns per logical row.  The terminal buffer mirrors what the user
+// actually sees, so when `termCol` reaches `termWidth` we advance to a
+// fresh row instead of letting one buffer entry stretch past the panel —
+// long container lines (URLs, progress bars, hex dumps) used to extend
+// offscreen until a CR happened, and the unwritten tail still showed in
+// the wrapped visual rows below the new short content.
+let termWidth = 80;
+
+// Measure the panel's usable content width in monospace columns.  We probe
+// with a hidden `<span>M</span>` so the value tracks the actual rendered
+// glyph width (font-family fallback chains differ in advance width), and
+// subtract horizontal padding so the wrap point matches the visible
+// right edge.  Recomputed on resize and on panel open.
+function recomputeTermWidth() {
+  if (!logBody || !logBody.isConnected) return;
+  const cs = getComputedStyle(logBody);
+  const probe = document.createElement("span");
+  probe.style.visibility = "hidden";
+  probe.style.position = "absolute";
+  probe.style.whiteSpace = "pre";
+  probe.style.font = cs.font;
+  probe.textContent = "M";
+  document.body.appendChild(probe);
+  const cw = probe.getBoundingClientRect().width;
+  probe.remove();
+  const padL = parseFloat(cs.paddingLeft) || 0;
+  const padR = parseFloat(cs.paddingRight) || 0;
+  const avail = logBody.clientWidth - padL - padR;
+  if (avail > 0 && cw > 0) termWidth = Math.max(20, Math.floor(avail / cw));
+}
+
+if (typeof ResizeObserver !== "undefined" && logBody) {
+  new ResizeObserver(recomputeTermWidth).observe(logBody);
+}
 
 function termEnsureRow(r) {
   while (r >= termBuf.length) termBuf.push("");
 }
 
 function termWrite(ch) {
+  // Wrap before writing if the cursor is at the panel width.  Standard
+  // TTY behaviour: a column overflow advances to col 0 of the next row
+  // rather than overwriting the last column.  Without this the buffer
+  // row keeps growing past the visible edge and CSS has to wrap on
+  // render, leaving the cursor math (and CR-based progress bars) out
+  // of sync with what the user actually sees.
+  if (termCol >= termWidth) {
+    termRow++;
+    termCol = 0;
+  }
   termEnsureRow(termRow);
   let line = termBuf[termRow];
   if (termCol >= line.length) {
@@ -826,6 +870,15 @@ function processLogChunk(text) {
       termEscState = "ESC";
     } else if (ch === "\r") {
       termCol = 0;
+      // Erase the rest of the cursor's row.  A bare CR doesn't clear in a
+      // real terminal, but logs aren't a real terminal: a progress bar
+      // emitting `\r 50%` over a previously-printed long line should
+      // visibly REPLACE that line, not leave the unwritten tail showing
+      // in the rows below.  Other rows of the same logical line still
+      // hold their original content; CR-on-row-N clears only row N.
+      if (termRow < termBuf.length) {
+        termBuf[termRow] = (termBuf[termRow] || "").substring(0, termCol);
+      }
     } else if (ch === "\n") {
       termRow++;
       termCol = 0;
@@ -858,6 +911,10 @@ async function openLogPanel(room) {
   logStatus.textContent = "connecting…";
   logPanel.classList.add("open");
   resetTerminal();
+  // Panel was display:none at load, so the first measurement saw
+  // clientWidth=0.  Now that it's flex-laid-out, recompute so the
+  // very first chunk already wraps to the visible width.
+  recomputeTermWidth();
 
   try {
     const resp = await fetch(`/v1/logs/${encodeURIComponent(room.name)}`);
