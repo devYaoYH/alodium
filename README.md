@@ -118,7 +118,7 @@ and mirrors, and `search.<domain>` for the Ring 0 agent-search audit. See
     tasks/                  ephemeral-tenant briefs (+ the injection-drill fixture)
     anchor/                 the disposable VPS front door (cloud-init, WG, CoreDNS)
     templates/app-skeleton/ the bare-minimum service every new app starts from
-    .agents/skills/         the node's working procedures for resident tenants
+    .claude/skills         symlink for Claude Code → ../skills (tracked)
     scripts/install.sh      the interview: manifest, reachability, validation
     scripts/backup.sh       restic backup; include list generated from manifests
     scripts/mirror.sh       cache an upstream repo in Forgejo (docs/MIRRORING.md)

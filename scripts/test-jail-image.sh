@@ -336,6 +336,49 @@ print("ok" if ok else "kinds=%s monotonic=%s worst_clock_skew_s=%s" % (kinds, mo
   fi
 done
 
+# --- 7. Skills from node-config are listed by forge -------------------------
+# Without the entrypoint wiring, agents in the jail got "Skill 'propose-change'
+# not found" for every skill in `skills/`. The cause is forge 2.13.18's
+# CWD-relative discovery: it looks for `.forge/skills/<name>/SKILL.md`, the
+# library itself is at `skills/<name>/SKILL.md`, and nothing in the image
+# used to bridge the two. Build a fake node-config on the host, mount it
+# where the real clone lands, replay the entrypoint's link logic, and ask
+# forge what it sees — the probe skill must be listed alongside forge's
+# built-ins. Drift here is the regression we are hunting.
+sec "skills from node-config are listed by forge"
+WS=$(mktemp -d)
+mkdir -p "$WS/skills/probe-skill" "$WS/.git"
+cat > "$WS/skills/probe-skill/SKILL.md" <<'EOF'
+---
+name: probe-skill
+description: Test fixture proving forge discovers the node-config skill library.
+---
+EOF
+# `git init` keeps the entrypoint's `if [ -d .git ]` branch honest; we
+# deliberately skip AGENT_FORGEJO_TOKEN so the clone step is skipped and
+# the only thing we exercise is the workspace wiring.
+( cd "$WS" && git init -q -b main && git -c user.email=t@t -c user.name=t add . && git -c user.email=t@t -c user.name=t commit -q -m init )
+# shellcheck disable=SC2016  # the script body below runs inside the container, no expansion wanted here
+timeout 60 docker run --rm --network none --entrypoint sh \
+  -v "$WS:/workspace/node-config" \
+  "$IMAGE" -c '
+    cd /workspace/node-config
+    # Replay entrypoint.sh exactly: link AGENTS.md, then wire .forge/skills.
+    [ -e AGENTS.md ] || ln -s "$HOME/AGENTS.md" AGENTS.md
+    if [ -d skills ] && [ ! -e .forge/skills ]; then
+      mkdir -p .forge && ln -s ../skills .forge/skills
+    fi
+    forge list skills --porcelain' >/tmp/tj_skills.log 2>&1
+if grep -q '^probe-skill[[:space:]]' /tmp/tj_skills.log; then
+  note "OK: forge lists the node-config probe skill (library is wired)"
+else
+  note "FAIL: forge did not list the probe skill from skills/ —"
+  sed 's/^/    /' /tmp/tj_skills.log | tail -10
+  note "(entrypoint.sh no longer mirrors skills/ into .forge/skills/ ?)"
+  FAIL=1
+fi
+rm -rf "$WS"
+
 echo
 if [[ "$FAIL" -eq 0 ]]; then echo "test-jail-image: PASS"; else echo "test-jail-image: FAIL"; fi
 exit "$FAIL"

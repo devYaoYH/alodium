@@ -44,6 +44,22 @@ cd /workspace/node-config 2>/dev/null || cd /workspace
 # the image's business, never a commit in node-config).
 if [ -d .git ]; then
   [ -e AGENTS.md ] || { ln -s "$HOME/AGENTS.md" AGENTS.md; echo "AGENTS.md" >> .git/info/exclude; }
+
+  # Forge 2.13.18 discovers skills from `.forge/skills/<name>/SKILL.md`
+  # (CWD-relative). The library itself lives at `skills/<name>/SKILL.md`
+  # — the same `node-config` layout Claude Code already reaches via the
+  # tracked `.claude/skills` symlink. Mirror it into forge's path,
+  # untracked, the same way AGENTS.md is linked above. Without this,
+  # `skill propose-change` (and the rest of the library) fails with
+  # "Skill '<name>' not found" inside every jail run.
+  if [ -d skills ] && [ ! -e .forge/skills ]; then
+    mkdir -p .forge
+    ln -s ../skills .forge/skills
+    # Exclude the whole .forge/ tree — only the symlink lives there, and
+    # any future per-session forge state (conversation db, etc.) is the
+    # image's business too.
+    grep -qxF '.forge/' .git/info/exclude 2>/dev/null || echo '.forge/' >> .git/info/exclude
+  fi
 fi
 trace_mark workspace_ready
 
