@@ -459,6 +459,31 @@ def _is_spinner(line: str) -> bool:
     return bool(stripped) and stripped[0] in _SPINNER_CHARS
 
 
+# Forge prefixes each tool call's output with a short hex tool-call ID
+# emitted on its OWN line, e.g.:
+#
+#     d0
+#     ● [12:28:09] Execute [/usr/local/bin/trace-sh] cd /workspace/node-config
+#     d7
+#     grep -rn "agents/skills\|\\.agents/skills" …
+#
+# The ID keys a chunk of output to a forge tool invocation upstream, but it
+# is pure noise in the floor log panel — a row of short hex chars pretending
+# to be log content. We strip such lines from the stream before they reach
+# the client, mirroring how _is_spinner drops repetitive spinner frames.
+# Minimum 2 chars avoids eating single-char log content (e.g. status codes
+# "0" / "1"); maximum 4 chars covers every hex token we've observed. A
+# legitimate log line that happens to be exactly a 2-4 char hex string is
+# rare enough to accept the loss — raw output is still available via
+# `docker logs` if it ever matters.
+HEX_ID_RE = re.compile(r"\A\s*[0-9a-f]{2,4}\s*\Z", re.IGNORECASE)
+
+
+def _is_hex_id_line(line: str) -> bool:
+    """Return True when line is JUST a short hex string (drop)."""
+    return bool(HEX_ID_RE.match(line))
+
+
 def _inspect_container_tty(container: str) -> bool:
     """Return True if the container was created with a TTY (no Docker
     multiplexed frame headers in its log stream)."""
@@ -519,6 +544,12 @@ def _stream_container_logs(container: str, tail: int = 2000):
                     line = buf[:idx + 1]
                     buf = buf[idx + 1:]
                     text = line.decode("utf-8", errors="replace")
+                    if _is_hex_id_line(text):
+                        # Forge tool-call ID: marks a boundary between
+                        # tool calls, so reset spinner dedup state — a
+                        # spinner frame after a hex ID is a fresh one.
+                        last_spinner_body = ""
+                        continue
                     if _is_spinner(text):
                         body = text.rstrip("\r\n")[1:]
                         if body == last_spinner_body:
@@ -542,6 +573,9 @@ def _stream_container_logs(container: str, tail: int = 2000):
                     buf = buf[8 + size:]
                     text = payload.decode("utf-8", errors="replace")
                     for line in text.splitlines(keepends=True):
+                        if _is_hex_id_line(line):
+                            last_spinner_body = ""
+                            continue
                         if _is_spinner(line):
                             body = line.rstrip("\r\n")[1:]
                             if body == last_spinner_body:
