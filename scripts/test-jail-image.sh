@@ -342,9 +342,10 @@ done
 # CWD-relative discovery: it looks for `.forge/skills/<name>/SKILL.md`, the
 # library itself is at `skills/<name>/SKILL.md`, and nothing in the image
 # used to bridge the two. Build a fake node-config on the host, mount it
-# where the real clone lands, replay the entrypoint's link logic, and ask
-# forge what it sees — the probe skill must be listed alongside forge's
-# built-ins. Drift here is the regression we are hunting.
+# where the real clone lands, replay the entrypoint's materialisation logic,
+# and ask forge what it sees — the probe skill must be listed alongside
+# forge's built-ins as a REAL file under .forge/skills (not a symlink into the
+# shared library). Drift here is the regression we are hunting.
 sec "skills from node-config are listed by forge"
 WS=$(mktemp -d)
 mkdir -p "$WS/skills/probe-skill" "$WS/.git"
@@ -363,10 +364,11 @@ timeout 60 docker run --rm --network none --entrypoint sh \
   -v "$WS:/workspace/node-config" \
   "$IMAGE" -c '
     cd /workspace/node-config
-    # Replay entrypoint.sh exactly: link AGENTS.md, then wire .forge/skills.
+    # Replay entrypoint.sh exactly: link AGENTS.md, then materialise .forge/skills.
     [ -e AGENTS.md ] || ln -s "$HOME/AGENTS.md" AGENTS.md
-    if [ -d skills ] && [ ! -e .forge/skills ]; then
-      mkdir -p .forge && ln -s ../skills .forge/skills
+    if [ -d skills ]; then
+      mkdir -p .forge && rm -rf .forge/skills && mkdir -p .forge/skills
+      cp -r skills/* .forge/skills/ 2>/dev/null || cp -r skills .forge/skills
     fi
     forge list skills --porcelain' >/tmp/tj_skills.log 2>&1
 if grep -q '^probe-skill[[:space:]]' /tmp/tj_skills.log; then
@@ -374,7 +376,7 @@ if grep -q '^probe-skill[[:space:]]' /tmp/tj_skills.log; then
 else
   note "FAIL: forge did not list the probe skill from skills/ —"
   sed 's/^/    /' /tmp/tj_skills.log | tail -10
-  note "(entrypoint.sh no longer mirrors skills/ into .forge/skills/ ?)"
+  note "(entrypoint.sh no longer materialises skills/ into .forge/skills/ ?)"
   FAIL=1
 fi
 rm -rf "$WS"
