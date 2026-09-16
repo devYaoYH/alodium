@@ -4,7 +4,7 @@ model: deepseek-flash    # agent-dev default: cheap first; bump per-issue if qua
 harness: forge           # agent-dev default harness (forgecode); run-task gives it a pty
 budget_usd: 2.00         # per-issue ceiling on the ephemeral key
 expires: 3h
-env: [AGENT_FORGEJO_TOKEN, NODE_CONFIG_REPO, COORDINATION_REPO]
+env: [AGENT_FORGEJO_TOKEN, NODE_CONFIG_REPO, COORDINATION_REPO, AGENT_SEARCH_TOKEN]
 dispatch: auto           # launched by the assigned-issue dispatcher, not requested
 ---
 You are agent-dev, a resident dev-agent on a sovereign-node, running as an
