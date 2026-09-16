@@ -212,6 +212,67 @@ else
   FAIL=1
 fi
 
+# --- 6. Built-in tools are timed from forge's status lines (AGENT_TRACE=1) --
+# Forge runs read/write/patch/... inside its own process, where no shim
+# reaches, but prints a status line ("● [HH:MM:SS] Read …") as each starts.
+# The entrypoint runs forge under agent/ui-trace.py, which timestamps those
+# lines into /tmp/trace/ui.jsonl for scripts/trace-render.py. Drive the REAL
+# entrypoint through read -> write -> shell twice: plain, and under
+# `docker run -t` — how run-task.sh starts forge, so ui-trace nests in a pty.
+sec "forge built-in tools are timed from its status lines"
+UI_PLAN='[{"name":"read","args":{"file_path":"/etc/hostname"}},{"name":"write","args":{"file_path":"/tmp/ui-probe.txt","content":"x"}},{"name":"shell","args":{"command":"echo ui-probe","cwd":"/tmp"}}]'
+for mode in plain tty; do
+  UI_TTY=(); [[ "$mode" == tty ]] && UI_TTY=(-t)
+  # shellcheck disable=SC2016  # $UI_PLAN and $UI_MODE expand inside the container
+  timeout 240 docker run --rm ${UI_TTY[@]+"${UI_TTY[@]}"} --network none \
+    -v "$PWD/scripts/testdata:/testdata:ro" --entrypoint sh \
+    -e AGENT_TRACE=1 -e OPENAI_URL=http://127.0.0.1:8765/v1 -e OPENAI_API_KEY=dummy \
+    -e UI_PLAN="$UI_PLAN" -e UI_MODE="$mode" \
+    "$IMAGE" -c '
+      mkdir -p /tmp/trace
+      python3 /testdata/mock-openai-seq.py "$UI_PLAN" /tmp/trace/requests.jsonl & sleep 1
+      if [ "$UI_MODE" = tty ]; then
+        # --foreground keeps the entrypoint in the foreground group of the tty,
+        # as when run-task.sh starts it: the raw-mode / keystroke-relay path.
+        timeout --foreground 150 /usr/local/bin/entrypoint.sh -p ping; rc=$?
+      else
+        timeout 150 /usr/local/bin/entrypoint.sh -p ping >/tmp/forge.out 2>&1; rc=$?
+      fi
+      echo "entrypoint rc=$rc"
+      echo UI-BEGIN; cat /tmp/trace/ui.jsonl 2>/dev/null; echo UI-END' >"/tmp/tj_ui_$mode.log" 2>&1
+  UI_CHECK=$(tr -d '\r' <"/tmp/tj_ui_$mode.log" | python3 -c '
+import json, sys
+text = sys.stdin.read()
+body = text.split("UI-BEGIN", 1)[1].split("UI-END", 1)[0] if "UI-BEGIN" in text else ""
+recs = []
+for line in body.splitlines():
+    try:
+        recs.append(json.loads(line))
+    except ValueError:
+        pass
+kinds = [r["kind"] for r in recs if r.get("kind")]
+stamps = [r.get("t_ns", 0) for r in recs]
+steps = iter(kinds)
+in_order = all(k in steps for k in ("read", "write", "shell"))
+monotonic = bool(stamps) and all(t > 0 for t in stamps) and stamps == sorted(stamps)
+# Each stamp must match the HH:MM:SS forge printed (container clock is UTC):
+# a late burst of identical stamps means ui-trace was not reading as forge ran.
+def skew(r):
+    h, m, s = map(int, r["clock"].split(":"))
+    d = abs((r["t_ns"] // 10**9) % 86400 - (h * 3600 + m * 60 + s))
+    return min(d, 86400 - d)
+worst = max((skew(r) for r in recs if r.get("clock") and r.get("t_ns")), default=99)
+ok = in_order and monotonic and worst <= 2
+print("ok" if ok else "kinds=%s monotonic=%s worst_clock_skew_s=%s" % (kinds, monotonic, worst))')
+  if [[ "$UI_CHECK" == ok ]] && tr -d '\r' <"/tmp/tj_ui_$mode.log" | grep -q 'entrypoint rc=0'; then
+    note "OK ($mode): read, write and shell each timestamped from forge's status line, in order"
+  else
+    note "FAIL ($mode): ui-trace did not time forge's built-in tools — ${UI_CHECK:-no records}"
+    tr -d '\r' <"/tmp/tj_ui_$mode.log" | sed 's/^/    /' | tail -12
+    FAIL=1
+  fi
+done
+
 echo
 if [[ "$FAIL" -eq 0 ]]; then echo "test-jail-image: PASS"; else echo "test-jail-image: FAIL"; fi
 exit "$FAIL"

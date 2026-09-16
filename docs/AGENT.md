@@ -149,16 +149,19 @@ removes it. The renderer joins the sources on the run name (= key alias):
 |---|---|---|
 | Model requests | LiteLLM spend logs (`session_id = key:<run>`): start, first token, end, tokens, cost | measured |
 | Shell tools | `agent/trace-sh.py` as forge's `$SHELL`: wall time, exit, CPU, peak RSS, block IO | measured |
-| Unmeasured tools: forge built-ins (`read`, `patch`, `fs_search`, …), untraced shell calls | the gap before the next model request | inferred |
+| Built-in tools (`read`, `write`, `patch`, `fs_search`, …) | `agent/ui-trace.py` runs forge under a pty and timestamps the status line forge prints as each tool starts (`ui.jsonl`); a tool ends at the next status line or model request | measured start |
+| Unmeasured tools: `task` sub-agents (no status line), untraced shell calls | the gap before the next model request | inferred |
 | Container setup | container start + entrypoint marks (`events.jsonl`) | measured |
 
 The jail does not widen: no capability, mount, or network is added, and the
 host pulls the trace out after exit. Forge only for now — Claude Code's route
 is OpenTelemetry, not wired yet. The shim adds ~9 ms of startup per shell
-command, excluded from recorded durations. Traces contain commands and tool
-arguments from real runs; `traces/` is gitignored and 0700 — treat it like the
+command, excluded from recorded durations. Traces contain commands, tool
+arguments and forge's status lines (file paths, commands) from real runs; `traces/` is gitignored and 0700 — treat it like the
 spend logs. LiteLLM writes spend logs in batches, so a render straight after a
 run can miss the model lane; pass `--wait 300`, or re-render a minute later.
+Offline (tests, mock models), pass `--requests-json <file>` instead of querying
+LiteLLM.
 
 **Dispatched issues:** add the `trace` label to a coordination issue (as the
 operator) before assigning it to agent-dev. Every run of that issue is then

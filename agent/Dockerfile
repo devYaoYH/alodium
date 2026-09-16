@@ -34,7 +34,10 @@ COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 # Opt-in tool tracing shim: with AGENT_TRACE=1 the entrypoint makes it forge's
 # $SHELL, timing every shell tool call (costs and rationale: file header).
 COPY trace-sh.py /usr/local/bin/trace-sh
-RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/trace-sh
+# ...and ui-trace runs forge under a pty, timestamping its per-tool status
+# lines so built-in tools (read, write, patch, ...) get measured starts.
+COPY ui-trace.py /usr/local/bin/ui-trace
+RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/trace-sh /usr/local/bin/ui-trace
 
 # unprivileged, high-uid user; rootless podman later maps this differently per-app
 RUN useradd -m -u 10001 agent
