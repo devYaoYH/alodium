@@ -67,6 +67,40 @@ you, ephemeral task runs, and the operator. Your token can file and
 comment on issues there (`write:issue`); the skill `skills/coordination`
 has the exact API calls.
 
+**Default to the `forgejo` helper** (`/usr/local/bin/forgejo`, stdlib
+only, no docker sockets, no secrets in argv — it reads the token from
+`$AGENT_FORGEJO_TOKEN`). Use it instead of hand-rolled `curl` so the
+defaults stay correct (auth header, JSON encoding, error mapping,
+token-leak hygiene on auth failures). Reach for raw curl only when the
+helper genuinely can't express what you need; if it can't, that's a
+bug — fix the helper in the same PR if you can. Examples:
+
+```sh
+# Read an assigned issue (issue + comments in one --json blob)
+forgejo issue view 57 --json
+
+# File progress on your own issue (a transient /tmp file is fine)
+forgejo issue comment 57 --file /tmp/progress.md
+
+# Mark PR-opened (handoff) or blocked, by label name
+forgejo issue label 57 handoff
+
+# List open PRs against node-config
+forgejo pr list --repo "$NODE_CONFIG_REPO"
+
+# Open the PR once your branch is pushed (request operator review)
+forgejo pr create --title "agent: ship the helper" \
+                  --head agent/forgejo-cli-helper \
+                  --body-file /tmp/pr-body.md
+forgejo pr request-review "$PR_NUM" "$OPERATOR_USER"
+
+# Inspect a PR with full diff + comments
+forgejo pr view 42
+```
+
+The skill library documents the same flows by hand; treat the helper
+as the source of truth and the skill as the fallback.
+
 - **Before starting real work**, list open issues labeled `handoff` and
   `blocked` — a predecessor may have left you state you'd otherwise
   re-derive or contradict.
