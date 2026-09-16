@@ -45,36 +45,16 @@ cd /workspace/node-config 2>/dev/null || cd /workspace
 if [ -d .git ]; then
   [ -e AGENTS.md ] || { ln -s "$HOME/AGENTS.md" AGENTS.md; echo "AGENTS.md" >> .git/info/exclude; }
 
-  # Forge 2.13.18 discovers skills from `.forge/skills/<name>/SKILL.md`
-  # (CWD-relative). There is NO config key to redirect that path — verified
-  # against the binary: `forge config list` exposes no skills knob, and the
-  # only skill strings in it are the built-in `forge://skills/...` entries.
-  # The procedure library itself lives at `skills/<name>/SKILL.md`, the single
-  # source of truth AGENTS.md already points every tenant at.
-  #
-  # Materialise it as REAL files under .forge/skills at boot — not a symlink
-  # into the shared tree. Forge then sees explicit, self-contained agent skills
-  # for this jail runtime (its own copies, resolvable with no indirection), and
-  # the source stays `skills/` alone: copy-on-boot means a `skills/` edit lands
-  # on the next container with no second location to drift. Without this,
-  # `skill propose-change` (and the rest of the library) fails with
-  # "Skill '<name>' not found" inside every jail run.
-  if [ -d skills ]; then
-    # Fresh materialisation each boot: a re-clone of node-config into a
-    # persistent workspace would otherwise leave stale skills behind, so
-    # drop any prior copy before re-seeding.
-    mkdir -p .forge
-    rm -rf .forge/skills
-    mkdir -p .forge/skills
-    # cp -r skills/* (not `cp -r skills .forge/skills`) so each skill lands
-    # directly under .forge/skills/<name>/ on both GNU and busybox cp, with no
-    # chance of a `.forge/skills/skills/` double-nest.
-    cp -r skills/* .forge/skills/ 2>/dev/null || cp -r skills .forge/skills
-    # Exclude the whole .forge/ tree — only the materialised skills live here,
-    # and any future per-session forge state (conversation db, etc.) is the
-    # image's business too.
-    grep -qxF '.forge/' .git/info/exclude 2>/dev/null || echo '.forge/' >> .git/info/exclude
-  fi
+  # Skill discovery needs no boot-time work: `.forge/skills` is a TRACKED
+  # symlink to `../skills` in node-config, exactly like `.claude/skills`, so
+  # it arrives with the clone. Forge 2.13.18 discovers skills from
+  # `.forge/skills/<name>/SKILL.md` (CWD-relative, and it follows the
+  # symlink); there is NO config key to redirect that path — `forge config
+  # list` exposes no skills knob and the binary's only skill strings are the
+  # built-in `forge://skills/...` entries. Keeping it a symlink (not a copy)
+  # means an agent that improves a skill edits `skills/` itself, so the edit
+  # shows up in `git status` and can go out as a PR instead of dying with the
+  # container. scripts/test-jail-image.sh asserts the library actually lists.
 fi
 trace_mark workspace_ready
 

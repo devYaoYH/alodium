@@ -337,46 +337,48 @@ print("ok" if ok else "kinds=%s monotonic=%s worst_clock_skew_s=%s" % (kinds, mo
 done
 
 # --- 7. Skills from node-config are listed by forge -------------------------
-# Without the entrypoint wiring, agents in the jail got "Skill 'propose-change'
-# not found" for every skill in `skills/`. The cause is forge 2.13.18's
-# CWD-relative discovery: it looks for `.forge/skills/<name>/SKILL.md`, the
-# library itself is at `skills/<name>/SKILL.md`, and nothing in the image
-# used to bridge the two. Build a fake node-config on the host, mount it
-# where the real clone lands, replay the entrypoint's materialisation logic,
-# and ask forge what it sees — the probe skill must be listed alongside
-# forge's built-ins as a REAL file under .forge/skills (not a symlink into the
-# shared library). Drift here is the regression we are hunting.
+# Real-world failure (coordination #58): across 77 dispatched issue-work runs,
+# `skill propose-change` failed 20 times with "Skill '<name>' not found" and
+# every successful `skill` call loaded a forge built-in. Forge 2.13.18
+# discovers skills from `.forge/skills/<name>/SKILL.md` relative to its CWD,
+# and nothing pointed that at the library in `skills/`.
+#
+# The wiring is now IN THE REPO — a tracked `.forge/skills -> ../skills`
+# symlink — so the honest test is to clone this repo the way the jail does,
+# mount it where the clone lands, and run the image's REAL entrypoint. A test
+# that re-implements the wiring inline would pass against an image (or a repo)
+# that has none of it, which is precisely the regression we are hunting.
 sec "skills from node-config are listed by forge"
 WS=$(mktemp -d)
-mkdir -p "$WS/skills/probe-skill" "$WS/.git"
-cat > "$WS/skills/probe-skill/SKILL.md" <<'EOF'
----
-name: probe-skill
-description: Test fixture proving forge discovers the node-config skill library.
----
-EOF
-# `git init` keeps the entrypoint's `if [ -d .git ]` branch honest; we
-# deliberately skip AGENT_FORGEJO_TOKEN so the clone step is skipped and
-# the only thing we exercise is the workspace wiring.
-( cd "$WS" && git init -q -b main && git -c user.email=t@t -c user.name=t add . && git -c user.email=t@t -c user.name=t commit -q -m init )
-# shellcheck disable=SC2016  # the script body below runs inside the container, no expansion wanted here
-timeout 60 docker run --rm --network none --entrypoint sh \
-  -v "$WS:/workspace/node-config" \
-  "$IMAGE" -c '
-    cd /workspace/node-config
-    # Replay entrypoint.sh exactly: link AGENTS.md, then materialise .forge/skills.
-    [ -e AGENTS.md ] || ln -s "$HOME/AGENTS.md" AGENTS.md
-    if [ -d skills ]; then
-      mkdir -p .forge && rm -rf .forge/skills && mkdir -p .forge/skills
-      cp -r skills/* .forge/skills/ 2>/dev/null || cp -r skills .forge/skills
-    fi
-    forge list skills --porcelain' >/tmp/tj_skills.log 2>&1
-if grep -q '^probe-skill[[:space:]]' /tmp/tj_skills.log; then
-  note "OK: forge lists the node-config probe skill (library is wired)"
+# Clone, so only COMMITTED content is under test: delete the symlink and this
+# fails, exactly as a fresh jail clone would. World-writable because the
+# entrypoint links AGENTS.md and appends to .git/info/exclude as uid agent.
+if git clone -q . "$WS/node-config" 2>/tmp/tj_clone.log; then
+  chmod -R a+w "$WS/node-config"
+  # The entrypoint execs its arguments as the harness, so these args run forge
+  # after the full workspace setup — the same boot path a real session takes.
+  timeout 90 docker run --rm --network none \
+    -v "$WS/node-config:/workspace/node-config" \
+    "$IMAGE" list skills --porcelain >/tmp/tj_skills.log 2>&1
+  # Every skill in the library must list, and list FROM .forge/skills — a
+  # forge:// path would mean a built-in shadowed it, not our library loading.
+  MISSING=""
+  for d in skills/*/; do
+    n=$(basename "$d")
+    grep -Eq "^${n}[[:space:]]+\.forge/skills/${n}/SKILL\.md" /tmp/tj_skills.log \
+      || MISSING="$MISSING $n"
+  done
+  if [[ -z "$MISSING" ]]; then
+    note "OK: forge lists every skill in skills/ from .forge/skills (library is wired)"
+  else
+    note "FAIL: forge did not list these skills from skills/ —$MISSING"
+    sed 's/^/    /' /tmp/tj_skills.log | tail -12
+    note "(is the tracked .forge/skills -> ../skills symlink still committed?)"
+    FAIL=1
+  fi
 else
-  note "FAIL: forge did not list the probe skill from skills/ —"
-  sed 's/^/    /' /tmp/tj_skills.log | tail -10
-  note "(entrypoint.sh no longer materialises skills/ into .forge/skills/ ?)"
+  note "FAIL: could not clone the repo for the skills check —"
+  sed 's/^/    /' /tmp/tj_clone.log | tail -5
   FAIL=1
 fi
 rm -rf "$WS"

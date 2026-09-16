@@ -27,6 +27,12 @@ traces/*
 .claude/*
 !.claude/skills
 
+# Same wiring for forge's project-local harness dir: only the skill-discovery
+# symlink is tracked (.forge/skills -> ../skills). Any per-session forge state
+# that lands here is the image's business, never a commit in node-config.
+.forge/*
+!.forge/skills
+
 # Host-only per-app secrets (see docs/SSO.md); node-level keys stay in .env
 secrets/
 .env.bak-restructure
