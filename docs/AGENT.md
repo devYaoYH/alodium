@@ -41,6 +41,7 @@ Minted per the manifest `needs` pattern — each one individually revocable:
 |---|---|---|
 | LiteLLM virtual key | `claude-sonnet` + `claude-haiku`, monthly budget (start: $25), rate-limited | `/key/delete` on LiteLLM |
 | Forgejo token | read/write on `node-config` + `apps/*`, read on `mirrors/*`; no admin scope | revoke in Forgejo settings |
+| `AGENT_SEARCH_TOKEN` | audited Exa search via `search-broker` only (docs/SEARCH.md); never an Exa key | rotate in `.env`, `scripts/search-setup.sh` remints |
 | Workspace volume | its own named volume; nothing else mounted | `docker volume rm` |
 
 Never, structurally (not policy — absence):
@@ -51,9 +52,11 @@ Never, structurally (not policy — absence):
 - **No docker socket** — it cannot start, stop, or inspect containers.
 - **No host filesystem** — only its workspace volume.
 - **Network: the `agents` spur only** — a dedicated network whose only other
-  members are the services its manifest `needs` declared: LiteLLM (inference)
-  and Forgejo (git). It is not on `edge`; radicale, homepage, and the IdP are
-  unreachable at the wire level, and databases are on networks it isn't in.
+  members are the services its manifest `needs` declared: LiteLLM (inference),
+  Forgejo (git), and `search-broker` (audited web search, gated by its own
+  revocable token — see "Web search" below). It is not on `edge`; radicale,
+  homepage, and the IdP are unreachable at the wire level, and databases are
+  on networks it isn't in.
 
 One harness default is switched off by config rather than absence: forge
 uploads every file it edits to its `services_url` (api.forgecode.dev by
@@ -79,6 +82,18 @@ Anthropic-compatible `/v1/messages` endpoint. So the jail just sets:
 Every call is logged, budgeted, and attributable to the agent's key. Local
 inference later (Tier 4) means repointing the LiteLLM alias — the agent
 never knows.
+
+## Web search
+
+The jail's third `agents`-network peer is `search-broker` (docs/SEARCH.md):
+an audited, revocable path to Exa search that never hands the agent an Exa
+key. `AGENT_SEARCH_TOKEN` in its env authorizes `POST
+http://search-broker:8080/v1/search`; the broker records a durable audit
+row (query hash, caller, Exa request ID, result snapshot) before calling
+Exa, and the real `EXA_API_KEY` lives only in a separate egress process the
+jail cannot reach. `agent/AGENTS.md` documents the call for the harness
+itself, so this isn't a capability the operator has to explain by hand each
+session.
 
 ## Self-modification, precisely bounded
 

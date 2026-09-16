@@ -71,6 +71,7 @@ running container the chain is:
 | `ANTHROPIC_BASE_URL` / `ANTHROPIC_AUTH_TOKEN` | same for Claude Code |
 | `AGENT_FORGEJO_TOKEN`, `AGENT_GIT_USER` | git identity and scope |
 | `NODE_CONFIG_REPO`, `COORDINATION_REPO` | what to clone, where to file notes |
+| `AGENT_SEARCH_TOKEN` | revocable bearer for `http://search-broker:8080/v1/search`; never an Exa key (docs/SEARCH.md) |
 
 Never present: provider API keys, `LITELLM_MASTER_KEY`, `.env`, the docker socket.
 
