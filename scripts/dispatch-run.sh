@@ -20,6 +20,7 @@ NUM="${1:?usage: dispatch-run.sh <issue-number>}"
 [[ "$NUM" =~ ^[0-9]+$ ]] || { echo "dispatch-run: issue must be an integer"; exit 2; }
 
 OPERATOR_LOGIN="${OPERATOR_LOGIN:-${FORGEJO_ADMIN_USER:-operator}}"
+AGENT_LOGIN="${AGENT_GIT_USER:-agent-dev}"   # the tenant we dispatch for (matches task-dispatcher.sh)
 
 A() { /usr/bin/curl -sk --resolve "git.${NODE_DOMAIN}:443:127.0.0.1" \
       -H "Authorization: token $AGENT_FORGEJO_TOKEN" -H "Content-Type: application/json" "$@"; }
@@ -30,6 +31,11 @@ audit() {  # audit <action> <detail> — one JSON line to the shared audit log
   printf '{"ts":"%s","issue":%s,"action":"%s","run":"%s","detail":"%s"}\n' \
     "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$NUM" "$1" "${RUN:-}" "${2//\"/\'}" >> .task-dispatch/dispatch-audit.log
 }
+# front <file> <key> -> the value of <key>: in the frontmatter (before the first
+# `---` closer), with trailing comments/whitespace stripped. Same one-liner
+# task-dispatcher.sh and run-task.sh already use; defined here because this
+# script is spawned detached and sources no library.
+front() { awk -v k="$2" 'NR>1 && /^---$/{exit} $1==k":"{sub(/^[^:]*: */,""); sub(/[[:space:]]*#.*$/,""); sub(/[[:space:]]+$/,""); print}' "$1"; }
 INPROG_ID=$(A "$GAPI/labels?limit=100" \
   | python3 -c 'import json,sys; ids=[l["id"] for l in json.load(sys.stdin) if l["name"]=="in-progress"]; print(ids[0] if ids else "")')
 
@@ -208,6 +214,49 @@ else:
     echo "[dispatch-run] #$NUM: no difficulty label, using default tier -> model=$DIFF_MODEL budget=\"$DIFF_BUDGET\""
   fi
 fi
+
+# --- jail summary on the kickoff comment ---------------------------------------
+# Post the "Dispatched to..." comment with the resolved model + budget +
+# source, the harness (from the brief), the image + a 12-char sha256 digest,
+# and the skills library as shipped in this checkout — so the issue thread
+# records WHICH jail actually landed, not just that one did. Computed AFTER
+# difficulty resolution so the model shown is the one that will run. task-
+# dispatcher.sh mirrors the same block on the task-request path. Fails soft:
+# every field degrades to a placeholder, and a failure here never blocks the
+# launch (this script runs `set -uo pipefail` without `-e`, and `say` failing
+# just costs the comment, not the run).
+HARNESS=$(front tasks/issue-work.md harness); HARNESS=${HARNESS:-forge}
+IMAGE="${AGENT_IMAGE:-sovereign-node/agent:local}"
+# 12-char image fingerprint: the same ID deploy.sh tags :local with, so an
+# operator can grep build logs by it. "?" if the image isn't present locally
+# (e.g. running dispatch-run.sh on a host without a built :local, like a drill).
+IMG_ID=$(docker inspect --format '{{.Id}}' "$IMAGE" 2>/dev/null || true)
+IMG_SHORT="${IMG_ID#sha256:}"; IMG_SHORT="${IMG_SHORT:0:12}"
+[[ -z "$IMG_SHORT" ]] && IMG_SHORT="?"
+# Skills library as shipped in node-config — counted + comma-list of the
+# skill directory names (the dir under skills/, not the SKILL.md file). Uses
+# python3, not `find -printf`, because the host dispatcher runs on macOS
+# where BSD find has no -printf (the original PR #118 hit this).
+SKILLS=$(python3 -c '
+import glob, os
+names = sorted(os.path.basename(os.path.dirname(p))
+              for p in glob.glob("skills/*/SKILL.md"))
+print(",".join(names) if names else "")' 2>/dev/null || true)
+if [[ -n "$SKILLS" ]]; then
+  SKILL_COUNT=$(awk -F',' '{print NF}' <<<"$SKILLS")
+else
+  SKILLS="(empty)"; SKILL_COUNT=0
+fi
+say "$NUM" "Dispatched to an ephemeral \`$AGENT_LOGIN\` tenant (operator-authorized). Claimed with \`in-progress\`.
+
+**Jail summary**
+- **Model:** \`${DIFF_MODEL:-<unresolved>}\` (budget \$${DIFF_BUDGET:-0}, resolved via \`${DIFF_SOURCE:-brief}\`)
+- **Harness:** \`$HARNESS\`
+- **Image:** \`$IMAGE\` (sha256: \`$IMG_SHORT\`)
+- **Skills available:** $SKILLS ($SKILL_COUNT)
+
+Deliverable is a node-config PR + a comment here; if I'm blocked I'll say so."
+audit announced "model=${DIFF_MODEL:-?} harness=$HARNESS image=$IMAGE:$IMG_SHORT skills=$SKILL_COUNT"
 
 # --- tracing: the `trace` label ------------------------------------------------
 # Operator-applied `trace` -> run-task.sh --trace, then a comment linking the

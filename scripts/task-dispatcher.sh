@@ -82,8 +82,38 @@ A "$GAPI/issues?state=open&labels=task-request&type=issues" \
 
   touch "$STAMP"
   OUT=$(./scripts/run-task.sh "tasks/$NAME.md" 2>&1 | tail -15 || true)
-  say "$NUM" "Ran \`$NAME\` as an ephemeral tenant. Tail of the run:
+  # Jail summary prepended to the "Ran X..." comment so the thread records
+  # which jail actually ran, sourced from the brief frontmatter + AGENT_IMAGE
+  # + the skills library as shipped in this checkout. No difficulty override
+  # on this path, so model+budget are exactly what the brief says. Fails soft
+  # (every field has a default); uses python3 for the skills list, not
+  # `find -printf`, because the host dispatcher runs on macOS (BSD find).
+  B_HARNESS=$(front "tasks/$NAME.md" harness); B_HARNESS=${B_HARNESS:-forge}
+  B_MODEL=$(front "tasks/$NAME.md" model);    B_MODEL=${B_MODEL:-${AGENT_FAST_MODEL:-deepseek-flash}}
+  B_BUDGET=$(front "tasks/$NAME.md" budget_usd); B_BUDGET=${B_BUDGET:-0.50}
+  B_IMAGE="${AGENT_IMAGE:-sovereign-node/agent:local}"
+  B_IMG_ID=$(docker inspect --format '{{.Id}}' "$B_IMAGE" 2>/dev/null || true)
+  B_IMG_SHORT="${B_IMG_ID#sha256:}"; B_IMG_SHORT="${B_IMG_SHORT:0:12}"
+  [[ -z "$B_IMG_SHORT" ]] && B_IMG_SHORT="?"
+  B_SKILLS=$(python3 -c '
+import glob, os
+names = sorted(os.path.basename(os.path.dirname(p))
+              for p in glob.glob("skills/*/SKILL.md"))
+print(",".join(names) if names else "")' 2>/dev/null || true)
+  if [[ -n "$B_SKILLS" ]]; then
+    B_SKILL_COUNT=$(awk -F',' '{print NF}' <<<"$B_SKILLS")
+  else
+    B_SKILLS="(empty)"; B_SKILL_COUNT=0
+  fi
+  say "$NUM" "Ran \`$NAME\` as an ephemeral tenant.
 
+**Jail summary**
+- **Model:** \`$B_MODEL\` (budget \$$B_BUDGET, from brief frontmatter)
+- **Harness:** \`$B_HARNESS\`
+- **Image:** \`$B_IMAGE\` (sha256: \`$B_IMG_SHORT\`)
+- **Skills available:** $B_SKILLS ($B_SKILL_COUNT)
+
+Tail of the run:
 \`\`\`
 $OUT
 \`\`\`
@@ -202,7 +232,11 @@ with open(".task-dispatch/dispatch-run.log", "ab") as log:
     subprocess.Popen(["./scripts/dispatch-run.sh", sys.argv[1]],
                      stdout=log, stderr=log, start_new_session=True)
 ' "$NUM"; then
-      say "$NUM" "Dispatched to an ephemeral \`$AGENT_LOGIN\` tenant (operator-authorized). Claimed with \`in-progress\`. Deliverable is a node-config PR + a comment here; if I'm blocked I'll say so."
+      # The "Dispatched to..." comment with the jail summary (model +
+      # harness + image + skills) is posted by dispatch-run.sh itself, after
+      # it resolves the difficulty tier — see host/dispatch/README.md
+      # "Jail summary on dispatch". Posting a bare "dispatched" here would
+      # just duplicate it, so we only audit the spawn here.
       adaudit "$NUM" dispatched "actor=$ACTOR"
     else
       A -X DELETE "$GAPI/issues/$NUM/labels/$INPROG_ID" >/dev/null || true
