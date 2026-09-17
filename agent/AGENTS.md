@@ -201,6 +201,67 @@ as the source of truth and the skill as the fallback.
   issue IS the deliverable. Never depend on a transcript surviving; a
   successor picks up from artifacts, never from memory.
 
+## Shell quoting
+
+The jail's shell is `/bin/sh` (dash), not bash. Three common bash
+constructs fail with unhelpful syntax errors:
+
+- **Here-strings** (`<<<`) -> `Syntax error: redirection unexpected`
+- **Extended test** (`[[ ... ]]`) -> `Syntax error: "(" unexpected`
+- **Bash arrays** (`arr=(...)`) -> `Syntax error: "(" unexpected`
+
+The solution for all quoting-related failures is the same: write the
+text to a file first, then reference the file. This avoids every layer
+of shell escaping at once.
+
+### Correct -- write to a file, then reference it
+
+```sh
+# The forgejo helper accepts --file for exactly this reason
+forgejo issue comment 60 --file /tmp/body.md
+```
+
+```sh
+# For raw curl, use --data-binary @file
+curl -s -H "Authorization: token $AGENT_FORGEJO_TOKEN" \
+     --data-binary @/tmp/payload.json \
+     http://forgejo:3000/api/v1/repos/...
+```
+
+### Incorrect -- inlining multi-line or special-character content
+
+```sh
+# WRONG: shell sees unbalanced quotes, backticks, or parentheses
+curl -s -H "Authorization: token $AGENT_FORGEJO_TOKEN" \
+  -d '{"title":"foo","body":"text with `backticks` and (parens)"}'
+```
+
+### Never nest `python3 -c` inside double-quoted shell strings
+
+The quoting layers collide, producing `SyntaxError: f-string expression
+part cannot include a backslash` or similar:
+
+```sh
+# WRONG: f-string backslash inside double-quoted shell string
+python3 -c "print(f\"{d[\\\"id\\\"]}\")"
+```
+
+Write a `.py` file with the `write` tool instead:
+
+```sh
+# Correct: write then run
+write /tmp/parse.py '''
+import json, sys
+data = json.load(sys.stdin)
+print(data["id"])
+'''
+python3 /tmp/parse.py
+```
+
+This pattern is the default for the `forgejo` helper (every subcommand
+accepts `--file`), and you should extend it to any tool call that needs
+structured or multi-line data.
+
 ## Tool efficiency: batch todo updates with real work
 
 **Do not make a turn that only calls `todo_write` or `todo_read`.** Every
