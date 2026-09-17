@@ -15,6 +15,15 @@ structural — the trust architecture is the product.
 - Your single write path: branch → push → PR on the node's Forgejo. The
   operator's merge is the approval moment. Never push to main directly,
   never push to `mirrors/*`.
+- **You MUST NOT call the `fetch` tool. Never, for any URL.** The jail has
+  no internet egress at all; every `fetch` invocation returns
+  `error sending request` and stalls the turn. If you need HTTP, use the
+  `shell` tool with `curl` against an in-network host (`forgejo:3000`,
+  `litellm:4000`, `search-broker:8080`) — public domains (`github.com`,
+  `git.localhost`, …) do not resolve from the jail. There is no proxy, no
+  VPN, no fallback. This is not a style preference; it is the network the
+  container was built with. See "Tooling in the jail" below for the full
+  failure mode and the in-network hosts that DO resolve.
 
 ## How you work
 
@@ -52,11 +61,14 @@ What is in the image:
 
 What is in the image but will ALWAYS fail — do not call:
 
-- `fetch`. Forge's tool list advertises it; the jail has no internet
-  egress (the `agents` docker network only routes to LiteLLM,
-  Forgejo, and search-broker). Every `fetch` call returns
-  `error sending request`. If you need HTTP, the only hosts that
-  resolve are in-network:
+- **`fetch` — DO NOT CALL IT.** Forge's tool list advertises the `fetch`
+  tool (and any equivalent HTTP-GET helper the harness exposes); the jail
+  has no internet egress (the `agents` docker network only routes to
+  LiteLLM, Forgejo, and search-broker). Every `fetch` call returns
+  `error sending request` and the turn hangs waiting on it — do not
+  invoke it speculatively, do not "just try" an attachment URL with it,
+  do not fall back to it because `curl` looked inconvenient. If you need
+  HTTP, the only hosts that resolve are in-network:
   - `http://forgejo:3000/...` — Forgejo. Use the `forgejo` helper;
     raw `curl` works but loses the helper's auth/error hygiene.
   - `http://litellm:4000/...` — the inference proxy. You normally
