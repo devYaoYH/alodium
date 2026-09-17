@@ -188,12 +188,17 @@ LiteLLM.
 
 Every model-request row in `trace.html` (the table at the bottom and the
 detail panel when a span is selected) carries a **log** link to that exact
-request in the LiteLLM UI: `https://llm.<domain>/ui/logs?request_id=<id>`.
-The link opens the passkey-gated logs page filtered to that one row, so a
-trace answers both "how long did this turn take?" and "what did this call
-actually say?". The URL is constructed by `trace-render.py` from `NODE_DOMAIN`
-in `.env`; renders without it (CI, mocks) still surface `request_id` for
-operator-side correlation but skip the link.
+request in the LiteLLM UI: `https://llm.<domain>/ui?page=logs&request_id=<id>`.
+The dashboard uses Next.js query-param routing (every sub-page lives at
+`/ui`, selected by `?page=...`), so `/ui/logs?...` is not a valid path —
+it falls through to the default page. The logs page is at `/ui?page=logs`,
+with `request_id` as a request_id filter. (Upstream caveat: LiteLLM has
+an open bug, gh-31695, where the `request_id` query param is not sent
+to the backend, so the link lands on the logs page but doesn't
+auto-filter; the id still survives in the URL for copy/paste into the
+search box.) The URL is constructed by `trace-render.py` from
+`NODE_DOMAIN` in `.env`; renders without it (CI, mocks) still surface
+`request_id` for operator-side correlation but skip the link.
 
 **Dispatched issues:** add the `trace` label to a coordination issue (as the
 operator) before assigning it to agent-dev. Every run of that issue is then

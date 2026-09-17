@@ -64,22 +64,34 @@ SETUP_LABEL = {"entrypoint_start": "container start",
                "harness_exec": "harness environment"}
 CMD_MAX = 4096  # trace-sh truncates recorded commands to this
 
-# Deep link to a single request in the LiteLLM UI. The logs page accepts
-# `request_id` as a filter; the URL is constructed at render time (host runs
-# this with .env sourced, so NODE_DOMAIN is set) and embedded in the JSON so
-# trace.html stays a self-contained file. NODE_DOMAIN is fall back to a
-# placeholder rather than failing — the rest of the trace is still useful when
-# the URL is bad.
+# Deep link to a single request in the LiteLLM UI. The dashboard uses
+# Next.js query-param routing — every page lives at `/ui` and the active
+# sub-page is selected by `?page=...` (deepwiki: Admin Dashboard UI).
+# `/ui/logs` is NOT a path (no Next.js route by that name): LiteLLM's
+# reverse-proxy serves `/ui` for anything under it, so `/ui/logs?...`
+# lands on the default page and drops the request_id. The logs page is
+# at `/ui?page=logs` — that's the only URL that actually renders the
+# spend-logs view.
+#
+# Upstream caveat: LiteLLM has an open bug (gh-31695) where the
+# `request_id` query param is not sent to the backend, so the link lands
+# on the logs page but doesn't auto-filter. The id still survives in the
+# URL (copy/paste into the search box) and the link renders the right
+# view, so the deep link is right and the upstream filter is the part
+# still to land.
+#
+# NODE_DOMAIN is sourced from `.env` at render time on the host; fall
+# back to "" so renders without it (CI, mocks) still surface
+# `request_id` for operator-side correlation.
 NODE_DOMAIN = os.environ.get("NODE_DOMAIN", "")
-LITELLM_LOG_URL = f"https://llm.{NODE_DOMAIN}/ui/logs?request_id=" if NODE_DOMAIN else ""
 def litellm_url(request_id):
-    if not (request_id and LITELLM_LOG_URL):
+    if not (request_id and NODE_DOMAIN):
         return None
-    # request_id is a string from LiteLLM (UUIDs / "chatcmpl-..." / "mock-..."
-    # in offline renders). URL-encode defensively: better safe than 404 on a
-    # future ID format change.
-    from urllib.parse import quote
-    return LITELLM_LOG_URL + quote(request_id, safe="")
+    # request_id is a string from LiteLLM (UUIDs / "chatcmpl-..." /
+    # "mock-..." in offline renders). urlencode handles the encoding
+    # defensively — better safe than 404 on a future ID format change.
+    from urllib.parse import urlencode
+    return f"https://llm.{NODE_DOMAIN}/ui?{urlencode({'page': 'logs', 'request_id': request_id})}"
 
 SQL = r"""
 select coalesce(json_agg(r order by r.start_us), '[]') from (
