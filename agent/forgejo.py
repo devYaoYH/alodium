@@ -126,6 +126,35 @@ def _parse_body(raw: bytes) -> Any:
         return raw.decode("utf-8", errors="replace")
 
 
+def _request_raw(
+    method: str,
+    path: str,
+    query: Optional[dict] = None,
+) -> Tuple[int, bytes]:
+    """
+    Make an API call and return raw bytes (no JSON parsing).
+    Used for binary downloads like attachment content.
+    """
+    url = API_BASE + path
+    if query:
+        url += "?" + urllib.parse.urlencode(query)
+    headers = {
+        "Authorization": f"token {_token()}",
+        "Accept": "application/octet-stream",
+        "User-Agent": "agent-dev/forgejo-cli",
+    }
+    req = urllib.request.Request(url, data=None, method=method, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+            raw = resp.read()
+            return resp.status, raw
+    except urllib.error.HTTPError as e:
+        raw = e.read() if e.fp else b""
+        return e.code, raw
+    except urllib.error.URLError as e:
+        die(f"connection error: {e.reason}")
+
+
 def _check(status: int, payload: Any, op: str) -> Any:
     """Turn non-2xx into a die(); return the JSON payload on success."""
     if 200 <= status < 300:
@@ -343,6 +372,119 @@ def cmd_pr_request_review(args: argparse.Namespace) -> int:
     return 0
 
 
+# ----------------------------- attachment subcommands -------------------------
+
+ATTACHMENT_HOST_RE = r"https://git\.localhost/attachments/"
+UUID_RE = r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+
+
+def _resolve_uuid(issue: int, raw: str, repo: str) -> Tuple[str, int]:
+    """
+    Return (uuid, size) for an attachment identifier.
+
+    raw can be:
+      - a numeric id (e.g. "6")
+      - a UUID (e.g. "2ed9e20e-...")
+      - a full URL (e.g. "https://git.localhost/attachments/<uuid>")
+    """
+    import re
+
+    # Full URL — extract uuid
+    if raw.startswith("https://git.localhost/attachments/"):
+        raw = raw.replace("https://git.localhost/attachments/", "")
+        # Strip trailing slash or query if present
+        raw = raw.split("?")[0].rstrip("/")
+
+    # Numeric — list attachments and find by id
+    if raw.isdigit():
+        s, atts = _request("GET", f"/api/v1/repos/{repo}/issues/{issue}/attachments")
+        atts = _check(s, atts, f"list attachments for issue {issue}")
+        if not isinstance(atts, list):
+            die(f"expected a list of attachments, got {type(atts).__name__}")
+        aid = int(raw)
+        for a in atts:
+            if a.get("id") == aid:
+                uuid = a.get("uuid", "")
+                size = a.get("size", 0)
+                if not uuid:
+                    die(f"attachment {aid} has no uuid field")
+                return uuid, size
+        die(f"no attachment with id {aid} found on issue {issue}")
+
+    # Plain uuid — validate format
+    if re.match(UUID_RE, raw):
+        # We still need the size; grab the metadata from the API
+        s, atts = _request("GET", f"/api/v1/repos/{repo}/issues/{issue}/attachments")
+        atts = _check(s, atts, f"list attachments for issue {issue}")
+        size = 0
+        for a in (atts if isinstance(atts, list) else []):
+            if a.get("uuid", "") == raw:
+                size = a.get("size", 0)
+                break
+        return raw, size
+
+    die(f"unrecognised attachment identifier: {raw[:80]}")
+
+
+def cmd_attachment_list(args: argparse.Namespace) -> int:
+    repo = _repo_for("issue", args.repo)
+    s, atts = _request("GET", f"/api/v1/repos/{repo}/issues/{args.n}/attachments")
+    atts = _check(s, atts, f"list attachments for issue {args.n}")
+    if not isinstance(atts, list):
+        die(f"expected list, got {type(atts).__name__}")
+
+    if args.json:
+        print(json.dumps(atts, indent=2))
+        return 0
+
+    if not atts:
+        print(f"(no attachments on issue {args.n})")
+        return 0
+
+    print(f"Attachments on issue #{args.n}:")
+    for a in atts:
+        aid = a.get("id", "?")
+        aname = a.get("name", "")
+        auuid = a.get("uuid", "")
+        asize = a.get("size", 0)
+        furl = a.get("download_url", "")
+        print(f"  [{aid}] {aname or '(unnamed)'}")
+        print(f"        uuid: {auuid}")
+        print(f"        size: {asize} bytes")
+        if furl:
+            print(f"        url:  {furl}")
+    return 0
+
+
+def cmd_attachment_fetch(args: argparse.Namespace) -> int:
+    repo = _repo_for("issue", args.repo)
+    uuid, size = _resolve_uuid(args.n, args.identifier, repo)
+
+    # Download raw bytes from /attachments/{uuid}
+    url = f"/attachments/{uuid}"
+    s, raw_body = _request_raw("GET", url)
+    _check(s, raw_body, f"download attachment {uuid}")
+
+    if not isinstance(raw_body, bytes):
+        die(f"expected binary data, got {type(raw_body).__name__}")
+
+    if args.out:
+        with open(args.out, "wb") as f:
+            f.write(raw_body)
+        print(f"downloaded attachment {uuid} ({size} bytes) to {args.out}")
+    else:
+        # Write to stdout for piping. sys.stdout.buffer exists in real
+        # terminals; in test contexts (StringIO) we decode.
+        buf = getattr(sys.stdout, "buffer", None)
+        if isinstance(raw_body, bytes) and buf is not None:
+            buf.write(raw_body)
+        elif isinstance(raw_body, bytes):
+            sys.stdout.write(raw_body.decode("utf-8", errors="replace"))
+        else:
+            sys.stdout.write(raw_body)
+    return 0
+
+
 # ----------------------------- helpers --------------------------------------
 
 def _read_body_file(path: str) -> str:
@@ -436,6 +578,23 @@ def build_parser() -> argparse.ArgumentParser:
     pr_review.add_argument("--json", action="store_true", help="raw JSON")
     pr_review.add_argument("--repo", help="owner/name (default $NODE_CONFIG_REPO)")
     pr_review.set_defaults(func=cmd_pr_request_review)
+
+    # ---- attachment ----
+    att = sub.add_parser("attachment", help="attachment operations on coordination issues")
+    att_sub = att.add_subparsers(dest="att_cmd", required=True, metavar="OP")
+
+    att_list = att_sub.add_parser("list", help="list attachments on an issue")
+    att_list.add_argument("n", type=int, help="issue number")
+    att_list.add_argument("--json", action="store_true", help="raw JSON")
+    att_list.add_argument("--repo", help="owner/name (default $COORDINATION_REPO)")
+    att_list.set_defaults(func=cmd_attachment_list)
+
+    att_fetch = att_sub.add_parser("fetch", help="download an attachment by id, uuid, or URL")
+    att_fetch.add_argument("n", type=int, help="issue number")
+    att_fetch.add_argument("identifier", help="attachment id, uuid, or full URL")
+    att_fetch.add_argument("--out", help="output file path (default: stdout)")
+    att_fetch.add_argument("--repo", help="owner/name (default $COORDINATION_REPO)")
+    att_fetch.set_defaults(func=cmd_attachment_fetch)
 
     return p
 

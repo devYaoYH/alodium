@@ -272,6 +272,106 @@ check("pr request-review: exits 0", rc == 0, detail=f"err={err!r}")
 check("pr request-review: stderr empty", err == "")
 
 
+# ---- 14. attachment list ---------------------------------------------------
+
+ATTACHMENTS_PAYLOAD = [
+    {"id": 1, "uuid": "11111111-2222-3333-4444-555555555555",
+     "name": "screenshot.png", "size": 123456,
+     "download_url": "https://git.localhost/attachments/11111111-2222-3333-4444-555555555555"},
+    {"id": 2, "uuid": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+     "name": "log.txt", "size": 789,
+     "download_url": "https://git.localhost/attachments/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"},
+]
+
+def fake_att_list(req, **kw):
+    if "/attachments" in req.full_url and req.method == "GET":
+        return FakeResp(200, json.dumps(ATTACHMENTS_PAYLOAD).encode())
+    return FakeResp(404, b'{"message":"not found"}')
+
+# 14a. attachment list: compact text
+calls.clear()
+rc, out, err = run_with_mock(["attachment", "list", "61"], fake_att_list)
+check("att list: exits 0", rc == 0, detail=f"rc={rc} err={err!r}")
+check("att list: shows issue number", "issue #61" in out)
+check("att list: shows attachment names", "screenshot.png" in out and "log.txt" in out)
+check("att list: shows sizes", "123456 bytes" in out and "789 bytes" in out)
+check("att list: shows uuid", "11111111-2222" in out)
+check("att list: token NOT leaked", "secret-XYZ" not in out and "secret-XYZ" not in err)
+
+# 14b. attachment list --json
+rc, out, err = run_with_mock(["attachment", "list", "61", "--json"], fake_att_list)
+parsed = json.loads(out) if rc == 0 else None
+check("att list --json: exits 0", rc == 0, detail=f"rc={rc}")
+check("att list --json: valid JSON", parsed is not None)
+check("att list --json: is array of 2", isinstance(parsed, list) and len(parsed) == 2)
+
+# 14c. attachment list: empty
+def fake_empty(req, **kw):
+    return FakeResp(200, json.dumps([]).encode())
+rc, out, err = run_with_mock(["attachment", "list", "62"], fake_empty)
+check("att list empty: exits 0", rc == 0)
+check("att list empty: says no attachments", "no attachments" in out.lower())
+
+
+# ---- 15. attachment fetch ---------------------------------------------------
+
+# 15a. fetch by numeric id
+FETCH_UUID = "11111111-2222-3333-4444-555555555555"
+FETCH_BYTES = b"PNG: fake image data\n"
+fetch_calls = []
+def fake_fetch_by_id_or_uuid(req, **kw):
+    fetch_calls.append((req.method, req.full_url))
+    if req.method == "GET" and "/attachments/" in req.full_url and "11111111-2222" in req.full_url:
+        return FakeResp(200, FETCH_BYTES)
+    if req.method == "GET" and "/issues/61/attachments" in req.full_url:
+        return FakeResp(200, json.dumps(ATTACHMENTS_PAYLOAD).encode())
+    return FakeResp(404, b'{"message":"not found"}')
+
+# 15a. fetch by numeric id (with --out since binary data needs a file)
+import tempfile
+tmpf = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+tmp_path_15a = tmpf.name
+tmpf.close()
+rc, out, err = run_with_mock(["attachment", "fetch", "61", "1", "--out", tmp_path_15a], fake_fetch_by_id_or_uuid)
+read_back = open(tmp_path_15a, "rb").read() if rc == 0 else b""
+os.unlink(tmp_path_15a)
+check("att fetch by id --out: exits 0", rc == 0, detail=f"rc={rc} err={err!r}")
+check("att fetch by id --out: file written correctly", read_back == FETCH_BYTES)
+
+# 15b. fetch by uuid (with --out)
+tmpf = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+tmp_path_15b = tmpf.name
+tmpf.close()
+rc, out, err = run_with_mock(["attachment", "fetch", "61", FETCH_UUID, "--out", tmp_path_15b], fake_fetch_by_id_or_uuid)
+read_back = open(tmp_path_15b, "rb").read() if rc == 0 else b""
+os.unlink(tmp_path_15b)
+check("att fetch by uuid --out: exits 0", rc == 0, detail=f"rc={rc} err={err!r}")
+check("att fetch by uuid --out: file matches", read_back == FETCH_BYTES)
+
+# 15c. fetch by full URL (with --out)
+tmpf = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+tmp_path_15c = tmpf.name
+tmpf.close()
+rc, out, err = run_with_mock([
+    "attachment", "fetch", "61",
+    "https://git.localhost/attachments/" + FETCH_UUID,
+    "--out", tmp_path_15c
+], fake_fetch_by_id_or_uuid)
+read_back = open(tmp_path_15c, "rb").read() if rc == 0 else b""
+os.unlink(tmp_path_15c)
+check("att fetch by URL --out: exits 0", rc == 0, detail=f"rc={rc} err={err!r}")
+check("att fetch by URL --out: file matches", read_back == FETCH_BYTES)
+
+# 15e. fetch unknown id → die
+def fake_att_unknown(req, **kw):
+    if req.method == "GET" and "/issues/61/attachments" in req.full_url:
+        return FakeResp(200, json.dumps(ATTACHMENTS_PAYLOAD).encode())
+    return FakeResp(404, b'{"message":"not found"}')
+rc, out, err = run_with_mock(["attachment", "fetch", "61", "999"], fake_att_unknown)
+check("att fetch unknown id: exits non-zero", rc != 0, detail=f"rc={rc}")
+check("att fetch unknown id: says 'no attachment'", "no attachment" in err.lower())
+
+
 print()
 if FAIL == 0:
     print("test_forgejo: PASS")
