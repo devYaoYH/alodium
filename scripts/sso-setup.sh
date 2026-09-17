@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # SSO at the door for EVERY human surface: git (Forgejo), llm/ui (LiteLLM),
 # feeds (Miniflux), chat (Open WebUI), notes (Memos) — all native OIDC — and
-# cal's web UI (Radicale, no native OIDC) via the oauth2-proxy authshim.
-# One passkey via Pocket ID opens all of them. Idempotent; run once per node,
-# re-run any time a new surface lands.
+# cal's web UI (Radicale, no native OIDC) and redash (REMOTE_USER only) via
+# the oauth2-proxy authshim. One passkey via Pocket ID opens all of them.
+# Idempotent; run once per node, re-run any time a new surface lands.
 #
 #   1. mint the OIDC clients in Pocket ID -> .env (+ shim cookie secret)
 #   2. record the operator's Pocket ID user id (LiteLLM UI admin) -> .env
@@ -135,7 +135,7 @@ mint_client litellm "https://llm.${NODE_DOMAIN}/sso/callback" LITELLM_OIDC
 mint_client miniflux "https://feeds.${NODE_DOMAIN}/oauth2/oidc/callback" MINIFLUX_OIDC secrets/miniflux.env
 mint_client open-webui "https://chat.${NODE_DOMAIN}/oauth/oidc/callback" OPENWEBUI_OIDC secrets/open-webui.env
 mint_client memos "https://notes.${NODE_DOMAIN}/auth/callback" MEMOS_OIDC secrets/memos.env
-mint_client oauth2-proxy "https://cal.${NODE_DOMAIN}/oauth2/callback,https://calino.${NODE_DOMAIN}/oauth2/callback,https://copilot.${NODE_DOMAIN}/oauth2/callback,https://traces.${NODE_DOMAIN}/oauth2/callback" OAUTH2_PROXY
+mint_client oauth2-proxy "https://cal.${NODE_DOMAIN}/oauth2/callback,https://calino.${NODE_DOMAIN}/oauth2/callback,https://copilot.${NODE_DOMAIN}/oauth2/callback,https://traces.${NODE_DOMAIN}/oauth2/callback,https://dash.${NODE_DOMAIN}/oauth2/callback" OAUTH2_PROXY
 if [[ -z "${OAUTH2_PROXY_COOKIE_SECRET:-}" ]]; then
   saveenv OAUTH2_PROXY_COOKIE_SECRET "$(openssl rand -base64 32 | head -c 32)"
   echo "   generated authshim cookie secret -> .env"
@@ -262,7 +262,7 @@ services:
       # Chrome refuses Domain=.localhost cookies (public-suffix rule), which
       # silently drops the shim's CSRF cookie -> 403 on the OAuth callback.
       # Host-scope the cookies in local dev; real domains keep .${NODE_DOMAIN}.
-      OAUTH2_PROXY_COOKIE_DOMAINS: cal.localhost,calino.localhost,copilot.localhost,traces.localhost
+      OAUTH2_PROXY_COOKIE_DOMAINS: cal.localhost,calino.localhost,copilot.localhost,traces.localhost,dash.localhost
     volumes:
       - ./.local-ca-bundle.pem:/certs/local-bundle.pem:ro
 EOF
@@ -299,5 +299,6 @@ else
 fi
 echo
 echo "Done. One passkey now opens: git.$NODE_DOMAIN, llm.$NODE_DOMAIN/ui,"
-echo "feeds.$NODE_DOMAIN, chat.$NODE_DOMAIN, notes.$NODE_DOMAIN, and"
-echo "cal.$NODE_DOMAIN's web UI (via the authshim). DAV/API planes unchanged."
+echo "feeds.$NODE_DOMAIN, chat.$NODE_DOMAIN, notes.$NODE_DOMAIN,"
+echo "cal.$NODE_DOMAIN's web UI, and dash.$NODE_DOMAIN (via the authshim)."
+echo "DAV/API planes unchanged."
