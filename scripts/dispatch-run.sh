@@ -209,6 +209,48 @@ else:
   fi
 fi
 
+# --- jail summary for the dispatch comment ----------------------------------
+# The "Dispatched to..." comment used to live in task-dispatcher.sh, posted
+# immediately after spawn — fine for "yes, it kicked off", but it didn't say
+# WHICH model/harness/image the run would actually use, which is what the
+# operator wants to see to verify the run will land where they expect. Posting
+# it here, after difficulty resolution and before run-task.sh, lets us include
+# the resolved model + budget + source, the harness (from the brief), the
+# image name + a 12-char digest, and the skills library as shipped in the
+# node-config checkout. Same shape in both dispatch flows — task-dispatcher.sh
+# computes the equivalent block for the task-request path.
+HARNESS=$(front "tasks/issue-work.md" harness); HARNESS=${HARNESS:-forge}
+IMAGE="${AGENT_IMAGE:-sovereign-node/agent:local}"
+# 12-char image fingerprint: same ID deploy.sh tags :local with, so an
+# operator can grep build logs by it. "?" if the image isn't present locally
+# (e.g. running dispatch-run.sh on a host without a built :local, like in a
+# drill/test).
+IMG_ID=$(docker inspect --format '{{.Id}}' "$IMAGE" 2>/dev/null || true)
+IMG_SHORT="${IMG_ID#sha256:}"; IMG_SHORT="${IMG_SHORT:0:12}"
+[[ -z "$IMG_SHORT" ]] && IMG_SHORT="?"
+# Skills library as shipped in node-config — counted + comma-list of skill
+# names (the directory under skills/, not the SKILL.md file).
+if [[ -d skills ]]; then
+  SKILLS=$(find skills -mindepth 2 -maxdepth 2 -name SKILL.md -printf '%h\n' 2>/dev/null \
+           | sed 's#^skills/##' | sort | paste -sd ',' -)
+  if [[ -n "$SKILLS" ]]; then
+    SKILL_COUNT=$(awk -F',' '{print NF}' <<<"$SKILLS")
+  else
+    SKILLS="(empty)"; SKILL_COUNT=0
+  fi
+else
+  SKILLS="(skills/ missing in clone)"; SKILL_COUNT=0
+fi
+say "$NUM" "Dispatched to an ephemeral \`$AGENT_LOGIN\` tenant (operator-authorized). Claimed with \`in-progress\`.
+
+**Jail summary**
+- **Model:** \`${DIFF_MODEL:-<unresolved>}\` (budget \$${DIFF_BUDGET:-0}, resolved via \`${DIFF_SOURCE:-brief}\`)
+- **Harness:** \`$HARNESS\`
+- **Image:** \`$IMAGE\` (sha256: \`$IMG_SHORT\`)
+- **Skills available:** $SKILLS ($SKILL_COUNT)
+
+Deliverable is a node-config PR + a comment here; if I'm blocked I'll say so."
+
 # --- tracing: the `trace` label ------------------------------------------------
 # Operator-applied `trace` -> run-task.sh --trace, then a comment linking the
 # rendered timeline (end of this script). Same gate as difficulty: an agent
