@@ -36,35 +36,6 @@ Ring-0 (master key, docker socket) lives ONLY in the host dispatcher +
 `run-task.sh`, exactly as before. Actions adds a notification plane, not a
 new trust surface.
 
-## Jail summary on dispatch
-
-Every dispatched issue (assigned-issue flow and `task-request` flow alike)
-posts a **Jail summary** block on the issue as its first operator-visible
-comment, so you can tell at kickoff which run will actually land:
-
-- **Model** — the resolved LiteLLM alias, its budget, and how it was resolved
-  (`brief` frontmatter, `default-tier`, `difficulty-label`, or `fallback` if
-  the resolved tier model wasn't live in LiteLLM).
-- **Harness** — `forge` or `claude`, from the brief's `harness:` frontmatter
-  (and the same value run-task.sh passes to the container as `AGENT_HARNESS`).
-- **Image** — the jail image name (`AGENT_IMAGE` or `sovereign-node/agent:local`)
-  plus a 12-char `sha256:` digest from `docker inspect`, so you can grep build
-  logs by it.
-- **Skills available** — the comma-list of `skills/<name>` directories as
-  shipped in the node-config checkout the dispatcher is running from, with
-  the count. This is what the agent has access to — useful when an answer to
-  "can it do X?" hinges on a skill existing.
-
-The assigned-issue flow computes the block inside `dispatch-run.sh` *after*
-difficulty resolution (so the model you see is the one that actually runs,
-not just the brief default), and posts it as the "Dispatched to..." comment
-that used to live in `task-dispatcher.sh`. The `task-request` flow computes
-the same shape inside `task-dispatcher.sh`, sourced from the brief frontmatter
-(no tier overrides on that path) and prepends it to the "Ran X..." comment
-above the tail of the run output. Both fail soft: if `docker inspect` cannot
-find the image (e.g. you're testing on a host without a built `:local`), the
-digest becomes `?` and the rest of the block still posts.
-
 ## Residual blast radius (stated honestly)
 
 - The runner can execute workflow YAML an agent pushed to coordination (agents
