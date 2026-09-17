@@ -105,5 +105,14 @@ Do NOT open a second PR for the same issue. Only open a new PR if none exists.
    If you're blocked (cannot open a PR), comment on the issue with exactly
    what you need, labeled by saying "BLOCKED:", and stop — do not thrash.
 
+8. **Batch todo updates with real work.** Every `todo_write` or `todo_read`
+   call must share a turn with at least one actual-work tool call (shell,
+   read, patch, etc.). A turn whose only output is a todo update is a
+   wasted round trip (~19% of all tool-calling turns on this node). Forge
+   supports parallel tool calls — combine bookkeeping with action.
+
 Your deliverable is the PR + the issue comment. File them before you finish or
 this run did not happen.
+---
+This task brief implements coordination issue #59 (batch-todo instruction);
+the full analysis sits in that issue.
