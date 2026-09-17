@@ -255,6 +255,7 @@ const LABELS = {
   status: 'status', tool_calls: 'tool calls returned', exit: 'exit status', cpu_user_ms: 'CPU user',
   cpu_sys_ms: 'CPU system', max_rss_kb: 'peak RSS (largest process)', inblock: 'blocks read', oublock: 'blocks written',
   pid: 'pid', result_chars: 'result size', is_error: 'tool error', command: 'command', calls: 'calls', inferred: 'timing', measured_start: 'timing', title: 'status line',
+  request_id: 'LiteLLM request_id', litellm_url: 'LiteLLM log',
 };
 function value(k, v) {
   if (k === 'inferred') return 'inferred from the gap before the next model request';
@@ -265,6 +266,11 @@ function value(k, v) {
   if (k === 'result_chars') return `${v.toLocaleString()} chars`;
   if (k === 'tool_calls') return v.join(', ');
   if (k === 'command') return h('pre', {}, v);
+  // litellm_url: external link to the LiteLLM request log (ring-0 passkey
+  // door). target=_blank so the trace timeline stays put; rel=noopener
+  // because the destination is authenticated and we never want it to grab
+  // window.opener.
+  if (k === 'litellm_url') return h('a', { href: v, target: '_blank', rel: 'noopener noreferrer' }, 'open ↗');
   if (typeof v === 'object') return h('pre', {}, JSON.stringify(v, null, 2));
   return String(v);
 }
@@ -307,10 +313,22 @@ table($('slowest'),
 let n = 0;
 table($('requests'),
   [['#', 'num'], ['starts at', 'num'], ['first token', 'num'], ['duration', 'num'], ['tokens in', 'num'],
-   ['tokens out', 'num'], ['cost', 'num'], ['model'], ['tool calls returned']],
+   ['tokens out', 'num'], ['cost', 'num'], ['model'], ['tool calls returned'], ['log']],
   D.spans.flatMap((s, i) => {
     if (s.lane !== 'llm' && s.lane !== 'llm-side') return [];
     const d = s.detail || {};
+    // Per-row link to the LiteLLM request log. Clicking the link opens the
+    // passkey-gated logs UI filtered to that exact request — answering the
+    // "what was this call actually doing?" question that pure timing can't.
+    // event.stopPropagation() so the row's select(i, true) doesn't fire and
+    // steal focus back to the timeline.
+    const logCell = d.litellm_url
+      ? h('td', { class: 'num' }, h('a', {
+            href: d.litellm_url, target: '_blank', rel: 'noopener noreferrer',
+            title: d.request_id ? `LiteLLM request ${d.request_id}` : '',
+            onclick: e => e.stopPropagation(),
+          }, 'log ↗'))
+      : h('td', { class: 'num' }, '–');
     return [h('tr', { onclick: () => select(i, true) },
       h('td', { class: 'num' }, ++n),
       h('td', { class: 'num' }, `+${fmt(s.start_ms)}`),
@@ -320,7 +338,8 @@ table($('requests'),
       h('td', { class: 'num' }, d.tokens_out?.toLocaleString() ?? '–'),
       h('td', { class: 'num' }, d.cost_usd != null ? `$${d.cost_usd.toFixed(5)}` : '–'),
       h('td', {}, s.label + (s.lane === 'llm-side' ? ' (side)' : '')),
-      h('td', { class: 'cmd' }, (d.tool_calls || []).join(', ') || '–'))];
+      h('td', { class: 'cmd' }, (d.tool_calls || []).join(', ') || '–'),
+      logCell)];
   }), 'No model requests found in the LiteLLM spend logs for this run.');
 
 zoom.addEventListener('input', render);
