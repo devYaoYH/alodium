@@ -64,6 +64,23 @@ SETUP_LABEL = {"entrypoint_start": "container start",
                "harness_exec": "harness environment"}
 CMD_MAX = 4096  # trace-sh truncates recorded commands to this
 
+# Deep link to a single request in the LiteLLM UI. The logs page accepts
+# `request_id` as a filter; the URL is constructed at render time (host runs
+# this with .env sourced, so NODE_DOMAIN is set) and embedded in the JSON so
+# trace.html stays a self-contained file. NODE_DOMAIN is fall back to a
+# placeholder rather than failing — the rest of the trace is still useful when
+# the URL is bad.
+NODE_DOMAIN = os.environ.get("NODE_DOMAIN", "")
+LITELLM_LOG_URL = f"https://llm.{NODE_DOMAIN}/ui/logs?request_id=" if NODE_DOMAIN else ""
+def litellm_url(request_id):
+    if not (request_id and LITELLM_LOG_URL):
+        return None
+    # request_id is a string from LiteLLM (UUIDs / "chatcmpl-..." / "mock-..."
+    # in offline renders). URL-encode defensively: better safe than 404 on a
+    # future ID format change.
+    from urllib.parse import quote
+    return LITELLM_LOG_URL + quote(request_id, safe="")
+
 SQL = r"""
 select coalesce(json_agg(r order by r.start_us), '[]') from (
   select request_id,
@@ -240,10 +257,18 @@ def build(trace_dir, container, wait_s=0, requests_json=None):
         warnings.append(f"No LiteLLM spend-log rows for session key:{run} yet. LiteLLM writes "
                         "spend logs in batches — re-render in a minute.")
     for r in reqs:
-        s = add("llm" if r.get("has_tools") else "llm-side", r["start_us"], r["end_us"], r.get("model") or "model",
-                tokens_in=r.get("prompt_tokens"), tokens_out=r.get("completion_tokens"),
-                cost_usd=r.get("spend"), status=r.get("status"),
-                tool_calls=[tc["name"] for tc in r.get("tool_calls") or []])
+        detail = {"tokens_in": r.get("prompt_tokens"), "tokens_out": r.get("completion_tokens"),
+                  "cost_usd": r.get("spend"), "status": r.get("status"),
+                  "tool_calls": [tc["name"] for tc in r.get("tool_calls") or []]}
+        # request_id is in the spend-log SQL; surface it so trace.html can link
+        # to the LiteLLM UI for the row, not just the run. request_id is the
+        # row's primary key on the LiteLLM side.
+        if r.get("request_id"):
+            detail["request_id"] = r["request_id"]
+            url = litellm_url(r["request_id"])
+            if url:
+                detail["litellm_url"] = url
+        s = add("llm" if r.get("has_tools") else "llm-side", r["start_us"], r["end_us"], r.get("model") or "model", **detail)
         ft = r.get("first_token_us")
         if ft and r["start_us"] <= ft <= r["end_us"]:
             s["first_token"] = ft

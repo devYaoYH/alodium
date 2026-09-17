@@ -170,7 +170,7 @@ removes it. The renderer joins the sources on the run name (= key alias):
 
 | Lane | Source | Timing |
 |---|---|---|
-| Model requests | LiteLLM spend logs (`session_id = key:<run>`): start, first token, end, tokens, cost | measured |
+| Model requests | LiteLLM spend logs (`session_id = key:<run>`): start, first token, end, tokens, cost, request_id | measured |
 | Shell tools | `agent/trace-sh.py` as forge's `$SHELL`: wall time, exit, CPU, peak RSS, block IO | measured |
 | Built-in tools (`read`, `write`, `patch`, `fs_search`, …) | `agent/ui-trace.py` runs forge under a pty and timestamps the status line forge prints as each tool starts (`ui.jsonl`); a tool ends at the next status line or model request | measured start |
 | Unmeasured tools: `task` sub-agents (no status line), untraced shell calls | the gap before the next model request | inferred |
@@ -185,6 +185,15 @@ spend logs. LiteLLM writes spend logs in batches, so a render straight after a
 run can miss the model lane; pass `--wait 300`, or re-render a minute later.
 Offline (tests, mock models), pass `--requests-json <file>` instead of querying
 LiteLLM.
+
+Every model-request row in `trace.html` (the table at the bottom and the
+detail panel when a span is selected) carries a **log** link to that exact
+request in the LiteLLM UI: `https://llm.<domain>/ui/logs?request_id=<id>`.
+The link opens the passkey-gated logs page filtered to that one row, so a
+trace answers both "how long did this turn take?" and "what did this call
+actually say?". The URL is constructed by `trace-render.py` from `NODE_DOMAIN`
+in `.env`; renders without it (CI, mocks) still surface `request_id` for
+operator-side correlation but skip the link.
 
 **Dispatched issues:** add the `trace` label to a coordination issue (as the
 operator) before assigning it to agent-dev. Every run of that issue is then
