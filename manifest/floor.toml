@@ -23,6 +23,30 @@ llm = { scope = "key self-report only", why = "/key/info spend deltas animate th
 volumes = []
 database = "none"
 
+# Browser-side dependency, staged into the build context on the HOST by
+# scripts/fetch-vendor.sh before the image is built — so the image itself is
+# still an offline build with no registry credential in any layer.
+#
+# The registry is this node's own Forgejo package registry, not npmjs.com:
+# the point of holding our own copy is that a rebuild works when upstream is
+# gone. `integrity` is the npm sha512 of the published tarball and is what
+# actually secures the fetch; verified against a downloaded copy.
+[[vendor]]
+package = "@xterm/xterm"
+version = "6.0.0"
+integrity = "sha512-TQwDdQGtwwDt+2cgKDLn0IRaSxYu1tSUjgKarSDkUM0ZNiSRXFpjxEsvc/Zgc5kq5omJ+V0a8/kIM2WD3sMOYg=="
+registry = "https://git.${NODE_DOMAIN}/api/packages/mirrors/npm"
+dest = "apps/floor/site/vendor"
+files = ["lib/xterm.js:xterm.js", "css/xterm.css:xterm.css"]
+
+[[vendor]]
+package = "@xterm/addon-fit"
+version = "0.11.0"
+integrity = "sha512-jYcgT6xtVYhnhgxh3QgYDnnNMYTcf8ElbxxFzX0IZo+vabQqSPAjC3c1wJrKB5E19VwQei89QCiZZP86DCPF7g=="
+registry = "https://git.${NODE_DOMAIN}/api/packages/mirrors/npm"
+dest = "apps/floor/site/vendor"
+files = ["lib/addon-fit.js:addon-fit.js"]
+
 [tests]
 command = "python3 tests/smoke.py"
 timeout_seconds = 60

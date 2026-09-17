@@ -4,10 +4,26 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>The Floor</title>
+<link rel="stylesheet" href="vendor/xterm.css">
 <style>
   :root {
     --ink: #2b2338; --paper: #f4ede4; --brass: #d9a441; --screen: #7ce0d3;
     --bg0: #1d2231; --bg1: #252c40;
+
+    /* Terminal palette for the log panel.  The sixteen ANSI slots, pitched
+       to this room's brass-on-navy rather than to a stock xterm palette, so
+       a container's own colours land inside the floor's theme instead of
+       fighting it.  --term-fg / --term-bg are what an inverse-video run
+       swaps in when the container named only one side of the pair. */
+    --term-bg: #0b0e17; --term-fg: #e2dcd2;
+    --ansi-0:  #3a4156;  --ansi-8:  #5b647f;
+    --ansi-1:  #e3736d;  --ansi-9:  #ff9a94;
+    --ansi-2:  #7fce8c;  --ansi-10: #a4e9ae;
+    --ansi-3:  #d9a441;  --ansi-11: #f2c46b;
+    --ansi-4:  #6aa9e9;  --ansi-12: #92c6f5;
+    --ansi-5:  #c792ea;  --ansi-13: #dcb2f7;
+    --ansi-6:  #56c5cf;  --ansi-14: #7ce0d3;
+    --ansi-7:  #cfc9c0;  --ansi-15: #f4ede4;
   }
   * { margin: 0; box-sizing: border-box; }
   html, body { height: 100%; }
@@ -115,7 +131,8 @@
     background: rgba(18, 21, 33, .96); border: 2px solid var(--brass);
     border-radius: 8px; display: none; flex-direction: column;
     box-shadow: -4px -4px 24px rgba(0,0,0,.5);
-    font: 12px/1.55 "SF Mono", "Consolas", "Menlo", monospace;
+    font: 12.5px/1.55 ui-monospace, "SF Mono", "Menlo", "Consolas",
+          "DejaVu Sans Mono", monospace;
   }
   #logpanel.open { display: flex; }
   #logpanel.fullscreen {
@@ -138,18 +155,18 @@
   }
   #logpanel-fullscreen:hover, #logpanel-close:hover { opacity: 1; color: var(--brass); }
   #logpanel-fullscreen { font-size: 12px; }
+  /* xterm.js mounts here and owns the inside: it measures this box to pick
+     its column count, so it needs a definite size and must not be given
+     `overflow: auto` of its own. min-height:0 is what lets a flex child
+     actually shrink instead of pushing the panel open. */
   #logpanel-body {
-    flex: 1; overflow: auto; padding: 10px 12px;
-    color: rgba(244, 237, 228, 0.85);
-    white-space: pre-wrap; overflow-wrap: anywhere;
-    background: rgba(10, 12, 20, 0.5);
+    flex: 1; min-height: 0; padding: 6px 4px 2px 10px;
+    background: var(--term-bg);
   }
-  #logpanel-body::-webkit-scrollbar { width: 8px; }
-  #logpanel-body::-webkit-scrollbar-track { background: rgba(217,164,65,.1); border-radius: 4px; }
-  #logpanel-body::-webkit-scrollbar-thumb { background: rgba(217,164,65,.4); border-radius: 4px; }
-  #logpanel-body::-webkit-scrollbar-thumb:hover { background: rgba(217,164,65,.6); }
-  #logpanel-body .logline { display: block; overflow-wrap: anywhere; }
-  #logpanel-body .logline.spinner { color: rgba(217,164,65,.55); }
+  #logpanel-body .xterm-viewport::-webkit-scrollbar { width: 8px; }
+  #logpanel-body .xterm-viewport::-webkit-scrollbar-track { background: rgba(217,164,65,.1); border-radius: 4px; }
+  #logpanel-body .xterm-viewport::-webkit-scrollbar-thumb { background: rgba(217,164,65,.4); border-radius: 4px; }
+  #logpanel-body .xterm-viewport::-webkit-scrollbar-thumb:hover { background: rgba(217,164,65,.6); }
   #logpanel-status {
     padding: 6px 12px; font-size: 10.5px; color: rgba(244,237,228,.4);
     flex: none; border-top: 1px solid rgba(217,164,65,.15);
@@ -217,6 +234,8 @@
   <div id="logpanel-status">connecting…</div>
   <div id="logpanel-resize" title="Drag to resize"></div>
 </div>
+<script src="vendor/xterm.js"></script>
+<script src="vendor/addon-fit.js"></script>
 <script src="iso.js"></script>
 </body>
 </html>

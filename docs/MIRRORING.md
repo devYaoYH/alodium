@@ -56,6 +56,43 @@ Suggested cron schedule:
 */10 * * * * cd /path/to/sovereign-node && ./scripts/mirror-dispatcher.sh >> /var/log/node-mirror-dispatch.log 2>&1
 ```
 
+## Browser-side dependencies (npm packages, no build toolchain)
+
+A git mirror is the wrong shape for a JavaScript library: the upstream repo
+usually does not contain its own build output — xterm.js's `lib/xterm.js` is
+404 at every tag — so mirroring the source would mean giving an app image a
+Node stage and an `npm ci` over the upstream's whole dev toolchain, which is a
+far bigger dependency than the library.
+
+For these, the node holds the published tarball in its own **Forgejo package
+registry** instead:
+
+    # once, as operator (needs a token with write:package)
+    curl -sL https://registry.npmjs.org/@xterm/xterm/-/xterm-6.0.0.tgz -o pkg.tgz
+    curl -H "Authorization: token $FORGEJO_TOKEN" \
+      --upload-file pkg.tgz \
+      "https://git.$NODE_DOMAIN/api/packages/mirrors/npm/@xterm%2Fxterm/-/xterm-6.0.0.tgz"
+
+The app declares what it needs in its manifest, pinned by version AND by the
+package's sha512 integrity hash:
+
+    [[vendor]]
+    package   = "@xterm/xterm"
+    version   = "6.0.0"
+    integrity = "sha512-TQwDdQ..."
+    registry  = "https://git.${NODE_DOMAIN}/api/packages/mirrors/npm"
+    dest      = "apps/floor/site/vendor"
+    files     = ["lib/xterm.js:xterm.js", "css/xterm.css:xterm.css"]
+
+`scripts/fetch-vendor.sh` (run by `deploy.sh` before any image build) fetches
+it, refuses to proceed on an integrity mismatch, and unpacks the named files
+into the app's source tree. The staged files are gitignored: pinned and
+verifiable in the manifest, never committed as a blob nobody can review.
+
+The integrity hash, not the transport, is what secures this — which is why the
+same script can bootstrap from upstream with `VENDOR_REGISTRY` before the node
+holds its own copy, and get a byte-identical result.
+
 ## Working on a cached repo (download-direction, merge locally)
 
 When you (or the agent) need to modify an app, fork the mirror into a

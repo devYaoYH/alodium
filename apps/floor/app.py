@@ -453,35 +453,71 @@ _SPINNER_CHARS = frozenset(
 )
 
 
+# Every escape sequence a log stream can carry: CSI (colour, erase, cursor),
+# OSC (window title, hyperlinks) and the two-byte charset/control escapes.
+# Stripped before the filters below look at a segment, because the segments
+# arriving from a TUI-ish container almost always OPEN with an escape — which
+# is why these filters matched nothing at all until now.
+_ANSI_RE = re.compile(
+    r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)"      # OSC ... BEL | ST
+    r"|\x1b\[[0-9;?<>=]*[ -/]*[@-~]"             # CSI
+    r"|\x1b[()#][0-9A-Za-z]"                     # charset select
+    r"|\x1b[=>78cDEHM]"                          # single-char escapes
+)
+
+
+def _visible(line: str) -> str:
+    """The text of a segment: escapes and the line terminator removed."""
+    return _ANSI_RE.sub("", line).rstrip("\r\n")
+
+
 def _is_spinner(line: str) -> bool:
     """Return True when line is a pure spinner frame (should be filtered)."""
-    stripped = line.rstrip("\r\n")
+    stripped = _visible(line)
     return bool(stripped) and stripped[0] in _SPINNER_CHARS
 
 
-# Forge prefixes each tool call's output with a short hex tool-call ID
-# emitted on its OWN line, e.g.:
-#
-#     d0
-#     ● [12:28:09] Execute [/usr/local/bin/trace-sh] cd /workspace/node-config
-#     d7
-#     grep -rn "agents/skills\|\\.agents/skills" …
-#
-# The ID keys a chunk of output to a forge tool invocation upstream, but it
-# is pure noise in the floor log panel — a row of short hex chars pretending
-# to be log content. We strip such lines from the stream before they reach
-# the client, mirroring how _is_spinner drops repetitive spinner frames.
-# Minimum 2 chars avoids eating single-char log content (e.g. status codes
-# "0" / "1"); maximum 4 chars covers every hex token we've observed. A
-# legitimate log line that happens to be exactly a 2-4 char hex string is
-# rare enough to accept the loss — raw output is still available via
-# `docker logs` if it ever matters.
-HEX_ID_RE = re.compile(r"\A\s*[0-9a-f]{2,4}\s*\Z", re.IGNORECASE)
+# There used to be a filter here for "forge tool-call IDs": short hex tokens
+# on their own line, ahead of each tool's output. They were not forge's. They
+# were this server's own HTTP chunk-size prefixes, written by hand into an
+# HTTP/1.0 response that no client ever decoded (see _stream_logs). A capture
+# of a real task container's output contains exactly zero bare hex lines. The
+# framing is fixed at the source now, so the filter is gone rather than left
+# to silently eat any log line that happens to read as hex.
 
 
-def _is_hex_id_line(line: str) -> bool:
-    """Return True when line is JUST a short hex string (drop)."""
-    return bool(HEX_ID_RE.match(line))
+# Split a decoded chunk into terminal segments, keeping the terminator on the
+# segment it ends.  A bare CR is a boundary as much as a LF is: it is how a
+# status line says "repaint me", so it is the unit the spinner filter dedups.
+#
+# This deliberately does NOT use str.splitlines(), which also breaks on
+# \v \f \x1c \x1d \x1e \x85 U+2028 and U+2029 — bytes that are ordinary
+# content in a log, not line endings, and splitting on them would hand the
+# client a stream that no longer matches what the container wrote.
+_SEGMENT_RE = re.compile(r"[^\r\n]*(?:\r\n|\r|\n|$)")
+
+
+def _segments(text: str):
+    """Yield text split after each CR, LF or CRLF, terminators included."""
+    for m in _SEGMENT_RE.finditer(text):
+        if m.group():
+            yield m.group()
+
+
+def _filter(seg: str, last_spinner_body: str):
+    """(keep?, new dedup state) for one segment of the stream.
+
+    Drops a spinner frame whose text is identical to the last one we let
+    through — a status line repainting the same words at 60 Hz is bandwidth,
+    not information.  Everything else goes to the client byte-for-byte; the
+    panel's terminal does the rest.
+    """
+    if _is_spinner(seg):
+        body = _visible(seg)[1:]
+        if body == last_spinner_body:
+            return False, last_spinner_body
+        return True, body
+    return True, ""
 
 
 def _inspect_container_tty(container: str) -> bool:
@@ -544,21 +580,10 @@ def _stream_container_logs(container: str, tail: int = 2000):
                     line = buf[:idx + 1]
                     buf = buf[idx + 1:]
                     text = line.decode("utf-8", errors="replace")
-                    if _is_hex_id_line(text):
-                        # Forge tool-call ID: marks a boundary between
-                        # tool calls, so reset spinner dedup state — a
-                        # spinner frame after a hex ID is a fresh one.
-                        last_spinner_body = ""
-                        continue
-                    if _is_spinner(text):
-                        body = text.rstrip("\r\n")[1:]
-                        if body == last_spinner_body:
-                            continue
-                        last_spinner_body = body
-                        yield text
-                    else:
-                        last_spinner_body = ""
-                        yield text
+                    for seg in _segments(text):
+                        keep, last_spinner_body = _filter(seg, last_spinner_body)
+                        if keep:
+                            yield seg
             else:
                 buf += chunk
                 # Docker multiplexed stream: consume complete frames.
@@ -572,19 +597,10 @@ def _stream_container_logs(container: str, tail: int = 2000):
                     payload = buf[8: 8 + size]
                     buf = buf[8 + size:]
                     text = payload.decode("utf-8", errors="replace")
-                    for line in text.splitlines(keepends=True):
-                        if _is_hex_id_line(line):
-                            last_spinner_body = ""
-                            continue
-                        if _is_spinner(line):
-                            body = line.rstrip("\r\n")[1:]
-                            if body == last_spinner_body:
-                                continue
-                            last_spinner_body = body
-                            yield line
-                        else:
-                            last_spinner_body = ""
-                            yield line
+                    for seg in _segments(text):
+                        keep, last_spinner_body = _filter(seg, last_spinner_body)
+                        if keep:
+                            yield seg
     except (OSError, urllib.error.URLError):
         pass
     finally:
@@ -681,29 +697,27 @@ class Handler(BaseHTTPRequestHandler):
             self._json(403, {"error": "container not in loggable set"})
             return
 
+        # Framed by connection close, NOT by Transfer-Encoding: chunked.
+        # BaseHTTPRequestHandler speaks HTTP/1.0, where chunked encoding does
+        # not exist — so the hex length prefixes this used to write by hand
+        # were never decoded by anything. They arrived in the panel as literal
+        # text: a short hex number and a blank line between every log line,
+        # which is what the "forge tool-call ID" filter was really chasing.
+        # An unterminated HTTP/1.0 body ends at EOF, which is all a streaming
+        # response needs; Caddy re-frames it for the browser on the way out.
         self.send_response(200)
         self.send_header("Content-Type", "text/plain; charset=utf-8")
-        self.send_header("Transfer-Encoding", "chunked")
         self.send_header("Cache-Control", "no-store")
+        self.send_header("Connection", "close")
         self.send_header("X-Accel-Buffering", "no")   # tell Caddy not to buffer
         self.end_headers()
 
         try:
             for line in _stream_container_logs(container):
-                encoded = line.encode("utf-8", errors="replace")
-                # HTTP chunked encoding: <hex-len>\r\n<data>\r\n
-                self.wfile.write(
-                    f"{len(encoded):x}\r\n".encode() + encoded + b"\r\n"
-                )
+                self.wfile.write(line.encode("utf-8", errors="replace"))
                 self.wfile.flush()
         except (BrokenPipeError, ConnectionResetError):
             pass
-        finally:
-            try:
-                self.wfile.write(b"0\r\n\r\n")   # terminal chunk
-                self.wfile.flush()
-            except (BrokenPipeError, ConnectionResetError):
-                pass
 
     def _static(self, path):
         rel = path.lstrip("/") or "index.html"

@@ -53,6 +53,16 @@ check("fallback sprite served", status == 200 and b"<svg" in body)
 status, _ = get("/iso.js")
 check("renderer served", status == 200)
 
+# The log panel is xterm.js, staged into site/vendor by scripts/fetch-vendor.sh
+# from the pins in manifest/floor.toml. If it is missing the panel silently has
+# no terminal, so assert the assets are actually served.
+status, body = get("/vendor/xterm.js")
+check("vendored terminal served", status == 200 and len(body) > 100_000)
+status, body = get("/vendor/addon-fit.js")
+check("terminal fit addon served", status == 200 and b"FitAddon" in body)
+status, body = get("/vendor/xterm.css")
+check("terminal stylesheet served", status == 200 and b".xterm" in body)
+
 # path traversal must not escape the site dir
 try:
     status, _ = get("/../app.py")
