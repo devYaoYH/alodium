@@ -1,0 +1,5 @@
+# Staged here by scripts/fetch-vendor.sh from the pins in manifest/floor.toml.
+# Build output of someone else's project: version-pinned and integrity-checked
+# in the manifest, never committed as a blob nobody can review.
+*
+!.gitignore
