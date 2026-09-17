@@ -150,6 +150,14 @@ fi
 #    in their manifest.
 ./scripts/build-mirrored.sh
 
+# 4a-bis. Stage browser-side dependencies into the app build contexts, from the
+#     version+integrity pins in each manifest's [[vendor]] blocks. Must run
+#     BEFORE any image build: an app whose vendor dir is empty fails its build
+#     on purpose rather than shipping a half-working page. Already-staged
+#     packages are skipped, so this is a no-op on most deploys and needs no
+#     network once the node holds its own copy.
+./scripts/fetch-vendor.sh || record_msg WARN "vendor staging failed — see above"
+
 # 4b. Rebuild locally-built images whose build inputs changed in this merge.
 #     'docker compose up -d' (step 5) does NOT rebuild an existing image, so a
 #     merged Dockerfile or build-context change would otherwise never reach the

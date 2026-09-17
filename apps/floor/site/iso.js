@@ -677,220 +677,81 @@ addEventListener("keydown", e => {
 const LOGGABLE_WINGS = new Set(["bay", "yard"]);
 const LOGGABLE_NAMES = new Set(["agent", "doorbell-runner"]);
 
-// Spinner runes (Braille + ASCII) — matches the server-side _SPINNER_CHARS.
-// Used to visually dim spinner frames in the log panel.
-const _SPINNER_RE = /^[⠁-⠿\-\\|\/]/;
-
-// --- virtual terminal --------------------------------------------------------
-// An in-memory line buffer that interprets ANSI escape codes for cursor
-// control (\r, CUU, CUD, EL, SCP, RCP) so that streaming log output that
-// updates progress in-place renders cleanly instead of concatenating raw
-// control characters into every line.
+// --- terminal ----------------------------------------------------------------
+// The panel is a real terminal: xterm.js, the emulator VS Code's terminal is
+// built on. It is staged into site/vendor/ by scripts/fetch-vendor.sh from the
+// version+integrity pins in manifest/floor.toml — see that manifest for why it
+// comes from this node's own registry rather than npmjs.com.
 //
-// The buffer is bounded by TERM_MAX_LINES — past that, the oldest lines are
-// dropped (a sliding window).  The cap is a memory ceiling, not a UI choice:
-// the browser holds one <span class="logline"> per retained line, so 5000
-// lines is comfortable on desktop and 500 was clearly too few.  Sessions
-// that need unbounded history can dump the container's log file directly;
-// the panel is a live view, not a log archive.
-const TERM_MAX_LINES = 5000;
-let termBuf = [""];        // array of line strings
-let termRow = 0;            // cursor row within buffer
-let termCol = 0;            // cursor column
-let termSavedRow = 0;       // saved cursor row (SCP/RCP)
-let termSavedCol = 0;       // saved cursor col
-let termEscState = "";      // "" | "ESC" | "CSI"
-let termCsiParams = "";
-// Columns per logical row.  The terminal buffer mirrors what the user
-// actually sees, so when `termCol` reaches `termWidth` we advance to a
-// fresh row instead of letting one buffer entry stretch past the panel —
-// long container lines (URLs, progress bars, hex dumps) used to extend
-// offscreen until a CR happened, and the unwritten tail still showed in
-// the wrapped visual rows below the new short content.
-let termWidth = 80;
+// What we hand it is the container's bytes, unchanged. Everything that used to
+// live here — the CSI parser, the SGR state machine, the line buffer, the
+// erase and cursor handling — is xterm's problem now, and it handles a great
+// deal this panel never got right on its own: wide characters, combining
+// marks, scroll regions, the alternate screen.
+//
+// Scrollback is a memory ceiling, not a UI choice: the panel holds a grid line
+// per retained row. Sessions needing more history read the container log
+// directly — this is a live view, not an archive.
+const TERM_SCROLLBACK = 5000;
 
-// Measure the panel's usable content width in monospace columns.  We probe
-// with a hidden `<span>M</span>` so the value tracks the actual rendered
-// glyph width (font-family fallback chains differ in advance width), and
-// subtract horizontal padding so the wrap point matches the visible
-// right edge.  Recomputed on resize and on panel open.
-function recomputeTermWidth() {
-  if (!logBody || !logBody.isConnected) return;
-  const cs = getComputedStyle(logBody);
-  const probe = document.createElement("span");
-  probe.style.visibility = "hidden";
-  probe.style.position = "absolute";
-  probe.style.whiteSpace = "pre";
-  probe.style.font = cs.font;
-  probe.textContent = "M";
-  document.body.appendChild(probe);
-  const cw = probe.getBoundingClientRect().width;
-  probe.remove();
-  const padL = parseFloat(cs.paddingLeft) || 0;
-  const padR = parseFloat(cs.paddingRight) || 0;
-  const avail = logBody.clientWidth - padL - padR;
-  if (avail > 0 && cw > 0) termWidth = Math.max(20, Math.floor(avail / cw));
+let term = null;            // the xterm.js Terminal, built on first open
+let termFit = null;         // FitAddon — recomputes cols/rows from the panel
+
+// xterm wants concrete colours, and the stylesheet is where this node's
+// palette lives. Read the sixteen ANSI slots back out of CSS so there is one
+// source of truth and the panel follows the floor's theme for free.
+function termTheme() {
+  const cs = getComputedStyle(document.documentElement);
+  const v = (name, fallback) => (cs.getPropertyValue(name).trim() || fallback);
+  const slot = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"];
+  const theme = {
+    background: v("--term-bg", "#0b0e17"),
+    foreground: v("--term-fg", "#e2dcd2"),
+    cursor: "rgba(0,0,0,0)",            // nothing is typing; a caret would lie
+    selectionBackground: "rgba(217,164,65,.32)",
+  };
+  slot.forEach((name, i) => {
+    theme[name] = v(`--ansi-${i}`, "#cccccc");
+    theme["bright" + name[0].toUpperCase() + name.slice(1)] = v(`--ansi-${i + 8}`, "#ffffff");
+  });
+  return theme;
 }
 
-if (typeof ResizeObserver !== "undefined" && logBody) {
-  new ResizeObserver(recomputeTermWidth).observe(logBody);
-}
-
-function termEnsureRow(r) {
-  while (r >= termBuf.length) termBuf.push("");
-}
-
-function termWrite(ch) {
-  // Wrap before writing if the cursor is at the panel width.  Standard
-  // TTY behaviour: a column overflow advances to col 0 of the next row
-  // rather than overwriting the last column.  Without this the buffer
-  // row keeps growing past the visible edge and CSS has to wrap on
-  // render, leaving the cursor math (and CR-based progress bars) out
-  // of sync with what the user actually sees.
-  if (termCol >= termWidth) {
-    termRow++;
-    termCol = 0;
+function ensureTerminal() {
+  if (term) return term;
+  if (typeof Terminal === "undefined") {
+    logStatus.textContent =
+      "terminal unavailable — site/vendor is empty; run scripts/fetch-vendor.sh";
+    return null;
   }
-  termEnsureRow(termRow);
-  let line = termBuf[termRow];
-  if (termCol >= line.length) {
-    line = line + ch;
-  } else {
-    line = line.substring(0, termCol) + ch + line.substring(termCol + 1);
-  }
-  termBuf[termRow] = line;
-  termCol++;
+  term = new Terminal({
+    // The stream carries real CRLFs; converting bare LFs as well would only
+    // paper over a container that is genuinely writing a stair-stepped line.
+    convertEol: false,
+    disableStdin: true,             // a log view never sends keystrokes back
+    cursorBlink: false,
+    scrollback: TERM_SCROLLBACK,
+    fontFamily: '"SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace',
+    fontSize: 12.5,
+    lineHeight: 1.25,
+    theme: termTheme(),
+  });
+  termFit = new FitAddon.FitAddon();
+  term.loadAddon(termFit);
+  term.open(logBody);
+  termFit.fit();
+  return term;
 }
 
-function termEraseLine(mode) {
-  termEnsureRow(termRow);
-  if (mode === 2) {
-    termBuf[termRow] = "";
-  } else if (mode === 1) {
-    const line = termBuf[termRow];
-    const pad = " ".repeat(Math.min(termCol, line.length));
-    termBuf[termRow] = pad + line.substring(termCol);
-  } else {
-    termBuf[termRow] = (termBuf[termRow] || "").substring(0, termCol);
-  }
+// Resizing the panel resizes the terminal, which reflows its scrollback —
+// the thing a fixed-width buffer could never do.
+function fitTerminal() {
+  if (!term || !termFit || !logPanel.classList.contains("open")) return;
+  try { termFit.fit(); } catch (_) { /* panel mid-layout; the next one lands */ }
 }
 
-function handleTermEscape(final) {
-  const n = termCsiParams
-    ? parseInt(termCsiParams.replace(/[^0-9;]/g, ""), 10) || 0
-    : 0;
-  switch (final) {
-    case "A": termRow = Math.max(0, termRow - (n || 1)); break;
-    case "B": termRow = termRow + (n || 1); break;
-    case "C": termCol = termCol + (n || 1); break;
-    case "D": termCol = Math.max(0, termCol - (n || 1)); break;
-    case "K": termEraseLine(n); break;
-    case "s": termSavedRow = termRow; termSavedCol = termCol; break;
-    case "u": termRow = termSavedRow; termCol = termSavedCol; break;
-    case "H": case "f": {
-      const parts = termCsiParams.split(";");
-      const r = (parseInt(parts[0], 10) || 1) - 1;
-      const c = (parseInt(parts[1], 10) || 1) - 1;
-      termRow = Math.max(0, r);
-      termCol = Math.max(0, c);
-      break;
-    }
-  }
-}
-
-function renderLogBuffer() {
-  // Respect the user's scroll position: capture whether they were pinned
-  // to the bottom BEFORE we add new lines (which would extend scrollHeight
-  // and make the check misleading if run after).  A user reading past
-  // history should not be yanked back to the tail on every new chunk.
-  const slack = 24;   // px of slop — being within a line of the tail counts as pinned
-  const pinned = (logBody.scrollHeight - logBody.scrollTop - logBody.clientHeight) <= slack;
-
-  // Enforce max lines; adjust cursor if lines were trimmed from top
-  while (termBuf.length > TERM_MAX_LINES) {
-    termBuf.shift();
-    termRow = Math.max(0, termRow - 1);
-  }
-  // Reuse existing DOM children to avoid unnecessary allocations
-  const existing = logBody.children;
-  for (let i = 0; i < termBuf.length; i++) {
-    let span = i < existing.length ? existing[i] : null;
-    if (!span) {
-      span = document.createElement("span");
-      span.className = "logline";
-      logBody.appendChild(span);
-    }
-    span.textContent = termBuf[i];
-    span.className = "logline" + (_SPINNER_RE.test(termBuf[i]) ? " spinner" : "");
-  }
-  while (logBody.children.length > termBuf.length) logBody.lastChild.remove();
-
-  // Only snap to the tail if the user was already there.  Anyone scrolled up
-  // keeps their reading position and can scroll down manually when ready.
-  if (pinned) logBody.scrollTop = logBody.scrollHeight;
-}
-
-function resetTerminal() {
-  termBuf = [""];
-  termRow = 0;
-  termCol = 0;
-  termSavedRow = 0;
-  termSavedCol = 0;
-  termEscState = "";
-  termCsiParams = "";
-}
-
-function processLogChunk(text) {
-  for (const ch of text) {
-    if (termEscState) {
-      if (termEscState === "ESC") {
-        if (ch === "[") {
-          termEscState = "CSI";
-          termCsiParams = "";
-        } else if (ch === "7") {
-          termSavedRow = termRow; termSavedCol = termCol;
-          termEscState = "";
-        } else if (ch === "8") {
-          termRow = termSavedRow; termCol = termSavedCol;
-          termEscState = "";
-        } else {
-          termEscState = "";
-        }
-      } else if (termEscState === "CSI") {
-        if (ch >= "@" && ch <= "~") {
-          handleTermEscape(ch);
-          termEscState = "";
-        } else if (ch >= " " && ch <= "/") {
-          termCsiParams += ch;
-        } else {
-          termCsiParams += ch;
-        }
-      }
-    } else if (ch === "\x1b") {
-      termEscState = "ESC";
-    } else if (ch === "\r") {
-      termCol = 0;
-      // Erase the rest of the cursor's row.  A bare CR doesn't clear in a
-      // real terminal, but logs aren't a real terminal: a progress bar
-      // emitting `\r 50%` over a previously-printed long line should
-      // visibly REPLACE that line, not leave the unwritten tail showing
-      // in the rows below.  Other rows of the same logical line still
-      // hold their original content; CR-on-row-N clears only row N.
-      if (termRow < termBuf.length) {
-        termBuf[termRow] = (termBuf[termRow] || "").substring(0, termCol);
-      }
-    } else if (ch === "\n") {
-      termRow++;
-      termCol = 0;
-    } else if (ch === "\b") {
-      termCol = Math.max(0, termCol - 1);
-    } else if (ch === "\t") {
-      termCol = (termCol + 8) & ~7;
-    } else if (ch >= " ") {
-      termWrite(ch);
-    }
-  }
-  renderLogBuffer();
+if (typeof ResizeObserver !== "undefined") {
+  new ResizeObserver(fitTerminal).observe(logBody);
 }
 
 let logReader = null;   // active ReadableStreamDefaultReader, if any
@@ -907,14 +768,15 @@ function closeLogPanel() {
 async function openLogPanel(room) {
   closeLogPanel();              // cancel any previous stream first
   logTitle.textContent = `logs · ${room.label} (${room.name})`;
-  logBody.innerHTML = "";
   logStatus.textContent = "connecting…";
   logPanel.classList.add("open");
-  resetTerminal();
-  // Panel was display:none at load, so the first measurement saw
-  // clientWidth=0.  Now that it's flex-laid-out, recompute so the
-  // very first chunk already wraps to the visible width.
-  recomputeTermWidth();
+
+  // The panel was display:none until now, so the terminal could not have
+  // measured itself; build or refit it once it is actually laid out.
+  const t = ensureTerminal();
+  if (!t) return;               // vendor assets missing — status already says so
+  t.reset();
+  fitTerminal();
 
   try {
     const resp = await fetch(`/v1/logs/${encodeURIComponent(room.name)}`);
@@ -922,15 +784,14 @@ async function openLogPanel(room) {
       logStatus.textContent = `error ${resp.status}`;
       return;
     }
-    logStatus.textContent = "streaming · ANSI terminal emulation active";
+    logStatus.textContent = "streaming";
     logReader = resp.body.getReader();
     const decoder = new TextDecoder();
 
     while (true) {
       const { done, value } = await logReader.read();
       if (done) { logStatus.textContent = "stream ended"; break; }
-      const text = decoder.decode(value, { stream: true });
-      processLogChunk(text);
+      t.write(decoder.decode(value, { stream: true }));
     }
   } catch (err) {
     if (err.name !== "AbortError") logStatus.textContent = `disconnected: ${err.message}`;
@@ -941,6 +802,7 @@ async function openLogPanel(room) {
 // Fullscreen toggle
 logFullscreen.addEventListener("click", () => {
   logPanel.classList.toggle("fullscreen");
+  fitTerminal();
 });
 
 // Resizing: drag the bottom-right corner
@@ -966,6 +828,7 @@ logResizeHandle.addEventListener("pointermove", (e) => {
   const newH = Math.max(200, resizeStart.startH + deltaY);
   logPanel.style.width = newW + "px";
   logPanel.style.height = newH + "px";
+  fitTerminal();
 });
 
 logResizeHandle.addEventListener("pointerup", () => {
