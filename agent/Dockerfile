@@ -15,6 +15,7 @@ ENV CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       git curl ca-certificates python3 python3-yaml ripgrep jq shellcheck \
+      xxd file \
     && rm -rf /var/lib/apt/lists/*
 
 # The caddy binary is a static PIE — copy it straight in; it runs offline for
