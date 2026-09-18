@@ -73,13 +73,60 @@ After that, `scripts/deploy.sh` keeps it current on every merge like any other
 app: it rebuilds the images when their build inputs change and recreates the
 running containers.
 
+## Token cost: the headroom optimizer
+
+The co-pilot now runs its Anthropic traffic through a local **headroom**
+optimizer (`copilot-headroom`, https://github.com/headroomlabs-ai/headroom) — a
+proxy Claude Code points at via `ANTHROPIC_BASE_URL=http://copilot-headroom:8787`.
+It compresses and semantic-caches the conversation so the flat-rate subscription
+buys more turns (and fewer rate-limit hits) before traffic ever leaves the box.
+
+The boundary is unchanged — headroom is a pure optimizer on traffic that was
+already allowed:
+
+- **It has no direct internet.** `copilot-headroom` joins only the `copilot-egress`
+  network and reaches `api.anthropic.com` *through* the allowlist proxy (its
+  `--http-proxy http://copilot-egress:8080`). It never joins `edge`, so a
+  third-party proxy cannot open a general-internet path around the Anthropic-only
+  egress. `scripts/verify-config.sh` asserts this on every config change.
+- **It holds no credentials.** It forwards Claude Code's subscription OAuth
+  header transparently ("does not store or replace your Anthropic credentials");
+  the token traverses only the internal `copilot-egress` network.
+- **It runs air-gapped.** The ML Kompress compressor is disabled
+  (`HEADROOM_DISABLE_KOMPRESS=1`) because its model weights would need general
+  internet to fetch at runtime, which the allowlist refuses. The structural
+  compressors (SmartCrusher / CacheAligner) + semantic cache still run and work
+  offline — that is the part that cuts tokens here. Re-enabling Kompress means
+  baking the model into the image at *build* time first (a follow-up).
+
+**Mode.** Default `--mode cache` preserves Anthropic prefix-cache stability
+(safe for the interactive seat). Switch to `token` in `apps/copilot/compose.yaml`
+for maximum per-request compression at the cost of cache stability.
+
+**Bypass / rollback.** Headroom is on the `copilot` profile, so it comes up with
+the seat. If it misbehaves, set `ANTHROPIC_BASE_URL` empty in
+`apps/copilot/compose.yaml` and redeploy — Claude Code then hits
+`api.anthropic.com` directly via `copilot-egress`, bypassing headroom entirely.
+Full rollback is `git revert` + redeploy.
+
+**What still needs the operator to verify at runtime** (this PR only checks
+syntax/structure): that headroom actually compresses the subscription traffic,
+that the subscription OAuth still authenticates through it, and that the copilot
+remains responsive. The `--http-proxy` upstream path and air-gapped Kompress
+disable are the two things most likely to need a follow-up depending on the
+installed headroom version's behavior.
+
 ## Known limits / follow-ups
 
 - The co-pilot's `$HOME` (Claude state, tmux session) is ephemeral — a container
   recreate ends the running session. Persisting it behind a volume is a
   follow-up.
 - The ttyd binary is version-pinned, not yet sha256-pinned (see
-  `apps/copilot/Dockerfile`).
+  `apps/copilot/Dockerfile`). The `copilot-headroom` base (`python:3.12-slim`)
+  is likewise tag-pinned, not digest-pinned.
+- Headroom's ML Kompress compressor is disabled to stay air-gapped; baking the
+  Kompress model into the `copilot-headroom` image at build time would unlock
+  deeper compression without needing general internet at runtime.
 - General web lookups are out of scope for now (Anthropic-only egress). Wiring
   the co-pilot to the existing `search-broker` for mediated fetch is the natural
   next step (capability, not raw connectivity).

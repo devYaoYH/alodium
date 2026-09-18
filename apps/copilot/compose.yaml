@@ -26,12 +26,21 @@ services:
       # machine; lives only in host-only secrets/copilot.env.
       CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}
       # The ONE sanctioned egress: HTTPS (i.e. api.anthropic.com) tunnels through
-      # the allowlist proxy. Internal HTTP (forgejo, registry) stays direct via
-      # NO_PROXY, and HTTP_PROXY is intentionally left unset.
+      # the allowlist proxy. Internal HTTP (forgejo, registry, AND the headroom
+      # optimizer) stays direct via NO_PROXY, and HTTP_PROXY is intentionally
+      # left unset.
       HTTPS_PROXY: http://copilot-egress:8080
       https_proxy: http://copilot-egress:8080
-      NO_PROXY: localhost,127.0.0.1,forgejo,litellm,registry,search-broker
-      no_proxy: localhost,127.0.0.1,forgejo,litellm,registry,search-broker
+      NO_PROXY: localhost,127.0.0.1,forgejo,litellm,registry,search-broker,copilot-headroom
+      no_proxy: localhost,127.0.0.1,forgejo,litellm,registry,search-broker,copilot-headroom
+      # Route Claude Code at the headroom token-optimizer (copilot-headroom:8787)
+      # instead of api.anthropic.com directly. Headroom compresses / semantic-
+      # caches the traffic, then forwards to Anthropic ONLY through copilot-egress
+      # (its own --http-proxy), so the Anthropic-only allowlist stays the one
+      # internet path. To bypass headroom (e.g. if it misbehaves), set this empty
+      # in apps/copilot/compose.yaml and redeploy — claude then hits api.anthropic.com
+      # directly via HTTPS_PROXY=copilot-egress. See docs/COPILOT.md.
+      ANTHROPIC_BASE_URL: http://copilot-headroom:8787
       # Proposer identity — write:issue + write:repository; branch protection on
       # main is the apply-gap (same posture as agent-dev). Never a merge/deploy key.
       COPILOT_FORGEJO_TOKEN: ${COPILOT_FORGEJO_TOKEN:-}
@@ -70,6 +79,51 @@ services:
     # with an internet route — exactly the search-egress shape.
     networks: [copilot-egress, edge]
 
+  copilot-headroom:
+    profiles: [copilot]
+    build: ./headroom
+    image: sovereign-node/copilot-headroom:local
+    container_name: copilot-headroom
+    restart: unless-stopped
+    # A local token-optimization proxy (https://github.com/headroomlabs-ai/headroom)
+    # the copilot points ANTHROPIC_BASE_URL at. It compresses / semantic-caches the
+    # Anthropic traffic so the flat-rate subscription buys more turns. It reaches
+    # api.anthropic.com ONLY through copilot-egress (its --http-proxy + HTTPS_PROXY
+    # fallback), so the Anthropic-only allowlist remains the one internet path —
+    # it has NO direct internet (no `edge`), no door, no agent spur.
+    #
+    # Kompress (the ML/model compressor) is disabled: its model weights would need
+    # general internet to fetch at runtime, which the allowlist refuses. The
+    # structural compressors + semantic cache still run and work air-gapped — that
+    # is the part that cuts tokens here. Re-enable Kompress only after baking the
+    # model into the image at build time (see docs/COPILOT.md).
+    environment:
+      HEADROOM_DISABLE_KOMPRESS: "1"
+      # No phone-home / update checks: nothing leaves the box. (Update checks
+      # would attempt non-Anthropic egress copilot-egress denies anyway; this
+      # keeps the logs clean.)
+      HEADROOM_BEACON: "off"
+      DO_NOT_TRACK: "1"
+      # Upstream to api.anthropic.com goes through the allowlist proxy. The
+      # --http-proxy flag below is the purpose-built mechanism (HTTPS provider
+      # APIs use CONNECT — exactly copilot-egress's shape); HTTPS_PROXY is a
+      # belt-and-suspenders fallback for headroom's own HTTP client.
+      HTTPS_PROXY: http://copilot-egress:8080
+      https_proxy: http://copilot-egress:8080
+      NO_PROXY: localhost,127.0.0.1
+      no_proxy: localhost,127.0.0.1
+    # cache mode (default) preserves Anthropic prefix-cache stability; switch to
+    # `token` here for max compression at the cost of cache stability.
+    command: --host 0.0.0.0 --port 8787 --mode cache --http-proxy http://copilot-egress:8080
+    read_only: true
+    tmpfs: [/tmp, /home/headroom]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    # copilot-egress only: reachable by the copilot (same net), and reaches
+    # copilot-egress (the allowlist bridge to edge). NEVER `edge` itself, never
+    # `front`, never `agents` — verify-config.sh asserts this.
+    networks: [copilot-egress]
+
 networks:
   # Shared networks re-declare the root's attributes exactly; compose merges.
   front:
@@ -78,9 +132,10 @@ networks:
     internal: true
   edge:
   copilot-egress:
-    # The copilot <-> its egress proxy meet here and nothing else joins. The
-    # proxy is the sole bridge to `edge`, so this is the one controlled hole in
-    # the copilot's otherwise egress-less spur.
+    # The copilot, its egress proxy, AND the headroom optimizer meet here. The
+    # egress proxy is the sole bridge to `edge`, so this is the one controlled
+    # hole in the copilot's otherwise egress-less spur; headroom reaches Anthropic
+    # only through that proxy, never `edge` directly.
     internal: true
 
 volumes:
