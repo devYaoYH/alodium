@@ -29,16 +29,19 @@ services:
   # The authshim copies the verified Pocket ID email into
   # X-Auth-Request-Email; REDASH_REMOTE_USER_HEADER trusts it, so a passkey
   # session is logged in without a second form. Enable:
-  #   docker compose --profile apps up -d redash-server redash-worker
+  #   docker compose --profile apps up -d redash-server redash-scheduler redash-worker
   redash-server:
     profiles: [apps]
     image: redash/redash:10.1.0.b50633
+    platform: linux/amd64
     container_name: redash-server
     restart: unless-stopped
     command: server
     depends_on:
-      - redash-db
-      - redash-redis
+      redash-init:
+        condition: service_completed_successfully
+      redash-redis:
+        condition: service_started
     environment:
       PYTHONUNBUFFERED: "0"
       REDASH_LOG_LEVEL: "INFO"
@@ -61,25 +64,69 @@ services:
       REDASH_PASSWORD_LOGIN_ENABLED: "true"
     networks: [front, dash]
 
-  # Background worker: scheduled-query + ad-hoc query execution (Celery).
-  # Shares the redash image, different command; needs only the data net.
-  redash-worker:
+  # Schema bootstrap + migrations, one-shot. Redash never creates its own
+  # tables: without this the server 500s on a fresh volume. create_tables is
+  # a no-op once tables exist, and `db upgrade` applies any migrations a new
+  # image tag brings — so it is safe (and wanted) on every `up`. Everything
+  # below waits for it to exit 0.
+  redash-init:
     profiles: [apps]
     image: redash/redash:10.1.0.b50633
-    container_name: redash-worker
-    restart: unless-stopped
-    command: scheduler
+    platform: linux/amd64
+    container_name: redash-init
+    restart: "no"
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["/app/manage.py database create_tables && /app/manage.py db upgrade"]
     depends_on:
       - redash-db
-      - redash-redis
-    environment:
+    environment: &redash-backend-env
       PYTHONUNBUFFERED: "0"
       REDASH_LOG_LEVEL: "INFO"
       REDASH_REDIS_URL: "redis://redash-redis:6379/0"
       REDASH_DATABASE_URL: "postgresql://redash:${REDASH_DB_PASSWORD:-}@redash-db:5432/redash"
       REDASH_COOKIE_SECRET: "${REDASH_COOKIE_SECRET:-}"
       REDASH_SECRET_KEY: "${REDASH_SECRET_KEY:-}"
-      QUEUES: "queries,scheduled_queries,celery"
+      # The periodic version check phones home to version.redash.io — which
+      # `dash` (internal) can't reach — and errors until the first-run setup
+      # creates an org. Off.
+      REDASH_VERSION_CHECK: "false"
+    networks: [dash]
+
+  # RQ scheduler: only ENQUEUES periodic + scheduled-query jobs. It executes
+  # nothing — that is redash-worker's job.
+  redash-scheduler:
+    profiles: [apps]
+    image: redash/redash:10.1.0.b50633
+    platform: linux/amd64
+    container_name: redash-scheduler
+    restart: unless-stopped
+    command: scheduler
+    depends_on:
+      redash-init:
+        condition: service_completed_successfully
+      redash-redis:
+        condition: service_started
+    environment: *redash-backend-env
+    networks: [dash]
+
+  # RQ worker: executes ad-hoc + scheduled queries, schema refreshes, emails
+  # and periodic housekeeping. QUEUES unset = every default queue (Redash's
+  # `default_queues`), which is right for a single node; split into per-queue
+  # workers only if ad-hoc queries start starving behind scheduled ones.
+  redash-worker:
+    profiles: [apps]
+    image: redash/redash:10.1.0.b50633
+    platform: linux/amd64
+    container_name: redash-worker
+    restart: unless-stopped
+    command: worker
+    depends_on:
+      redash-init:
+        condition: service_completed_successfully
+      redash-redis:
+        condition: service_started
+    environment:
+      <<: *redash-backend-env
       WORKERS_COUNT: "2"
     networks: [dash]
 
