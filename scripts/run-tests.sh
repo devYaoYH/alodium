@@ -13,11 +13,15 @@
 # hide it. [tests].service names the compose service when it differs from the
 # app name (redash's is redash-server).
 #
-# `curl ...` commands run in a curl image. `python3 ...` commands (the
-# app-skeleton's tests/smoke.py contract) run in a stdlib Python image with the
-# app's directory mounted read-only as the working directory: apps/<name>, or
-# dependencies/<name> when the tests live in a mirrored repo (the SUT worker
-# stages those there).
+# Where a test runs is [tests].run:
+#   "caller" (default): from outside, like any client. `curl ...` runs in a
+#     curl image; `python3 ...` (the app-skeleton's tests/smoke.py contract)
+#     runs in a stdlib Python image with apps/<name> mounted read-only as the
+#     working directory.
+#   "in-app": inside the app's own running container (docker exec). Use it for
+#     tests an app repo ships in its image: they run against the exact build
+#     under test, with its dependencies, environment and networks, so the
+#     repo's own checks stay part of every system test.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
@@ -26,7 +30,7 @@ CURL_RUNNER=curlimages/curl:latest@sha256:7c12af72ceb38b7432ab85e1a265cff6ae58e0
 PY_RUNNER=python:3.12-alpine@sha256:6d43704baacd1bfbe7c295d7f13079d5d8104ed33568873133f8fc69980419df
 FAILURES=0
 
-while IFS=$'\t' read -r name service port timeout cmd; do
+while IFS=$'\t' read -r name service port timeout where cmd; do
   if [[ -z "$cmd" ]]; then
     echo "SKIP  $name — manifest declares no [tests]"
     continue
@@ -37,13 +41,23 @@ while IFS=$'\t' read -r name service port timeout cmd; do
     echo "SKIP  $name — service '$service' not running in $PROJECT (profile not enabled?)"
     continue
   fi
+  if [[ "$where" == "in-app" ]]; then
+    echo "TEST  $name ($service, in-app): $cmd"
+    if docker exec -e "APP_URL=http://localhost:$port" "$CID" sh -c "timeout ${timeout:-300} $cmd" >/tmp/run-tests.$$.log 2>&1; then
+      echo "GREEN $name"
+    else
+      echo "RED   $name"
+      sed 's/^/      | /' /tmp/run-tests.$$.log | tail -n 15
+      FAILURES=$((FAILURES+1))
+    fi
+    rm -f /tmp/run-tests.$$.log
+    continue
+  fi
   NETS=$(docker inspect --format '{{range $k,$_ := .NetworkSettings.Networks}}{{$k}} {{end}}' "$CID")
   runner=("$CURL_RUNNER") mount=()
   if [[ "$cmd" == python3* ]]; then
     runner=("$PY_RUNNER")
-    dir="apps/$name"
-    [[ -d "$dir/tests" || ! -d "dependencies/$name/tests" ]] || dir="dependencies/$name"
-    mount=(-v "$PWD/$dir:/app:ro" -w /app)
+    mount=(-v "$PWD/apps/$name:/app:ro" -w /app)
   fi
   echo "TEST  $name ($service): $cmd"
   # create → connect every network → start: `docker run` joins only one.
@@ -76,6 +90,7 @@ for p in sorted(pathlib.Path("manifest").glob("*.toml")):
         tests.get("service", name),
         str(m.get("service", {}).get("port", "")),
         str(tests.get("timeout_seconds", "")),
+        tests.get("run", "caller"),
         tests.get("command", ""),   # last: may be empty, and tab is IFS whitespace
     ]))
 EOF

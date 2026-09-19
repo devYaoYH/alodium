@@ -198,6 +198,16 @@ if [[ -n "$unstable" ]]; then
   REASON="service failed to stabilize: $(paste -sd, - <<<"$unstable")"; exit 1
 fi
 
+# Health checks shipped with each image or compose service are part of the
+# test: wait for every "starting" check to settle, then fail on "unhealthy".
+# This covers core services (forgejo, pocket-id, ...) that declare no [tests].
+health() { "${compose[@]}" ps --format '{{.Service}} {{.Health}}' | awk -v want="$1" '$2 == want {print $1}'; }
+while (( $(date +%s) < deadline )) && [[ -n "$(health starting)" ]]; do sleep 5; done
+unhealthy="$(health unhealthy; health starting)"
+if [[ -n "$unhealthy" ]]; then
+  REASON="health check failing or never passed within ${TIMEOUT}s: $(paste -sd, - <<<"$unhealthy")"; exit 1
+fi
+
 # The candidate declares per-app smoke commands in its manifests.  Run those
 # across the staging networks, then retain the complete worker log as evidence.
 if ! ./scripts/run-tests.sh >>"$LOG" 2>&1; then
