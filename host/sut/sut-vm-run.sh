@@ -22,6 +22,13 @@ PY
 cleanup() {
   docker compose -p "$PROJECT" -f "$ROOT/docker-compose.yml" -f "$ROOT/docker-compose.staging.yml" \
     --profile apps --profile feeds logs --no-color >>"$LOG" 2>&1 || true
+  # Container states and kernel OOM kills: a service that dies silently is
+  # usually out of memory, and the worker's size is the host's to change.
+  { echo "== containers at teardown"
+    docker ps -a --format '{{.Names}}\t{{.State}}\t{{.Status}}'
+    echo "== kernel OOM kills"
+    sudo dmesg 2>/dev/null | grep -iE 'out of memory|oom-kill|killed process' | tail -n 20 || true
+  } >>"$LOG" 2>&1 || true
   docker compose -p "$PROJECT" -f "$ROOT/docker-compose.yml" -f "$ROOT/docker-compose.staging.yml" \
     --profile apps --profile feeds down -v --remove-orphans >>"$LOG" 2>&1 || true
   write_result
