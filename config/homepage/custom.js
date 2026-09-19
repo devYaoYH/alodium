@@ -406,8 +406,11 @@
   // is itself someone's child stays a root, so no container is ever dropped.
   // Explicit grouping rules for services that don't follow naming conventions.
   const EXPLICIT_GROUPS = {
-    // 'child-name': 'parent-name',
-    // e.g. 'redash-server': 'redash', 'redash-worker': 'redash'
+    // Group redash supporting services under the main server.
+    'redash-worker': 'redash-server',
+    'redash-scheduler': 'redash-server',
+    'redash-db': 'redash-server',
+    'redash-redis': 'redash-server',
   };
 
   const buildGroups = (list) => {
