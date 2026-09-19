@@ -25,7 +25,9 @@ volumes = ["search_audit", "search_audit_db"]
 database = "postgres"
 
 [tests]
-command = "python3 tests/smoke.py"
+# tests/smoke.py lives in the apps/search-broker repo and imports the app with
+# its dependencies: an in-process test for that repo, not a staging check.
+command = "curl -fsS $APP_URL/healthz"
 timeout_seconds = 60
 
 [lifecycle]

@@ -61,9 +61,12 @@ require_colima() {
 provision_worker() {
   # No host filesystem or host port forwarding: candidate compose files and
   # containers are confined to the worker VM. Input is sent via colima ssh.
+  # Rosetta: some images are amd64-only (redash). Under the default QEMU
+  # emulation their workers never finish booting; Docker Desktop, which runs
+  # production here, uses Rosetta too.
   colima start "$SUT_PROFILE" --runtime docker --cpus "$SUT_CPUS" \
     --memory "$SUT_MEMORY" --disk "$SUT_DISK" --mount=none --port-forwarder=none \
-    --activate=false
+    --vm-type vz --vz-rosetta --activate=false
 }
 
 start_worker() {
