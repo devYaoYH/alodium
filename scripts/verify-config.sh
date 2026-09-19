@@ -221,6 +221,29 @@ if e_extra:
     errs.append(f"copilot-egress joins unexpected network(s) {sorted(e_extra)} "
                 f"(allowed: {sorted(EGRESS_ALLOWED)}).")
 
+# The headroom token-optimizer (copilot-headroom): a third-party Python proxy the
+# copilot points ANTHROPIC_BASE_URL at. It reaches Anthropic ONLY through
+# copilot-egress — it must NEVER join `edge` (that would hand a third-party
+# proxy a general-internet path around the Anthropic-only allowlist), and never
+# `front` (the door) or `agents` (the spur) or any data-plane net. It is a pure
+# optimizer on the copilot's already-allowed traffic, so copilot-egress is its
+# one and only network.
+HEADROOM_ALLOWED = {'copilot-egress'}
+h_extra = nets('copilot-headroom') - HEADROOM_ALLOWED
+if h_extra:
+    errs.append(f"copilot-headroom joins forbidden network(s) {sorted(h_extra)} "
+                f"(allowed: {sorted(HEADROOM_ALLOWED)}) — it must reach Anthropic "
+                f"only via copilot-egress, never `edge`/`front`/`agents`/data-plane.")
+if 'edge' in nets('copilot-headroom'):
+    errs.append("copilot-headroom must NOT join `edge` — its only egress is via "
+                "copilot-egress (the Anthropic-only allowlist). A direct `edge` "
+                "route would give a third-party proxy general internet.")
+# No host socket — same posture as the seat itself.
+for v in svcs.get('copilot-headroom', {}).get('volumes', []) or []:
+    src = (v.split(':', 1)[0] if isinstance(v, str) else v.get('source', '')).strip()
+    if 'docker.sock' in src:
+        errs.append("copilot-headroom mounts the docker socket — forbidden.")
+
 # No host socket, no secrets mount — node maintenance only, no host control.
 for v in svcs.get('copilot', {}).get('volumes', []) or []:
     src = (v.split(':', 1)[0] if isinstance(v, str) else v.get('source', '')).strip()
