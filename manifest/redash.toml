@@ -1,0 +1,38 @@
+# Redash — query any data source, build dashboards. Wrapped from the
+# upstream released image (redash/redash:10.1.0.b50633); no source mirror.
+# The door is the oauth2-proxy authshim (no native OIDC), so the node's one
+# Pocket ID passkey opens it; Redash trusts the forwarded email via
+# REMOTE_USER_LOGIN. First manifest through the contract for a no-OIDC,
+# authshim-only browser surface.
+
+[app]
+name = "redash"
+version = "10.1.0.b50633"          # the pinned upstream tag (digest pinned at deploy)
+description = "Self-hosted dashboards & SQL-on-anything for the node's telemetry"
+image = "redash/redash:10.1.0.b50633"   # upstream image; pin digest via scripts/pin-images.sh
+ring = 1
+
+[service]
+port = 5000
+api = "https://redash.io/help/open-source/api"   # upstream contract; no local copy
+health = "/ping"                                  # Redash's liveness endpoint (no-auth)
+
+[needs]
+# Nothing internal yet. Login is the door's business (the authshim), not a
+# `[needs]` credential. Connecting Redash to the node's telemetry data
+# sources (Forgejo's DB, the trace store, LiteLLM spend) is the follow-on:
+# each is a real trust decision (network grant + scoped credential) that
+# ships as its own PR — never grant a data-plane net "just in case".
+
+[resources]
+volumes = []                       # redash_db (below) is the durable store
+database = "postgres"              # redash-db, private `dash` network, server+worker only
+
+[tests]
+command = "curl -fsS $APP_URL/ping"
+timeout_seconds = 30
+
+[lifecycle]
+backup = ["redash_db"]              # query/dashboard definitions live here; redis is ephemeral
+update_policy = "staged"           # via the change pipeline (re-pin digest, then deploy)
+on_demand = false

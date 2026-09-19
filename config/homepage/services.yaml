@@ -111,6 +111,13 @@
         server: sovereign-node
         container: open-webui
         siteMonitor: http://open-webui:8080/health
+    - Dashboards:
+        icon: mdi-chart-box-multiple-outline
+        href: https://dash.{{HOMEPAGE_VAR_NODE_DOMAIN}}
+        description: Redash — query the node's telemetry, build dashboards
+        server: sovereign-node
+        container: redash-server
+        siteMonitor: http://redash-server:5000/ping
 
 # --- Workshop: review, assign, unblock — where the house gets built ----------
 

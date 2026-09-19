@@ -1,0 +1,119 @@
+# redash — an app fragment, merged into the node stack by the root
+# docker-compose.yml `include:` list. This file owns everything redash:
+# service(s), the networks it joins, the volumes it keeps. Secrets arrive
+# BY NAME from secrets/redash.env (the include's env_file) — values are
+# minted host-side (scripts/mint-secrets.sh on deploy); no agent ever reads
+# them. Shared networks re-declare the root's attributes exactly; compose
+# merges.
+#
+# Source: upstream getredash/redash, vendored as a RELEASED image
+# (redash/redash:10.1.0.b50633 — the current stable tag on
+# hub.docker.com/r/redash/redash, Oct 2025). No source mirror needed: the
+# app ships official images. The redash + redis images are pinned by TAG
+# here (not digest) because the jail has no docker/registry egress to
+# resolve a digest; the operator runs `./scripts/pin-images.sh --pull`
+# before deploy to pin them (the designed flow — that script rewrites every
+# `image: <tag>` to `image: <tag>@sha256:…`). The postgres digest is reused
+# from the rest of the node (same `postgres:16-alpine`, already vetted).
+#
+# Auth: Redash has NO native OIDC (SAML + Google + LDAP + REMOTE_USER only),
+# and Pocket ID speaks OIDC, not SAML — so the door is the oauth2-proxy
+# authshim (docs/SSO.md pattern 3): a Pocket ID passkey at the door, and
+# Redash trusts the forwarded identity via REDASH_REMOTE_USER_LOGIN (header
+# X-Auth-Request-Email, copied by the Caddy (authed) snippet) — one passkey
+# opens it. Redash's own password login stays enabled as break-glass.
+
+services:
+  # --- apps ring 1: dashboards ------------------------------------------------
+  # Redash web server (port 5000), reached through Caddy at dash.<domain>.
+  # The authshim copies the verified Pocket ID email into
+  # X-Auth-Request-Email; REDASH_REMOTE_USER_HEADER trusts it, so a passkey
+  # session is logged in without a second form. Enable:
+  #   docker compose --profile apps up -d redash-server redash-worker
+  redash-server:
+    profiles: [apps]
+    image: redash/redash:10.1.0.b50633
+    container_name: redash-server
+    restart: unless-stopped
+    command: server
+    depends_on:
+      - redash-db
+      - redash-redis
+    environment:
+      PYTHONUNBUFFERED: "0"
+      REDASH_LOG_LEVEL: "INFO"
+      REDASH_REDIS_URL: "redis://redash-redis:6379/0"
+      REDASH_DATABASE_URL: "postgresql://redash:${REDASH_DB_PASSWORD:-}@redash-db:5432/redash"
+      REDASH_COOKIE_SECRET: "${REDASH_COOKIE_SECRET:-}"
+      REDASH_SECRET_KEY: "${REDASH_SECRET_KEY:-}"
+      REDASH_WEB_WORKERS: "4"
+      # Public base URL Redash advertises (invite links, redirects).
+      REDASH_BASEURL: "https://dash.${NODE_DOMAIN}/"
+      # TLS terminates at Caddy; do not let Flask-Talisman HSTS-upgrade the
+      # internal hop (it would loop between Caddy and the app).
+      REDASH_ENFORCE_HTTPS: "false"
+      # SSO via the authshim: a verified Pocket ID passkey sets
+      # X-Auth-Request-Email (copied by the (authed) snippet), which Redash
+      # trusts as the logged-in user. Password login stays on as break-glass
+      # (local admin, created on first run via the setup screen / CLI).
+      REDASH_REMOTE_USER_LOGIN_ENABLED: "true"
+      REDASH_REMOTE_USER_HEADER: "X-Auth-Request-Email"
+      REDASH_PASSWORD_LOGIN_ENABLED: "true"
+    networks: [front, dash]
+
+  # Background worker: scheduled-query + ad-hoc query execution (Celery).
+  # Shares the redash image, different command; needs only the data net.
+  redash-worker:
+    profiles: [apps]
+    image: redash/redash:10.1.0.b50633
+    container_name: redash-worker
+    restart: unless-stopped
+    command: scheduler
+    depends_on:
+      - redash-db
+      - redash-redis
+    environment:
+      PYTHONUNBUFFERED: "0"
+      REDASH_LOG_LEVEL: "INFO"
+      REDASH_REDIS_URL: "redis://redash-redis:6379/0"
+      REDASH_DATABASE_URL: "postgresql://redash:${REDASH_DB_PASSWORD:-}@redash-db:5432/redash"
+      REDASH_COOKIE_SECRET: "${REDASH_COOKIE_SECRET:-}"
+      REDASH_SECRET_KEY: "${REDASH_SECRET_KEY:-}"
+      QUEUES: "queries,scheduled_queries,celery"
+      WORKERS_COUNT: "2"
+    networks: [dash]
+
+  # Redash metadata DB. Private `dash` network — one client set
+  # (server + worker), like miniflux's `feeds`. Digest reused from the node.
+  redash-db:
+    profiles: [apps]
+    image: postgres:16-alpine@sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229
+    container_name: redash-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: redash
+      POSTGRES_USER: redash
+      POSTGRES_PASSWORD: ${REDASH_DB_PASSWORD:-}
+    volumes:
+      - redash_db:/var/lib/postgresql/data
+    networks: [dash]
+
+  # Query-result queue + job bus. Ephemeral — not backed up; Redash
+  # persists query definitions in postgres, not redis.
+  redash-redis:
+    profiles: [apps]
+    image: redis:7-alpine
+    container_name: redash-redis
+    restart: unless-stopped
+    networks: [dash]
+
+networks:
+  front:
+    internal: true
+  dash:
+    # Redash <-> its metadata DB + job bus. One client set, one network,
+    # like miniflux's `feeds`. No egress, no docker socket.
+    internal: true
+
+volumes:
+  redash_db:
