@@ -15,7 +15,9 @@ PATH="$PATH:/opt/homebrew/bin:/usr/local/bin:/Applications/Docker.app/Contents/R
 
 SUT_PROFILE="${SUT_PROFILE:-geth-sut-01}"
 SUT_CONTEXT="${SUT_CONTEXT:-colima-$SUT_PROFILE}"
-SUT_CPUS="${SUT_CPUS:-2}"
+# The full stack starves on 2 CPUs (redash workers miss their boot timeout).
+# CPU is time-shared with the host, not reserved; memory is.
+SUT_CPUS="${SUT_CPUS:-4}"
 SUT_MEMORY="${SUT_MEMORY:-4}"
 SUT_DISK="${SUT_DISK:-30}"
 SUT_TIMEOUT="${SUT_TIMEOUT:-240}"

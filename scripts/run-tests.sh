@@ -47,8 +47,10 @@ while IFS=$'\t' read -r name service port timeout cmd; do
   fi
   echo "TEST  $name ($service): $cmd"
   # create → connect every network → start: `docker run` joins only one.
+  # --init: without it the test command is PID 1, which ignores the SIGTERM
+  # `timeout` sends, so a hung request would hang the whole run.
   first="${NETS%% *}"
-  TID=$(docker create --network "$first" -e "APP_URL=http://$service:$port" \
+  TID=$(docker create --init --network "$first" -e "APP_URL=http://$service:$port" \
         "${mount[@]+"${mount[@]}"}" --entrypoint sh "${runner[@]}" -c "timeout ${timeout:-300} $cmd")
   for net in $NETS; do
     [[ "$net" == "$first" ]] || docker network connect "$net" "$TID" >/dev/null

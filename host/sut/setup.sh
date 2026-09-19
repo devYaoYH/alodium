@@ -22,6 +22,12 @@ echo "   colima, docker and the SUT token are present"
 step "2/5 worker profile"
 if [[ -f .task-sut/config.env ]]; then
   echo "   already configured ($(grep '^SUT_PROFILE=' .task-sut/config.env))"
+  # Installs from before the stack grew have 2 CPUs, on which redash's workers
+  # miss their boot timeout. Single-use workers pick this up on the next run.
+  if grep -qx 'SUT_CPUS=[123]' .task-sut/config.env; then
+    sed -i '' 's/^SUT_CPUS=.*/SUT_CPUS=4/' .task-sut/config.env
+    echo "   raised SUT_CPUS to 4"
+  fi
 else
   ./host/sut/sutctl.sh init
 fi
