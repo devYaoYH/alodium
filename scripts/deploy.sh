@@ -312,6 +312,39 @@ if [[ -n "$REBUILT_APPS" ]]; then
   COMPOSE_PROFILES="$ALL_PROFILES" docker compose up -d $REBUILT_APPS || true
 fi
 
+# 5b. Flag services this merge ADDED that are still not running. Step 5 only
+#     re-ups what already runs, so a new profile-gated service never starts —
+#     neither a whole new app (redash, #123: zero containers, deploy said "ok")
+#     nor a new sidecar in an enabled profile (copilot-headroom, #128: the
+#     consumer was recreated pointing at a name that didn't exist). Starting
+#     them stays the operator's call; this makes the gap LOUD instead: one WARN
+#     per profile, carrying the exact command, into deploy-info (the homepage
+#     badge). "Added" = a new top-level service key in a changed compose file;
+#     one-shots (restart: "no" — on-demand apps, init/migrate jobs) are skipped,
+#     since they are never expected to be running.
+ADDED_SVCS=$(git diff "$OLD_HEAD" HEAD -- docker-compose.yml 'apps/*/compose.yaml' \
+  | sed -n 's/^+  \([A-Za-z0-9][A-Za-z0-9_.-]*\):[[:space:]]*$/\1/p' | sort -u)
+if [[ -n "$ADDED_SVCS" && -n "$COMPOSE_JSON" ]]; then
+  RUNNING_NOW=$(docker compose ps --services)
+  ADDED_SVCS="$ADDED_SVCS" RUNNING_NOW="$RUNNING_NOW" python3 -c "
+import json, os, sys
+cfg = json.loads(sys.stdin.read()).get('services', {})
+running = set(os.environ['RUNNING_NOW'].split())
+by_profile = {}
+for name in os.environ['ADDED_SVCS'].split():
+    svc = cfg.get(name)
+    if not svc or not svc.get('profiles') or name in running:
+        continue
+    if (svc.get('restart') or 'no') == 'no':
+        continue
+    by_profile.setdefault(svc['profiles'][0], []).append(name)
+for profile, names in sorted(by_profile.items()):
+    print(profile + '\t' + ' '.join(sorted(names)))
+" <<<"$COMPOSE_JSON" | while IFS=$'\t' read -r profile names; do
+    record_msg WARN "new service(s) not started: ${names} — run: docker compose --profile ${profile} up -d ${names}"
+  done
+fi
+
 # SSO has one host-side source of truth: Pocket ID's client callbacks and the
 # local-dev compose override are derived by sso-setup.sh.  A merged browser
 # surface or door/proxy change therefore must refresh that state before its
