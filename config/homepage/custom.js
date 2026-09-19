@@ -404,13 +404,26 @@
   // when its name is that container's name + "-" (miniflux-db → miniflux,
   // radicale-toolshim → radicale). Strictly one level — a candidate parent that
   // is itself someone's child stays a root, so no container is ever dropped.
+  // Explicit grouping rules for services that don't follow naming conventions.
+  const EXPLICIT_GROUPS = {
+    // 'child-name': 'parent-name',
+    // e.g. 'redash-server': 'redash', 'redash-worker': 'redash'
+  };
+
   const buildGroups = (list) => {
     const parentOf = new Map();
+    const byName = new Map(list.map((c) => [c.name, c]));
     for (const c of list) {
       let p = null;
-      for (const other of list) {
-        if (other.name !== c.name && c.name.startsWith(other.name + '-')
-            && (!p || other.name.length > p.length)) p = other.name;
+      // Check explicit grouping rules first
+      if (EXPLICIT_GROUPS[c.name] && byName.has(EXPLICIT_GROUPS[c.name])) {
+        p = EXPLICIT_GROUPS[c.name];
+      } else {
+        // Fall back to naming-pattern detection
+        for (const other of list) {
+          if (other.name !== c.name && c.name.startsWith(other.name + '-')
+              && (!p || other.name.length > p.length)) p = other.name;
+        }
       }
       if (p) parentOf.set(c.name, p);
     }
@@ -424,7 +437,6 @@
         childrenOf.get(p).push(c);
       }
     }
-    const byName = new Map(list.map((c) => [c.name, c]));
     const groups = [];
     for (const c of list) {
       if (isChild.has(c.name)) continue;
