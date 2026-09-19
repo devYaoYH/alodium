@@ -1,22 +1,12 @@
-# The SUT source allowlist. A node-config PR can control Compose, but it may
-# not cause the host controller to clone arbitrary private Forgejo repositories
-# into its test VM. Add a source here in the same reviewed PR that introduces
-# a new locally-built image.
+# The SUT repository allowlist. A node-config PR controls Compose and its
+# manifests, but it may not make the host controller clone an arbitrary private
+# Forgejo repository into its test VM. Images built from a mirror are read from
+# the candidate's manifest/*.toml [build] blocks (image, ref, args, patch), the
+# same source deploy.sh's build-mirrored.sh uses; only the repository must be
+# listed here. Add one in the same reviewed PR that introduces the [build].
 
-[[source]]
-name = "search-broker"
-image = "sovereign-node/search-broker:local"
+[[repo]]
 repo = "apps/search-broker"
-ref = "12a297eefd959e742a4fc44022d256ea71d2f0b1"
 
-[[source]]
-name = "calino"
-image = "sovereign-node/calino:0.22.7-geth-sso.1"
+[[repo]]
 repo = "mirrors/calino"
-ref = "8e21e96ec842a426e714f78ff1f9cfa3e297c03b"
-patch = "apps/calino/patches/proxy-auth-autoconnect.patch"
-args.VITE_SITE_URL = "https://calino.sut.invalid"
-args.CALINO_SELF_HOSTED = "true"
-args.CALINO_SSO_CALDAV_URL = "https://calino.sut.invalid/dav/operator/"
-args.CALINO_SSO_CALDAV_ACCOUNT_NAME = "Geth calendar"
-args.CALINO_SSO_CALDAV_USERNAME = "operator"

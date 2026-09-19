@@ -12,7 +12,7 @@ flowchart TD
   B --> C["Daily use: Home + assistant"]
   C --> D["Ask for a change"]
   D --> E["agent-dev: branch + Forgejo PR"]
-  E --> F["SUT worker: isolated Compose test"]
+  E --> F["SUT worker: isolated Compose test (operator labels requires-sut)"]
   F --> G["Evidence attached to the PR"]
   G --> H["Operator: review and merge"]
   H --> I["Host deploy watcher: reconcile live node"]
@@ -41,8 +41,7 @@ Its isolated test worker consumes virtual-machine resources and its watcher
 holds a separate Forgejo credential, neither of which belongs on a simple
 daily-use node. On a dedicated development machine, opt in later with
 `ENABLE_SUT=1 ./scripts/bootstrap-forgejo.sh`, then run
-`host/sut/sutctl.sh doctor`, `host/sut/sutctl.sh init`, and
-`host/sut/install-launchd.sh`.
+`host/sut/setup.sh`.
 
 On macOS this creates a stopped, dedicated Colima profile such as
 `geth-sut-01`; on Linux the same interface will target a dedicated KVM worker.
@@ -59,7 +58,9 @@ capability still goes through the relevant allowlist and approval path.
 
 ### 4. Let the deterministic gate examine the candidate
 
-A host-side SUT watcher polls Forgejo for a new or changed `agent-dev` PR. It
+When a PR needs a full-stack test, the operator adds the `requires-sut` label
+to it. A host-side SUT dispatcher polls Forgejo for those labels, queues each
+new head, and runs it on the next free worker. It
 is deliberately a poller rather than a Forgejo Actions workflow: an agent can
 push workflow YAML in its PR, but it must not be able to turn that YAML into
 host execution. The watcher checks out the candidate, sends a secret-free copy
