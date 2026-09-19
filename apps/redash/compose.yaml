@@ -21,7 +21,23 @@
 # authshim (docs/SSO.md pattern 3): a Pocket ID passkey at the door, and
 # Redash trusts the forwarded identity via REDASH_REMOTE_USER_LOGIN (header
 # X-Auth-Request-Email, copied by the Caddy (authed) snippet) — one passkey
-# opens it. Redash's own password login stays enabled as break-glass.
+# opens it. Pocket ID is the ONLY login: password login is off, and the
+# first-run /setup screen never appears because redash-init creates the org
+# with the operator's Pocket ID email as its (passwordless) admin.
+
+# Backend env shared by init, scheduler and worker (the server adds its
+# web/auth settings on top of the same values).
+x-redash-backend-env: &redash-backend-env
+  PYTHONUNBUFFERED: "0"
+  REDASH_LOG_LEVEL: "INFO"
+  REDASH_REDIS_URL: "redis://redash-redis:6379/0"
+  REDASH_DATABASE_URL: "postgresql://redash:${REDASH_DB_PASSWORD:-}@redash-db:5432/redash"
+  REDASH_COOKIE_SECRET: "${REDASH_COOKIE_SECRET:-}"
+  REDASH_SECRET_KEY: "${REDASH_SECRET_KEY:-}"
+  # The periodic version check phones home to version.redash.io — which
+  # `dash` (internal) can't reach — and errors until the first-run setup
+  # creates an org. Off.
+  REDASH_VERSION_CHECK: "false"
 
 services:
   # --- apps ring 1: dashboards ------------------------------------------------
@@ -57,18 +73,24 @@ services:
       REDASH_ENFORCE_HTTPS: "false"
       # SSO via the authshim: a verified Pocket ID passkey sets
       # X-Auth-Request-Email (copied by the (authed) snippet), which Redash
-      # trusts as the logged-in user. Password login stays on as break-glass
-      # (local admin, created on first run via the setup screen / CLI).
+      # trusts at /remote_user/login (route.caddy sends /login there).
+      # Pocket ID is the only login — no Redash passwords exist (redash-init
+      # makes the admin passwordless). Break-glass is the CLI, e.g.
+      #   docker compose exec redash-server ./manage.py users grant_admin <email>
       REDASH_REMOTE_USER_LOGIN_ENABLED: "true"
       REDASH_REMOTE_USER_HEADER: "X-Auth-Request-Email"
-      REDASH_PASSWORD_LOGIN_ENABLED: "true"
+      REDASH_PASSWORD_LOGIN_ENABLED: "false"
     networks: [front, dash]
 
-  # Schema bootstrap + migrations, one-shot. Redash never creates its own
-  # tables: without this the server 500s on a fresh volume. create_tables is
-  # a no-op once tables exist, and `db upgrade` applies any migrations a new
-  # image tag brings — so it is safe (and wanted) on every `up`. Everything
-  # below waits for it to exit 0.
+  # Schema + org bootstrap and migrations, one-shot. Redash never creates its
+  # own tables (the server 500s on a fresh volume), and with no organization
+  # every page redirects to the /setup screen to invent a local admin. So:
+  # create_tables (no-op once tables exist), `db upgrade` (migrations a new
+  # tag brings), then — only while NO org exists — create_root the operator's
+  # Pocket ID email as a passwordless admin (--google = no password; it
+  # only matters that the email matches what the authshim forwards). Other
+  # Pocket ID users land in the default group on first login. Safe (and
+  # wanted) on every `up`; everything below waits for it to exit 0.
   redash-init:
     profiles: [apps]
     image: redash/redash:10.1.0.b50633
@@ -76,20 +98,26 @@ services:
     container_name: redash-init
     restart: "no"
     entrypoint: ["/bin/sh", "-c"]
-    command: ["/app/manage.py database create_tables && /app/manage.py db upgrade"]
+    command:
+      - |
+        set -e
+        /app/manage.py database create_tables
+        /app/manage.py db upgrade
+        if /app/manage.py org list | grep -q '^Slug:'; then
+          echo "redash-init: org exists, nothing to bootstrap"
+        elif [ -z "$$REDASH_ADMIN_EMAIL" ]; then
+          echo "redash-init: no org and RADICALE_OPERATOR_EMAIL unset — set it in .env (your Pocket ID email) and re-up" >&2
+          exit 1
+        else
+          /app/manage.py users create_root "$$REDASH_ADMIN_EMAIL" "$$REDASH_ADMIN_EMAIL" --google --org default
+        fi
     depends_on:
       - redash-db
-    environment: &redash-backend-env
-      PYTHONUNBUFFERED: "0"
-      REDASH_LOG_LEVEL: "INFO"
-      REDASH_REDIS_URL: "redis://redash-redis:6379/0"
-      REDASH_DATABASE_URL: "postgresql://redash:${REDASH_DB_PASSWORD:-}@redash-db:5432/redash"
-      REDASH_COOKIE_SECRET: "${REDASH_COOKIE_SECRET:-}"
-      REDASH_SECRET_KEY: "${REDASH_SECRET_KEY:-}"
-      # The periodic version check phones home to version.redash.io — which
-      # `dash` (internal) can't reach — and errors until the first-run setup
-      # creates an org. Off.
-      REDASH_VERSION_CHECK: "false"
+    environment:
+      <<: *redash-backend-env
+      # The operator's Pocket ID email (root .env; the variable predates a
+      # node-wide name — .env.example: "the operator's Pocket ID email").
+      REDASH_ADMIN_EMAIL: "${RADICALE_OPERATOR_EMAIL:-}"
     networks: [dash]
 
   # RQ scheduler: only ENQUEUES periodic + scheduled-query jobs. It executes
