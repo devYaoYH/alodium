@@ -169,6 +169,8 @@ load_node_env() {
   # never fall back, because that fallback may test successfully but lose the
   # evidence comment that gates the operator's decision.
   : "${SUT_FORGEJO_TOKEN:?SUT_FORGEJO_TOKEN is required}"
+  # The only actor whose `requires-sut` label allocates a worker.
+  OPERATOR_LOGIN="${OPERATOR_LOGIN:-${FORGEJO_ADMIN_USER:-operator}}"
 }
 
 api() {
@@ -393,7 +395,7 @@ queue() {  # "<labeled-at> <pr> <sha>" per operator-requested head, oldest first
   while read -r pr sha; do
     [[ -n "${pr:-}" ]] || continue
     valid_pr "$pr" && valid_sha "$sha" || { note "skip malformed PR record"; continue; }
-    at="$(label_request "$pr")" || continue
+    at="$(label_request "$pr")" || { note "cannot read the timeline of #$pr; skipping it this pass"; continue; }
     case "$at" in
       "") ;;
       refused:*)
