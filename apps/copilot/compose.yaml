@@ -116,7 +116,12 @@ services:
     # `token` here for max compression at the cost of cache stability.
     command: --host 0.0.0.0 --port 8787 --mode cache --http-proxy http://copilot-egress:8080
     read_only: true
-    tmpfs: [/tmp, /home/headroom]
+    # The home tmpfs must be owned by the unprivileged user (uid 10002, see
+    # headroom/Dockerfile): a bare tmpfs mounts root-owned mode=700 and headroom
+    # crash-loops on PermissionError writing ~/.headroom at startup.
+    tmpfs:
+      - /tmp
+      - /home/headroom:uid=10002,gid=10002,mode=700
     security_opt: [no-new-privileges:true]
     cap_drop: [ALL]
     # copilot-egress only: reachable by the copilot (same net), and reaches
