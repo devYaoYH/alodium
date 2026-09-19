@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Host-owned PR poller. No webhooks, and no Actions runner on node-config. -->
+<!-- Host-owned SUT dispatcher: polls for operator-labeled PRs. No webhooks, and no Actions runner on node-config. -->
 <plist version="1.0"><dict>
   <key>Label</key><string>node.sutwatch</string>
   <key>WorkingDirectory</key><string>/REPLACE/with/abs/path/to/alodium</string>

@@ -29,6 +29,8 @@ volumes = []                       # redash_db (below) is the durable store
 database = "postgres"              # redash-db, private `dash` network, server+worker only
 
 [tests]
+# The compose service the test targets (the app is split into server/worker/scheduler).
+service = "redash-server"
 command = "curl -fsS $APP_URL/ping"
 timeout_seconds = 30
 

@@ -25,6 +25,9 @@ volumes = ["search_audit", "search_audit_db"]
 database = "postgres"
 
 [tests]
+# The apps/search-broker repo ships its contract checks in the image
+# (tests/smoke.py, as its README runs them): run them inside the broker under test.
+run = "in-app"
 command = "python3 tests/smoke.py"
 timeout_seconds = 60
 

@@ -22,6 +22,13 @@ PY
 cleanup() {
   docker compose -p "$PROJECT" -f "$ROOT/docker-compose.yml" -f "$ROOT/docker-compose.staging.yml" \
     --profile apps --profile feeds logs --no-color >>"$LOG" 2>&1 || true
+  # Container states and kernel OOM kills: a service that dies silently is
+  # usually out of memory, and the worker's size is the host's to change.
+  { echo "== containers at teardown"
+    docker ps -a --format '{{.Names}}\t{{.State}}\t{{.Status}}'
+    echo "== kernel OOM kills"
+    sudo dmesg 2>/dev/null | grep -iE 'out of memory|oom-kill|killed process' | tail -n 20 || true
+  } >>"$LOG" 2>&1 || true
   docker compose -p "$PROJECT" -f "$ROOT/docker-compose.yml" -f "$ROOT/docker-compose.staging.yml" \
     --profile apps --profile feeds down -v --remove-orphans >>"$LOG" 2>&1 || true
   write_result
@@ -65,10 +72,26 @@ setenv LITELLM_DB_PASSWORD sut-db-password
 setenv FORGEJO_TOKEN sut-forgejo-token
 setenv AGENT_FORGEJO_TOKEN sut-agent-token
 setenv AGENT_LLM_KEY sut-agent-llm-key
+# The operator identity services bootstrap their first admin from (redash-init
+# refuses to start without one).
+setenv RADICALE_OPERATOR_EMAIL operator@sut.invalid
 
 compose=(docker compose -p "$PROJECT" -f docker-compose.yml -f docker-compose.staging.yml --profile apps --profile feeds)
 if ! "${compose[@]}" config --quiet >>"$LOG" 2>&1; then
   REASON="compose configuration failed"; exit 1
+fi
+
+# Browser-side dependencies ([[vendor]] in manifests) are gitignored and staged
+# on the host by deploy.sh before any build, so a fresh checkout cannot build
+# those apps without them. The node's own package mirror needs a read:package
+# credential this worker must never hold; the public registry serves the same
+# tarballs, and fetch-vendor.sh verifies each against the manifest's pinned
+# sha512, so the source does not change what gets built.
+if [[ -x scripts/fetch-vendor.sh ]]; then
+  if ! VENDOR_REGISTRY=https://registry.npmjs.org VENDOR_TOKEN=none \
+       ./scripts/fetch-vendor.sh >>"$LOG" 2>&1; then
+    REASON="vendor staging failed (scripts/fetch-vendor.sh)"; exit 1
+  fi
 fi
 
 # Production bootstrapping creates Radicale's htpasswd and rights files after
@@ -109,13 +132,18 @@ for appdir in apps/*; do
   fi
 done
 
-# External apps and mirrored upstream images are fetched by the host according
-# to its reviewed source allowlist, then arrive as source-only snapshots under
-# dependencies/. The candidate cannot ask the host to clone another repo.
+# Mirrored upstream images: the host cloned each [build] repo named by the
+# candidate's manifests (only if it is on the host's allowlist), and the
+# snapshots arrive source-only under dependencies/. The node-config patch comes
+# from the candidate tree and is applied here, inside the disposable VM, as
+# build-mirrored.sh applies it on deploy.
 if [[ -f dependencies/build-sources.json ]]; then
-  while IFS=$'\t' read -r image name args_json; do
+  while IFS=$'\t' read -r image name args_json patch; do
     context="dependencies/$name"
     [[ -f "$context/Dockerfile" ]] || { REASON="allowed source has no Dockerfile: ${name}"; exit 1; }
+    if [[ -n "$patch" ]] && ! (cd "$context" && git apply "$ROOT/$patch") >>"$LOG" 2>&1; then
+      REASON="node-config patch did not apply: ${patch}"; exit 1
+    fi
     build=(docker build -t "$image")
     while IFS= read -r arg; do build+=(--build-arg "$arg"); done < <(
       python3 - "$args_json" <<'PY'
@@ -131,7 +159,9 @@ PY
     python3 - <<'PY'
 import json
 for source in json.load(open("dependencies/build-sources.json")):
-    print("\t".join((source["image"], source["name"], json.dumps(source.get("args", {}), sort_keys=True))))
+    # patch last: tab is IFS whitespace, so an empty middle field would collapse.
+    print("\t".join((source["image"], source["name"],
+                     json.dumps(source.get("args", {}), sort_keys=True), source.get("patch", ""))))
 PY
   )
 fi
@@ -156,13 +186,26 @@ fi
 # intentionally independent of the app manifest so shared infrastructure and
 # new services are covered too.
 for _ in 1 2 3; do sleep 5; done
+# One-shot init services (redash-init, ...) exit 0 by design; only a non-zero
+# exit is a failure.
 unstable="$(
   "${compose[@]}" ps --services --status restarting
   "${compose[@]}" ps --services --status dead
-  "${compose[@]}" ps --services --status exited
+  "${compose[@]}" ps -a --status exited --format '{{.Service}} {{.ExitCode}}' | awk '$2 != 0 {print $1}'
 )"
+unstable="$(grep -v '^[[:space:]]*$' <<<"$unstable" || true)"
 if [[ -n "$unstable" ]]; then
-  REASON="service failed to stabilize: $(tr '\n' ',' <<<"$unstable" | sed 's/,$//')"; exit 1
+  REASON="service failed to stabilize: $(paste -sd, - <<<"$unstable")"; exit 1
+fi
+
+# Health checks shipped with each image or compose service are part of the
+# test: wait for every "starting" check to settle, then fail on "unhealthy".
+# This covers core services (forgejo, pocket-id, ...) that declare no [tests].
+health() { "${compose[@]}" ps --format '{{.Service}} {{.Health}}' | awk -v want="$1" '$2 == want {print $1}'; }
+while (( $(date +%s) < deadline )) && [[ -n "$(health starting)" ]]; do sleep 5; done
+unhealthy="$(health unhealthy; health starting)"
+if [[ -n "$unhealthy" ]]; then
+  REASON="health check failing or never passed within ${TIMEOUT}s: $(paste -sd, - <<<"$unhealthy")"; exit 1
 fi
 
 # The candidate declares per-app smoke commands in its manifests.  Run those
