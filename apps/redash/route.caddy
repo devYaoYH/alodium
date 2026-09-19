@@ -5,21 +5,16 @@
 # Redash has no native OIDC (SAML/Google/LDAP/REMOTE_USER only) and Pocket ID
 # speaks OIDC, not SAML — so the door is the oauth2-proxy authshim. A Pocket ID
 # passkey is required to reach Redash at all; on success the (authed) snippet
-# copies X-Auth-Request-Email into the upstream request, and Redash's
-# REDASH_REMOTE_USER_LOGIN trusts it (REDASH_REMOTE_USER_HEADER), so the passkey
-# logs you straight in — no second Redash form. copy_headers overwrites any
-# client-supplied value, so the trusted header cannot be spoofed past the door
-# (the same guarantee cal/copilot/traces rely on). Redash's own password login
-# stays enabled behind the door as break-glass (first-run setup / local admin).
+# copies X-Auth-Request-Email into the upstream request. copy_headers
+# overwrites any client-supplied value, so the trusted header cannot be
+# spoofed past the door (the same guarantee cal/copilot/traces rely on).
 #
-# Runtime verification the operator should do once after deploy:
-#   - an unauthenticated browser hit on https://dash.<domain> bounces into the
-#     Pocket ID passkey flow, not the Redash login page;
-#   - after sign-in the verified email lands in Redash as a logged-in user
-#     (REMOTE_USER). If a given Redash build only honours the header at
-#     /remote_user/login rather than on every request, point the bookmark there
-#     once to seed the session — the passkey-at-the-door guarantee holds either
-#     way.
+# Redash only reads that header at /remote_user/login, and its own /login
+# page merely offers a "Remote User Login" button. So /login is redirected
+# there (keeping ?next=): Redash bounces any session-less request to /login,
+# the redirect logs the Pocket ID identity in, and the operator never sees a
+# Redash form. Password login is off (compose.yaml), so there is no other way
+# in.
 
 dash.{$NODE_DOMAIN} {
 	import ring1
@@ -32,6 +27,9 @@ dash.{$NODE_DOMAIN} {
 
 	handle {
 		import authed
-		reverse_proxy redash-server:5000
+		route {
+			redir /login /remote_user/login?{query} 302
+			reverse_proxy redash-server:5000
+		}
 	}
 }
