@@ -8,7 +8,7 @@
 # node-config PR (as the operator). Progress and results arrive as PR comments.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
-PATH="$PATH:/opt/homebrew/bin:/usr/local/bin:/Applications/Docker.app/Contents/Resources/bin"
+PATH="/opt/homebrew/bin:/usr/local/bin:/Applications/Docker.app/Contents/Resources/bin:$PATH"
 step() { echo "== $*"; }
 [[ "$(uname -s)" == "Darwin" ]] || { echo "setup.sh provisions Colima on macOS; see host/sut/README.md for Linux" >&2; exit 2; }
 

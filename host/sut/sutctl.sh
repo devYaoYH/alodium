@@ -9,9 +9,10 @@ STATE="$ROOT/.task-sut"
 CONFIG="$STATE/config.env"
 # launchd starts jobs with a minimal PATH. The plist written at install time
 # only listed Homebrew, so every scheduled run died on "missing required
-# command: docker" while the same command worked from a terminal. Find the
-# usual Homebrew and Docker Desktop locations whatever PATH we were given.
-PATH="$PATH:/opt/homebrew/bin:/usr/local/bin:/Applications/Docker.app/Contents/Resources/bin"
+# command: docker" while the same command worked from a terminal. Put the usual
+# Homebrew and Docker Desktop locations first: macOS's own /usr/bin/python3 is
+# too old for the tomllib this controller needs.
+PATH="/opt/homebrew/bin:/usr/local/bin:/Applications/Docker.app/Contents/Resources/bin:$PATH"
 
 SUT_PROFILE="${SUT_PROFILE:-geth-sut-01}"
 SUT_CONTEXT="${SUT_CONTEXT:-colima-$SUT_PROFILE}"
@@ -108,6 +109,7 @@ doctor() {
     exit 0
   fi
   need docker
+  python3 -c 'import tomllib' 2>/dev/null || die "python3 ($(command -v python3)) lacks tomllib; install Python 3.11+ (brew install python)"
   if ! command -v colima >/dev/null 2>&1; then
     cat <<'EOF'
 SUT worker is not installed.
@@ -277,8 +279,10 @@ run() (
     exit 1
   fi
 
-  candidate_checkout "$pr" "$sha" "$checkout"
-  checkout_build_sources "$checkout" "$dependencies"
+  # Setup failures (checkout, an unlisted [build] repo) land in the log the
+  # PR comment quotes, not only in the dispatcher's own output.
+  { candidate_checkout "$pr" "$sha" "$checkout"
+    checkout_build_sources "$checkout" "$dependencies"; } 2>>"$log"
   note "sending secret-free candidate #$pr ($sha) to $SUT_PROFILE"
   vm_exec "rm -rf '$vmroot'; mkdir -p '$vmroot'"
   COPYFILE_DISABLE=1 tar -C "$checkout" --exclude=.git --exclude=.env --exclude=secrets \
@@ -428,7 +432,7 @@ comment_result() {  # comment_result <pr> <sha> <rc> <worker> <seconds>
     [[ -n "$logtail" ]] || logtail="$(tail -n 20 "$STATE/results/$run.log" 2>/dev/null | cut -c1-300 || true)"
     logtail="
 
-<details><summary>Last lines of the worker log</summary>
+<details><summary>Last lines of the log</summary>
 
 $fence
 ${logtail//$fence/\'\'\'}
