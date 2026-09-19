@@ -29,7 +29,8 @@ SUT_LABEL="${SUT_LABEL:-requires-sut}"
 [[ "$SUT_POOL_SIZE" =~ ^[1-9]$ ]] || { echo "sutctl: SUT_POOL_SIZE must be 1-9" >&2; exit 1; }
 
 die() { echo "sutctl: $*" >&2; exit 1; }
-note() { echo "[sut] $*"; }
+# Progress goes to stderr: several helpers return data on stdout via $(...).
+note() { echo "[sut] $*" >&2; }
 need() { command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"; }
 valid_sha() { [[ "$1" =~ ^[0-9a-fA-F]{7,64}$ ]]; }
 valid_pr() { [[ "$1" =~ ^[1-9][0-9]*$ ]]; }
@@ -154,7 +155,7 @@ init() {
   provision_worker
   docker --context "$SUT_CONTEXT" info >/dev/null
   colima stop --profile "$SUT_PROFILE" >/dev/null
-  note "ready and stopped. Run host/sut/sutctl.sh watch once, or install the watcher."
+  note "ready and stopped. Run host/sut/setup.sh to install the dispatcher."
 }
 
 load_node_env() {
@@ -500,7 +501,8 @@ Head \`${sha}\` is running on \`$(slot_profile "$slot")\` (pool of ${SUT_POOL_SI
         # The job owns the slot: its pid replaces ours, and it frees the slot
         # when done. A job killed mid-run leaves a dead pid, which take_lock
         # treats as stale.
-        ( test_request "$slot" "$pr" "$sha"; rm -rf "$STATE/slots/$slot" ) &
+        # `|| true`: under set -e a failed test would skip freeing the slot.
+        ( test_request "$slot" "$pr" "$sha" || true; rm -rf "$STATE/slots/$slot" ) &
         echo "$!" >"$STATE/slots/$slot/pid"
       else
         waiting=$((waiting + 1))
