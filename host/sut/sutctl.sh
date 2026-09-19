@@ -16,10 +16,11 @@ PATH="/opt/homebrew/bin:/usr/local/bin:/Applications/Docker.app/Contents/Resourc
 
 SUT_PROFILE="${SUT_PROFILE:-geth-sut-01}"
 SUT_CONTEXT="${SUT_CONTEXT:-colima-$SUT_PROFILE}"
-# The full stack starves on 2 CPUs (redash workers miss their boot timeout).
-# CPU is time-shared with the host, not reserved; memory is.
+# The full stack starves on 2 CPUs (redash workers miss their boot timeout),
+# and at 4 GiB the kernel OOM-kills litellm during its first migrations.
+# CPU is time-shared with the host; memory is held while a test runs.
 SUT_CPUS="${SUT_CPUS:-4}"
-SUT_MEMORY="${SUT_MEMORY:-4}"
+SUT_MEMORY="${SUT_MEMORY:-6}"
 SUT_DISK="${SUT_DISK:-30}"
 SUT_TIMEOUT="${SUT_TIMEOUT:-240}"
 SUT_EPHEMERAL="${SUT_EPHEMERAL:-1}"

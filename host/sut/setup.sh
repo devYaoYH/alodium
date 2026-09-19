@@ -22,11 +22,16 @@ echo "   colima, docker and the SUT token are present"
 step "2/5 worker profile"
 if [[ -f .task-sut/config.env ]]; then
   echo "   already configured ($(grep '^SUT_PROFILE=' .task-sut/config.env))"
-  # Installs from before the stack grew have 2 CPUs, on which redash's workers
-  # miss their boot timeout. Single-use workers pick this up on the next run.
+  # Installs from before the stack grew have 2 CPUs and 4 GiB: redash's
+  # workers miss their boot timeout and litellm is OOM-killed. Single-use
+  # workers pick the new size up on their next run.
   if grep -qx 'SUT_CPUS=[123]' .task-sut/config.env; then
     sed -i '' 's/^SUT_CPUS=.*/SUT_CPUS=4/' .task-sut/config.env
     echo "   raised SUT_CPUS to 4"
+  fi
+  if grep -qx 'SUT_MEMORY=[1-5]' .task-sut/config.env; then
+    sed -i '' 's/^SUT_MEMORY=.*/SUT_MEMORY=6/' .task-sut/config.env
+    echo "   raised SUT_MEMORY to 6 GiB"
   fi
 else
   ./host/sut/sutctl.sh init
