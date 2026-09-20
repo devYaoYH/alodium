@@ -94,10 +94,21 @@ and mirrors, and `search.<domain>` for the Ring 0 agent-search audit. See
    your passkey IS the setup; there are no passwords. Then invite trusted users
    with `./scripts/invite.sh` (see docs/ONBOARDING.md).
 
-7. Backups (not optional — this box is your identity):
+7. Backups (not optional — this box is your identity). Host-side state lives
+   in `~/.alodium` (mode 700), outside the checkout:
 
-       cp scripts/backup.env.example scripts/backup.env   # fill in restic/B2 creds
-       ./scripts/backup.sh                                 # then cron it daily
+       mkdir -p ~/.alodium && chmod 700 ~/.alodium
+       cp scripts/backup.env.example ~/.alodium/backup.env
+       chmod 600 ~/.alodium/backup.env      # then edit: repo path + passphrase
+       ./scripts/backup.sh init             # creates the repository, once
+       ./scripts/backup.sh                  # a snapshot; scheduling comes next
+
+   restic runs in a pinned container with every volume mounted read-only —
+   no host `restic`, and nothing that can write to your data. The repository
+   defaults to `~/.alodium/backups/restic` and restic's cache to
+   `~/.alodium/cache/restic`. A repo on the same disk as the data is a real
+   improvement over nothing, not a backup strategy: add a second copy off this
+   disk as soon as you have somewhere to put it.
 
 8. Optional but the point of it all — the resident dev-agent (docs/AGENT.md):
 
@@ -122,7 +133,7 @@ and mirrors, and `search.<domain>` for the Ring 0 agent-search audit. See
     .claude/skills          -> ../skills, where Claude Code discovers them
     .forge/skills           -> ../skills, where forge discovers them (the jail)
     scripts/install.sh      the interview: manifest, reachability, validation
-    scripts/backup.sh       restic backup; include list generated from manifests
+    scripts/backup.sh       restic-in-a-container; include list generated from manifests
     scripts/mirror.sh       cache an upstream repo in Forgejo (docs/MIRRORING.md)
     scripts/new-app.sh      seed apps/<name> in Forgejo from the skeleton
     scripts/pin-images.sh   re-pin compose images to current digests
@@ -146,7 +157,7 @@ never sees:
 | `.env`                    | your domain, email, every secret and minted key |
 | `manifest/node.yaml`      | your placement manifest (copied from the example) |
 | `caddy/local/*.caddy`     | your extra routes/snippets, auto-imported by the Caddyfile |
-| `scripts/backup.env`      | restic repo + storage credentials              |
+| `~/.alodium/backup.env`   | restic repo + how to fetch the passphrase (mode 600) |
 
 Tracked config files reference the local layer only through `${VARS}` and
 the `import local/*.caddy` glob — if you find yourself typing your domain
@@ -155,7 +166,8 @@ or an IP range into a tracked file, stop: it goes in `.env`
 
 ## Non-negotiables
 
-- `.env` and `scripts/backup.env` never enter git.
+- `.env` and `~/.alodium/backup.env` never enter git; the restic passphrase
+  lives in the Keychain and on paper, never in a tracked file.
 - The box accepts no inbound connections except through Caddy (and Forgejo SSH if
   you enable it deliberately).
 - Agents get LiteLLM *virtual* keys — never provider keys — and no deploy path.
