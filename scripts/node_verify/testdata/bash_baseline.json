@@ -1,0 +1,301 @@
+{
+  "_comment": "The node-config tree at the commit below, and the verdicts the MERGED BASH scripts/verify-config.sh produced on it (observed run, not a prediction). The Python port must reproduce these exactly from the inputs recorded here; test_*.py asserts it. The environment-dependent sections (caddy, shellcheck) are recorded as the file lists they operate on, since their verdict depends on which binaries are installed. Regenerate only against a bash run you have actually observed.",
+  "source_commit": "0d45b516029dd77dbc48d7662901a520020cb378",
+  "inputs": {
+    "yaml_files": [
+      "apps/calino/compose.yaml",
+      "apps/copilot/compose.yaml",
+      "apps/egress-broker/compose.yaml",
+      "apps/fleet-sim/compose.yaml",
+      "apps/floor/compose.yaml",
+      "apps/gog-bridge/compose.yaml",
+      "apps/launcher/compose.yaml",
+      "apps/memos/compose.yaml",
+      "apps/miniflux/compose.yaml",
+      "apps/open-webui/compose.yaml",
+      "apps/radicale/compose.yaml",
+      "apps/redash/compose.yaml",
+      "apps/search-broker/compose.yaml",
+      "apps/snake/compose.yaml",
+      "config/dispatch-tiers.yaml",
+      "config/litellm.yaml",
+      "docker-compose.staging.yml",
+      "docker-compose.yml"
+    ],
+    "shell_files": [
+      "host/deploy-watch/install-launchd.sh",
+      "host/dispatch/install-launchd.sh",
+      "host/dispatch/install-workflow.sh",
+      "host/dispatch/register.sh",
+      "host/sut/install-launchd.sh",
+      "host/sut/setup.sh",
+      "host/sut/sut-vm-run.sh",
+      "host/sut/sut-watch.sh",
+      "host/sut/sutctl.sh",
+      "scripts/backup.sh",
+      "scripts/bootstrap-forgejo.sh",
+      "scripts/build-mirrored.sh",
+      "scripts/chat-tools-setup.sh",
+      "scripts/deploy-watch.sh",
+      "scripts/deploy.sh",
+      "scripts/derive-secrets.sh",
+      "scripts/dispatch-run.sh",
+      "scripts/drill-boundary-access.sh",
+      "scripts/drill-egress-containment.sh",
+      "scripts/drill-egress-revocation.sh",
+      "scripts/drill-injection-hard.sh",
+      "scripts/drill-injection.sh",
+      "scripts/ensure-tier-labels.sh",
+      "scripts/fetch-vendor.sh",
+      "scripts/install.sh",
+      "scripts/invite.sh",
+      "scripts/mint-egress-key.sh",
+      "scripts/mint-secrets.sh",
+      "scripts/mirror-dispatcher.sh",
+      "scripts/mirror.sh",
+      "scripts/model-pricing.sh",
+      "scripts/new-app.sh",
+      "scripts/pin-images.sh",
+      "scripts/promote.sh",
+      "scripts/run-task.sh",
+      "scripts/run-tests.sh",
+      "scripts/search-setup.sh",
+      "scripts/sso-setup.sh",
+      "scripts/staging.sh",
+      "scripts/sync-node-config.sh",
+      "scripts/task-dispatcher.sh",
+      "scripts/test-jail-image.sh",
+      "scripts/up.sh",
+      "scripts/verify-config.sh"
+    ],
+    "py_tests": [
+      "scripts/node_backup/test_dumps.py",
+      "scripts/node_backup/test_plan.py",
+      "scripts/node_backup/test_policy.py",
+      "scripts/node_verify/test_checks.py",
+      "scripts/node_verify/test_containment.py",
+      "scripts/node_verify/test_provenance.py",
+      "scripts/node_verify/test_strict_yaml.py"
+    ],
+    "dispatch_tiers": {
+      "default": "easy",
+      "tiers": {
+        "trivial": {
+          "model": "deepseek-flash",
+          "budget_usd": 0.5
+        },
+        "easy": {
+          "model": "deepseek-flash",
+          "budget_usd": 1.0
+        },
+        "moderate": {
+          "model": "minimax-m3",
+          "budget_usd": 2.0
+        },
+        "hard": {
+          "model": "glm-5.2",
+          "budget_usd": 4.0
+        }
+      }
+    },
+    "litellm_model_list": [
+      {
+        "model_name": "claude-sonnet",
+        "litellm_params": {
+          "model": "anthropic/claude-sonnet-4-6"
+        }
+      },
+      {
+        "model_name": "claude-haiku",
+        "litellm_params": {
+          "model": "anthropic/claude-haiku-4-5"
+        }
+      },
+      {
+        "model_name": "gpt",
+        "litellm_params": {
+          "model": "openai/gpt-5"
+        }
+      },
+      {
+        "model_name": "deepseek-flash",
+        "litellm_params": {
+          "model": "openrouter/deepseek/deepseek-v4-flash",
+          "input_cost_per_token": 1.4e-07,
+          "output_cost_per_token": 2.8e-07
+        }
+      },
+      {
+        "model_name": "minimax-m3",
+        "litellm_params": {
+          "model": "openrouter/minimax/minimax-m3",
+          "input_cost_per_token": 3e-07,
+          "output_cost_per_token": 1.2e-06
+        }
+      },
+      {
+        "model_name": "glm-5.2",
+        "litellm_params": {
+          "model": "openrouter/z-ai/glm-5.2",
+          "input_cost_per_token": 8.106e-07,
+          "output_cost_per_token": 2.5476e-06
+        }
+      }
+    ],
+    "copilot_services": {
+      "copilot": {
+        "networks": [
+          "front",
+          "agents",
+          "copilot-egress"
+        ],
+        "volumes": [
+          "copilot_workspace:/workspace",
+          "./COPILOT.md:/home/copilot/.claude/CLAUDE.md:ro"
+        ],
+        "environment": {
+          "CLAUDE_CODE_OAUTH_TOKEN": "${CLAUDE_CODE_OAUTH_TOKEN:-}",
+          "HTTPS_PROXY": "http://copilot-egress:8080",
+          "https_proxy": "http://copilot-egress:8080",
+          "NO_PROXY": "localhost,127.0.0.1,forgejo,litellm,registry,search-broker,copilot-headroom",
+          "no_proxy": "localhost,127.0.0.1,forgejo,litellm,registry,search-broker,copilot-headroom",
+          "ANTHROPIC_BASE_URL": "http://copilot-headroom:8787",
+          "COPILOT_FORGEJO_TOKEN": "${COPILOT_FORGEJO_TOKEN:-}",
+          "COPILOT_GIT_USER": "${COPILOT_GIT_USER:-copilot}",
+          "NODE_CONFIG_REPO": "${NODE_CONFIG_REPO:-operator/node-config}",
+          "COORDINATION_REPO": "${COORDINATION_REPO:-operator/coordination}"
+        }
+      },
+      "copilot-egress": {
+        "networks": [
+          "copilot-egress",
+          "edge"
+        ],
+        "environment": {
+          "PORT": "8080",
+          "EGRESS_ALLOW": "${COPILOT_EGRESS_ALLOW:-.anthropic.com,.claude.com}"
+        }
+      },
+      "copilot-headroom": {
+        "networks": [
+          "copilot-egress"
+        ],
+        "environment": {
+          "HEADROOM_DISABLE_KOMPRESS": "1",
+          "HEADROOM_BEACON": "off",
+          "DO_NOT_TRACK": "1",
+          "HTTPS_PROXY": "http://copilot-egress:8080",
+          "https_proxy": "http://copilot-egress:8080",
+          "NO_PROXY": "localhost,127.0.0.1",
+          "no_proxy": "localhost,127.0.0.1"
+        }
+      }
+    },
+    "manifests": [
+      [
+        "app.example.toml",
+        "[app]\nname = \"meeting-notes\"\nimage = \"forgejo.internal/apps/meeting-notes\"\n"
+      ],
+      [
+        "calino.toml",
+        "[app]\nname = \"calino\"\nimage = \"sovereign-node/calino:0.22.7-geth-sso.1\"\n[build]\nrepo = \"mirrors/calino\"\nref = \"8e21e96ec842a426e714f78ff1f9cfa3e297c03b\"\npatch = \"apps/calino/patches/proxy-auth-autoconnect.patch\"\n"
+      ],
+      [
+        "egress-broker.toml",
+        "[app]\nname = \"egress-broker\"\nimage = \"sovereign-node/egress-broker:local\"\n"
+      ],
+      [
+        "fleet-sim.toml",
+        "[app]\nname = \"fleet-sim\"\nimage = \"sovereign-node/fleet-sim\"\n"
+      ],
+      [
+        "floor.toml",
+        "[app]\nname = \"floor\"\nimage = \"sovereign-node/floor\"\n"
+      ],
+      [
+        "gog-bridge.toml",
+        "[app]\nname = \"gog-bridge\"\nimage = \"GOG_BRIDGE_IMAGE\"\n"
+      ],
+      [
+        "memos.toml",
+        "[app]\nname = \"memos\"\nimage = \"neosmemo/memos\"\n"
+      ],
+      [
+        "miniflux.toml",
+        "[app]\nname = \"miniflux\"\nimage = \"miniflux/miniflux\"\n"
+      ],
+      [
+        "node.example.yaml",
+        ""
+      ],
+      [
+        "open-webui.toml",
+        "[app]\nname = \"open-webui\"\nimage = \"ghcr.io/open-webui/open-webui\"\n"
+      ],
+      [
+        "radicale.toml",
+        "[app]\nname = \"radicale\"\nimage = \"tomsquest/docker-radicale:latest\"\n"
+      ],
+      [
+        "redash.toml",
+        "[app]\nname = \"redash\"\nimage = \"redash/redash:10.1.0.b50633\"\n"
+      ],
+      [
+        "search-broker.toml",
+        "[app]\nname = \"search-broker\"\nimage = \"sovereign-node/search-broker:0.6.0\"\n[build]\nrepo = \"apps/search-broker\"\nref = \"12a297eefd959e742a4fc44022d256ea71d2f0b1\"\n"
+      ],
+      [
+        "snake.toml",
+        "[app]\nname = \"snake\"\nimage = \"sovereign-node/snake\"\n"
+      ]
+    ],
+    "compose_declares_build": {
+      "meeting-notes": false,
+      "calino": false,
+      "egress-broker": true,
+      "fleet-sim": true,
+      "floor": true,
+      "gog-bridge": false,
+      "memos": false,
+      "miniflux": false,
+      "open-webui": false,
+      "radicale": true,
+      "redash": false,
+      "search-broker": true,
+      "snake": true
+    }
+  },
+  "bash_verdicts": {
+    "yaml parse": {
+      "status": "OK",
+      "note": "OK: all YAML parses (no duplicate keys or includes)",
+      "passthrough": []
+    },
+    "dispatch tiers vs litellm": {
+      "status": "OK",
+      "note": "OK: tier models exist in litellm.yaml",
+      "passthrough": [
+        "OK: all tier models (deepseek-flash, glm-5.2, minimax-m3) are in litellm.yaml"
+      ]
+    },
+    "copilot containment": {
+      "status": "OK",
+      "note": "OK: copilot reaches only front/agents/egress; no socket, secrets, or data-plane net",
+      "passthrough": []
+    },
+    "build provenance": {
+      "status": "OK",
+      "note": "OK: all first-party images have build provenance",
+      "passthrough": [
+        "OK: every first-party image has build provenance"
+      ]
+    },
+    "model pricing": {
+      "status": "OK",
+      "note": "OK: every openrouter/* model pins its own pricing",
+      "passthrough": [
+        "OK: every openrouter/* model pins input+output cost"
+      ]
+    }
+  }
+}
