@@ -1,0 +1,562 @@
+{
+  "_source": "sovereign-node at 0d45b51, recorded 2026-09-20 with read-only docker queries against the live node",
+  "_redaction": "docker compose config --format json resolves .env and so carries live API keys and database passwords; only the four keys the deploy decisions read are kept, in compose order",
+  "compose_services": {
+    "agent": {
+      "profiles": [
+        "agent"
+      ],
+      "build": {
+        "context": "/Users/yaoyiheng/_Projects/alodium/agent"
+      },
+      "image": "sovereign-node/agent:local"
+    },
+    "assistant": {
+      "profiles": [
+        "assistant"
+      ],
+      "build": {
+        "context": "/Users/yaoyiheng/_Projects/alodium/agent"
+      },
+      "image": "sovereign-node/agent:local"
+    },
+    "caddy": {
+      "restart": "unless-stopped",
+      "image": "caddy:2-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648"
+    },
+    "calino": {
+      "profiles": [
+        "apps"
+      ],
+      "restart": "unless-stopped",
+      "image": "sovereign-node/calino:0.22.7-geth-sso.1"
+    },
+    "copilot": {
+      "profiles": [
+        "copilot"
+      ],
+      "restart": "unless-stopped",
+      "build": {
+        "context": "/Users/yaoyiheng/_Projects/alodium/apps/copilot"
+      },
+      "image": "sovereign-node/copilot:local"
+    },
+    "copilot-egress": {
+      "profiles": [
+        "copilot"
+      ],
+      "restart": "unless-stopped",
+      "build": {
+        "context": "/Users/yaoyiheng/_Projects/alodium/apps/copilot/egress"
+      },
+      "image": "sovereign-node/copilot-egress:local"
+    },
+    "copilot-headroom": {
+      "profiles": [
+        "copilot"
+      ],
+      "restart": "unless-stopped",
+      "build": {
+        "context": "/Users/yaoyiheng/_Projects/alodium/apps/copilot/headroom"
+      },
+      "image": "sovereign-node/copilot-headroom:local"
+    },
+    "docker-proxy": {
+      "restart": "unless-stopped",
+      "image": "tecnativa/docker-socket-proxy:latest@sha256:1f3a6f303320723d199d2316a3e82b2e2685d86c275d5e3deeaf182573b47476"
+    },
+    "egress-audit-api": {
+      "profiles": [
+        "apps"
+      ],
+      "restart": "unless-stopped",
+      "image": "sovereign-node/egress-broker:local"
+    },
+    "egress-audit-db": {
+      "profiles": [
+        "apps"
+      ],
+      "restart": "unless-stopped",
+      "image": "postgres:16-alpine@sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229"
+    },
+    "egress-broker": {
+      "profiles": [
+        "apps"
+      ],
+      "restart": "unless-stopped",
+      "build": {
+        "context": "/Users/yaoyiheng/_Projects/alodium/apps/egress-broker"
+      },
+      "image": "sovereign-node/egress-broker:local"
+    },
+    "egress-out": {
+      "profiles": [
+        "apps"
+      ],
+      "restart": "unless-stopped",
+      "image": "sovereign-node/egress-broker:local"
+    },
+    "fleet-sim": {
+      "profiles": [
+        "on-demand"
+      ],
+      "restart": "no",
+      "build": {
+        "context": "/Users/yaoyiheng/_Projects/alodium/apps/fleet-sim/site"
+      },
+      "image": "sovereign-node/fleet-sim:local"
+    },
+    "floor": {
+      "profiles": [
+        "apps"
+      ],
+      "restart": "unless-stopped",
+      "build": {
+        "context": "/Users/yaoyiheng/_Projects/alodium/apps/floor"
+      },
+      "image": "sovereign-node/floor:local"
+    },
+    "forgejo": {
+      "restart": "unless-stopped",
+      "image": "codeberg.org/forgejo/forgejo:11@sha256:946243edbab116d5bb78b73ea68af6f3d69229ba1b1ed958dd82c3481167f3e0"
+    },
+    "gog-bridge": {
+      "profiles": [
+        "bridge"
+      ],
+      "restart": "unless-stopped",
+      "image": "sovereign-node/gog-bridge:unset"
+    },
+    "homepage": {
+      "restart": "unless-stopped",
+      "image": "ghcr.io/gethomepage/homepage:latest@sha256:a0b71c8e757298d02560186bab9fbe3fc2d375c523a62cc1019177b37e48aa28"
+    },
+    "launcher": {
+      "restart": "unless-stopped",
+      "build": {
+        "context": "/Users/yaoyiheng/_Projects/alodium/apps/launcher"
+      },
+      "image": "sovereign-node/launcher:local"
+    },
+    "launcher-docker-proxy": {
+      "restart": "unless-stopped",
+      "image": "tecnativa/docker-socket-proxy:latest@sha256:1f3a6f303320723d199d2316a3e82b2e2685d86c275d5e3deeaf182573b47476"
+    },
+    "litellm": {
+      "restart": "unless-stopped",
+      "image": "ghcr.io/berriai/litellm:main-stable@sha256:9ef6f45bc0104940571765e610c52a1d761b5ec85efcd193795281086ee61277"
+    },
+    "litellm-db": {
+      "restart": "unless-stopped",
+      "image": "postgres:16-alpine@sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229"
+    },
+    "memos": {
+      "profiles": [
+        "apps"
+      ],
+      "restart": "unless-stopped",
+      "image": "neosmemo/memos:stable@sha256:3e1253477066eb2aefa91145f7f9038bb931ed88c8a3ee05310a933594cdba7d"
+    },
+    "miniflux": {
+      "profiles": [
+        "feeds"
+      ],
+      "restart": "unless-stopped",
+      "image": "miniflux/miniflux:latest@sha256:cd353a6af9ce663291f405eddef26fa0d567f486b521c5d34e3fb50e41938b9a"
+    },
+    "miniflux-db": {
+      "profiles": [
+        "feeds"
+      ],
+      "restart": "unless-stopped",
+      "image": "postgres:16-alpine@sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229"
+    },
+    "oauth2-proxy": {
+      "profiles": [
+        "authshim"
+      ],
+      "restart": "unless-stopped",
+      "image": "quay.io/oauth2-proxy/oauth2-proxy:v7.8.1@sha256:d62e2d81c6f5048f652f67c302083be1272c181b971fad80e5a30ebe2b8b75d8"
+    },
+    "open-webui": {
+      "profiles": [
+        "chat"
+      ],
+      "restart": "unless-stopped",
+      "image": "ghcr.io/open-webui/open-webui:main@sha256:a26effeb220e132482bf7e0560b3404843e7bc40d23051144e062960df8df6b0"
+    },
+    "pocket-id": {
+      "restart": "unless-stopped",
+      "image": "ghcr.io/pocket-id/pocket-id:v1@sha256:f8cde808e8e840acda25683fc2168e0206e3f3fb1a48cca89d211aafd87eaeef"
+    },
+    "radicale": {
+      "profiles": [
+        "apps"
+      ],
+      "restart": "unless-stopped",
+      "image": "tomsquest/docker-radicale:latest@sha256:ce7264ac5bd7ee7f5903e2ce1398a5df25ae3dda7e017487f510a761827144a5"
+    },
+    "radicale-toolshim": {
+      "profiles": [
+        "apps",
+        "chat"
+      ],
+      "restart": "unless-stopped",
+      "build": {
+        "context": "/Users/yaoyiheng/_Projects/alodium/apps/radicale/toolshim"
+      }
+    },
+    "redash-db": {
+      "profiles": [
+        "apps"
+      ],
+      "restart": "unless-stopped",
+      "image": "postgres:16-alpine@sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229"
+    },
+    "redash-init": {
+      "profiles": [
+        "apps"
+      ],
+      "restart": "no",
+      "image": "redash/redash:10.1.0.b50633"
+    },
+    "redash-redis": {
+      "profiles": [
+        "apps"
+      ],
+      "restart": "unless-stopped",
+      "image": "redis:7-alpine"
+    },
+    "redash-scheduler": {
+      "profiles": [
+        "apps"
+      ],
+      "restart": "unless-stopped",
+      "image": "redash/redash:10.1.0.b50633"
+    },
+    "redash-server": {
+      "profiles": [
+        "apps"
+      ],
+      "restart": "unless-stopped",
+      "image": "redash/redash:10.1.0.b50633"
+    },
+    "redash-worker": {
+      "profiles": [
+        "apps"
+      ],
+      "restart": "unless-stopped",
+      "image": "redash/redash:10.1.0.b50633"
+    },
+    "registry": {
+      "restart": "unless-stopped",
+      "image": "python:3.12-alpine@sha256:6d43704baacd1bfbe7c295d7f13079d5d8104ed33568873133f8fc69980419df"
+    },
+    "search-audit-api": {
+      "profiles": [
+        "apps"
+      ],
+      "restart": "unless-stopped",
+      "image": "sovereign-node/search-broker:0.6.0"
+    },
+    "search-audit-db": {
+      "profiles": [
+        "apps"
+      ],
+      "restart": "unless-stopped",
+      "image": "postgres:16-alpine@sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229"
+    },
+    "search-audit-migrate": {
+      "profiles": [
+        "migrate"
+      ],
+      "restart": "no",
+      "image": "sovereign-node/search-broker:0.6.0"
+    },
+    "search-broker": {
+      "profiles": [
+        "apps"
+      ],
+      "restart": "unless-stopped",
+      "image": "sovereign-node/search-broker:0.6.0"
+    },
+    "search-broker-toolshim": {
+      "profiles": [
+        "apps",
+        "chat"
+      ],
+      "restart": "unless-stopped",
+      "build": {
+        "context": "/Users/yaoyiheng/_Projects/alodium/apps/search-broker/toolshim"
+      },
+      "image": "sovereign-node/search-broker-toolshim:local"
+    },
+    "search-egress": {
+      "profiles": [
+        "apps"
+      ],
+      "restart": "unless-stopped",
+      "image": "sovereign-node/search-broker:0.6.0"
+    },
+    "snake": {
+      "profiles": [
+        "on-demand"
+      ],
+      "restart": "no",
+      "build": {
+        "context": "/Users/yaoyiheng/_Projects/alodium/apps/snake/site"
+      },
+      "image": "sovereign-node/snake:local"
+    }
+  },
+  "buildable": [
+    "launcher-docker-proxy",
+    "litellm-db",
+    "egress-audit-db",
+    "egress-out",
+    "egress-broker",
+    "floor",
+    "forgejo",
+    "search-audit-db",
+    "search-audit-migrate",
+    "pocket-id",
+    "redash-db",
+    "redash-redis",
+    "search-audit-api",
+    "assistant",
+    "docker-proxy",
+    "gog-bridge",
+    "search-egress",
+    "search-broker",
+    "egress-audit-api",
+    "litellm",
+    "miniflux-db",
+    "miniflux",
+    "radicale-toolshim",
+    "snake",
+    "memos",
+    "open-webui",
+    "caddy",
+    "copilot",
+    "copilot-egress",
+    "redash-init",
+    "redash-worker",
+    "registry",
+    "homepage",
+    "radicale",
+    "redash-server",
+    "calino",
+    "copilot-headroom",
+    "launcher",
+    "oauth2-proxy",
+    "redash-scheduler",
+    "search-broker-toolshim",
+    "agent",
+    "fleet-sim"
+  ],
+  "running": [
+    "caddy",
+    "calino",
+    "copilot",
+    "copilot-egress",
+    "copilot-headroom",
+    "docker-proxy",
+    "floor",
+    "forgejo",
+    "homepage",
+    "launcher",
+    "launcher-docker-proxy",
+    "litellm",
+    "litellm-db",
+    "memos",
+    "miniflux",
+    "miniflux-db",
+    "oauth2-proxy",
+    "open-webui",
+    "pocket-id",
+    "radicale",
+    "radicale-toolshim",
+    "redash-db",
+    "redash-redis",
+    "redash-scheduler",
+    "redash-server",
+    "redash-worker",
+    "registry",
+    "search-audit-api",
+    "search-audit-db",
+    "search-broker",
+    "search-broker-toolshim",
+    "search-egress"
+  ],
+  "running_pre": [
+    "caddy",
+    "calino",
+    "copilot",
+    "copilot-egress",
+    "docker-proxy",
+    "floor",
+    "forgejo",
+    "homepage",
+    "launcher",
+    "launcher-docker-proxy",
+    "litellm",
+    "litellm-db",
+    "memos",
+    "miniflux",
+    "miniflux-db",
+    "oauth2-proxy",
+    "open-webui",
+    "pocket-id",
+    "radicale",
+    "radicale-toolshim",
+    "registry",
+    "search-audit-api",
+    "search-audit-db",
+    "search-broker",
+    "search-broker-toolshim",
+    "search-egress"
+  ],
+  "existing_images": [
+    "sovereign-node/agent:local",
+    "sovereign-node/agent:local",
+    "sovereign-node/copilot:local",
+    "sovereign-node/copilot-egress:local",
+    "sovereign-node/copilot-headroom:local",
+    "sovereign-node/egress-broker:local",
+    "sovereign-node/fleet-sim:local",
+    "sovereign-node/floor:local",
+    "sovereign-node/launcher:local",
+    "sovereign-node/search-broker-toolshim:local",
+    "sovereign-node/snake:local"
+  ],
+  "existing_images_pruned": [
+    "sovereign-node/agent:local",
+    "sovereign-node/agent:local",
+    "sovereign-node/copilot:local",
+    "sovereign-node/copilot-egress:local",
+    "sovereign-node/copilot-headroom:local",
+    "sovereign-node/egress-broker:local",
+    "sovereign-node/fleet-sim:local",
+    "sovereign-node/floor:local",
+    "sovereign-node/launcher:local",
+    "sovereign-node/search-broker-toolshim:local"
+  ],
+  "profile_lines": "    profiles: [apps]\n    profiles: [apps]\n    profiles: [apps]\n    profiles: [apps]\n    profiles: [apps]\n    profiles: [copilot]\n    profiles: [copilot]\n    profiles: [copilot]\n    profiles: [apps]\n    profiles: [bridge]\n    profiles: [apps]\n    profiles: [apps, chat]\n    profiles: [feeds]\n    profiles: [feeds]\n    profiles: [chat]\n    profiles: [on-demand]\n    profiles: [apps]\n    profiles: [apps]\n    profiles: [apps]\n    profiles: [apps]\n    profiles: [migrate]\n    profiles: [apps, chat]\n    profiles: [on-demand]\n    profiles: [apps]\n    profiles: [authshim]\n    profiles: [agent]\n    profiles: [assistant]\n    profiles: [apps]\n    profiles: [apps]\n    profiles: [apps]\n    profiles: [apps]\n    profiles: [apps]\n    profiles: [apps]\n",
+  "changed": {
+    "agent125": [
+      "agent/AGENTS.md"
+    ],
+    "backup141": [
+      "README.md",
+      "docs/DESIGN.md",
+      "manifest/app.example.toml",
+      "manifest/calino.toml",
+      "manifest/egress-broker.toml",
+      "manifest/fleet-sim.toml",
+      "manifest/floor.toml",
+      "manifest/gog-bridge.toml",
+      "manifest/memos.toml",
+      "manifest/miniflux.toml",
+      "manifest/open-webui.toml",
+      "manifest/radicale.toml",
+      "manifest/redash.toml",
+      "manifest/search-broker.toml",
+      "manifest/snake.toml",
+      "registry/registry.py",
+      "scripts/backup.py",
+      "scripts/node_backup/dumps.py",
+      "scripts/node_backup/plan.py",
+      "scripts/node_backup/runner.py",
+      "scripts/node_backup/sqlite_snapshot.py",
+      "scripts/node_backup/test_dumps.py",
+      "scripts/node_backup/test_plan.py",
+      "scripts/verify-config.sh",
+      "skills/register-service/SKILL.md",
+      "skills/wrap-upstream/SKILL.md"
+    ],
+    "headroom128": [
+      "apps/copilot/compose.yaml",
+      "apps/copilot/env.example",
+      "apps/copilot/headroom/Dockerfile",
+      "docs/COPILOT.md",
+      "scripts/verify-config.sh"
+    ],
+    "noop": [],
+    "redash123": [
+      "apps/redash/compose.yaml",
+      "apps/redash/env.example",
+      "apps/redash/route.caddy",
+      "config/homepage/services.yaml",
+      "docker-compose.yml",
+      "manifest/redash.toml",
+      "scripts/sso-setup.sh"
+    ],
+    "redash132": [
+      "apps/redash/compose.yaml",
+      "apps/redash/route.caddy"
+    ]
+  },
+  "added": {
+    "agent125": [],
+    "backup141": [],
+    "headroom128": [
+      "copilot-headroom"
+    ],
+    "noop": [],
+    "redash123": [
+      "dash",
+      "front",
+      "redash-db",
+      "redash-redis",
+      "redash-server",
+      "redash-worker",
+      "redash_db"
+    ],
+    "redash132": []
+  },
+  "compose_diffs": {
+    "agent125": "",
+    "backup141": "",
+    "headroom128": "diff --git a/apps/copilot/compose.yaml b/apps/copilot/compose.yaml\nindex c10384f..4a4f30d 100644\n--- a/apps/copilot/compose.yaml\n+++ b/apps/copilot/compose.yaml\n@@ -26,12 +26,21 @@ services:\n       # machine; lives only in host-only secrets/copilot.env.\n       CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}\n       # The ONE sanctioned egress: HTTPS (i.e. api.anthropic.com) tunnels through\n-      # the allowlist proxy. Internal HTTP (forgejo, registry) stays direct via\n-      # NO_PROXY, and HTTP_PROXY is intentionally left unset.\n+      # the allowlist proxy. Internal HTTP (forgejo, registry, AND the headroom\n+      # optimizer) stays direct via NO_PROXY, and HTTP_PROXY is intentionally\n+      # left unset.\n       HTTPS_PROXY: http://copilot-egress:8080\n       https_proxy: http://copilot-egress:8080\n-      NO_PROXY: localhost,127.0.0.1,forgejo,litellm,registry,search-broker\n-      no_proxy: localhost,127.0.0.1,forgejo,litellm,registry,search-broker\n+      NO_PROXY: localhost,127.0.0.1,forgejo,litellm,registry,search-broker,copilot-headroom\n+      no_proxy: localhost,127.0.0.1,forgejo,litellm,registry,search-broker,copilot-headroom\n+      # Route Claude Code at the headroom token-optimizer (copilot-headroom:8787)\n+      # instead of api.anthropic.com directly. Headroom compresses / semantic-\n+      # caches the traffic, then forwards to Anthropic ONLY through copilot-egress\n+      # (its own --http-proxy), so the Anthropic-only allowlist stays the one\n+      # internet path. To bypass headroom (e.g. if it misbehaves), set this empty\n+      # in apps/copilot/compose.yaml and redeploy — claude then hits api.anthropic.com\n+      # directly via HTTPS_PROXY=copilot-egress. See docs/COPILOT.md.\n+      ANTHROPIC_BASE_URL: http://copilot-headroom:8787\n       # Proposer identity — write:issue + write:repository; branch protection on\n       # main is the apply-gap (same posture as agent-dev). Never a merge/deploy key.\n       COPILOT_FORGEJO_TOKEN: ${COPILOT_FORGEJO_TOKEN:-}\n@@ -70,6 +79,51 @@ services:\n     # with an internet route — exactly the search-egress shape.\n     networks: [copilot-egress, edge]\n \n+  copilot-headroom:\n+    profiles: [copilot]\n+    build: ./headroom\n+    image: sovereign-node/copilot-headroom:local\n+    container_name: copilot-headroom\n+    restart: unless-stopped\n+    # A local token-optimization proxy (https://github.com/headroomlabs-ai/headroom)\n+    # the copilot points ANTHROPIC_BASE_URL at. It compresses / semantic-caches the\n+    # Anthropic traffic so the flat-rate subscription buys more turns. It reaches\n+    # api.anthropic.com ONLY through copilot-egress (its --http-proxy + HTTPS_PROXY\n+    # fallback), so the Anthropic-only allowlist remains the one internet path —\n+    # it has NO direct internet (no `edge`), no door, no agent spur.\n+    #\n+    # Kompress (the ML/model compressor) is disabled: its model weights would need\n+    # general internet to fetch at runtime, which the allowlist refuses. The\n+    # structural compressors + semantic cache still run and work air-gapped — that\n+    # is the part that cuts tokens here. Re-enable Kompress only after baking the\n+    # model into the image at build time (see docs/COPILOT.md).\n+    environment:\n+      HEADROOM_DISABLE_KOMPRESS: \"1\"\n+      # No phone-home / update checks: nothing leaves the box. (Update checks\n+      # would attempt non-Anthropic egress copilot-egress denies anyway; this\n+      # keeps the logs clean.)\n+      HEADROOM_BEACON: \"off\"\n+      DO_NOT_TRACK: \"1\"\n+      # Upstream to api.anthropic.com goes through the allowlist proxy. The\n+      # --http-proxy flag below is the purpose-built mechanism (HTTPS provider\n+      # APIs use CONNECT — exactly copilot-egress's shape); HTTPS_PROXY is a\n+      # belt-and-suspenders fallback for headroom's own HTTP client.\n+      HTTPS_PROXY: http://copilot-egress:8080\n+      https_proxy: http://copilot-egress:8080\n+      NO_PROXY: localhost,127.0.0.1\n+      no_proxy: localhost,127.0.0.1\n+    # cache mode (default) preserves Anthropic prefix-cache stability; switch to\n+    # `token` here for max compression at the cost of cache stability.\n+    command: --host 0.0.0.0 --port 8787 --mode cache --http-proxy http://copilot-egress:8080\n+    read_only: true\n+    tmpfs: [/tmp, /home/headroom]\n+    security_opt: [no-new-privileges:true]\n+    cap_drop: [ALL]\n+    # copilot-egress only: reachable by the copilot (same net), and reaches\n+    # copilot-egress (the allowlist bridge to edge). NEVER `edge` itself, never\n+    # `front`, never `agents` — verify-config.sh asserts this.\n+    networks: [copilot-egress]\n+\n networks:\n   # Shared networks re-declare the root's attributes exactly; compose merges.\n   front:\n@@ -78,9 +132,10 @@ networks:\n     internal: true\n   edge:\n   copilot-egress:\n-    # The copilot <-> its egress proxy meet here and nothing else joins. The\n-    # proxy is the sole bridge to `edge`, so this is the one controlled hole in\n-    # the copilot's otherwise egress-less spur.\n+    # The copilot, its egress proxy, AND the headroom optimizer meet here. The\n+    # egress proxy is the sole bridge to `edge`, so this is the one controlled\n+    # hole in the copilot's otherwise egress-less spur; headroom reaches Anthropic\n+    # only through that proxy, never `edge` directly.\n     internal: true\n \n volumes:\n",
+    "noop": "",
+    "redash123": "diff --git a/apps/redash/compose.yaml b/apps/redash/compose.yaml\nnew file mode 100644\nindex 0000000..a9b43e6\n--- /dev/null\n+++ b/apps/redash/compose.yaml\n@@ -0,0 +1,119 @@\n+# redash — an app fragment, merged into the node stack by the root\n+# docker-compose.yml `include:` list. This file owns everything redash:\n+# service(s), the networks it joins, the volumes it keeps. Secrets arrive\n+# BY NAME from secrets/redash.env (the include's env_file) — values are\n+# minted host-side (scripts/mint-secrets.sh on deploy); no agent ever reads\n+# them. Shared networks re-declare the root's attributes exactly; compose\n+# merges.\n+#\n+# Source: upstream getredash/redash, vendored as a RELEASED image\n+# (redash/redash:10.1.0.b50633 — the current stable tag on\n+# hub.docker.com/r/redash/redash, Oct 2025). No source mirror needed: the\n+# app ships official images. The redash + redis images are pinned by TAG\n+# here (not digest) because the jail has no docker/registry egress to\n+# resolve a digest; the operator runs `./scripts/pin-images.sh --pull`\n+# before deploy to pin them (the designed flow — that script rewrites every\n+# `image: <tag>` to `image: <tag>@sha256:…`). The postgres digest is reused\n+# from the rest of the node (same `postgres:16-alpine`, already vetted).\n+#\n+# Auth: Redash has NO native OIDC (SAML + Google + LDAP + REMOTE_USER only),\n+# and Pocket ID speaks OIDC, not SAML — so the door is the oauth2-proxy\n+# authshim (docs/SSO.md pattern 3): a Pocket ID passkey at the door, and\n+# Redash trusts the forwarded identity via REDASH_REMOTE_USER_LOGIN (header\n+# X-Auth-Request-Email, copied by the Caddy (authed) snippet) — one passkey\n+# opens it. Redash's own password login stays enabled as break-glass.\n+\n+services:\n+  # --- apps ring 1: dashboards ------------------------------------------------\n+  # Redash web server (port 5000), reached through Caddy at dash.<domain>.\n+  # The authshim copies the verified Pocket ID email into\n+  # X-Auth-Request-Email; REDASH_REMOTE_USER_HEADER trusts it, so a passkey\n+  # session is logged in without a second form. Enable:\n+  #   docker compose --profile apps up -d redash-server redash-worker\n+  redash-server:\n+    profiles: [apps]\n+    image: redash/redash:10.1.0.b50633\n+    container_name: redash-server\n+    restart: unless-stopped\n+    command: server\n+    depends_on:\n+      - redash-db\n+      - redash-redis\n+    environment:\n+      PYTHONUNBUFFERED: \"0\"\n+      REDASH_LOG_LEVEL: \"INFO\"\n+      REDASH_REDIS_URL: \"redis://redash-redis:6379/0\"\n+      REDASH_DATABASE_URL: \"postgresql://redash:${REDASH_DB_PASSWORD:-}@redash-db:5432/redash\"\n+      REDASH_COOKIE_SECRET: \"${REDASH_COOKIE_SECRET:-}\"\n+      REDASH_SECRET_KEY: \"${REDASH_SECRET_KEY:-}\"\n+      REDASH_WEB_WORKERS: \"4\"\n+      # Public base URL Redash advertises (invite links, redirects).\n+      REDASH_BASEURL: \"https://dash.${NODE_DOMAIN}/\"\n+      # TLS terminates at Caddy; do not let Flask-Talisman HSTS-upgrade the\n+      # internal hop (it would loop between Caddy and the app).\n+      REDASH_ENFORCE_HTTPS: \"false\"\n+      # SSO via the authshim: a verified Pocket ID passkey sets\n+      # X-Auth-Request-Email (copied by the (authed) snippet), which Redash\n+      # trusts as the logged-in user. Password login stays on as break-glass\n+      # (local admin, created on first run via the setup screen / CLI).\n+      REDASH_REMOTE_USER_LOGIN_ENABLED: \"true\"\n+      REDASH_REMOTE_USER_HEADER: \"X-Auth-Request-Email\"\n+      REDASH_PASSWORD_LOGIN_ENABLED: \"true\"\n+    networks: [front, dash]\n+\n+  # Background worker: scheduled-query + ad-hoc query execution (Celery).\n+  # Shares the redash image, different command; needs only the data net.\n+  redash-worker:\n+    profiles: [apps]\n+    image: redash/redash:10.1.0.b50633\n+    container_name: redash-worker\n+    restart: unless-stopped\n+    command: scheduler\n+    depends_on:\n+      - redash-db\n+      - redash-redis\n+    environment:\n+      PYTHONUNBUFFERED: \"0\"\n+      REDASH_LOG_LEVEL: \"INFO\"\n+      REDASH_REDIS_URL: \"redis://redash-redis:6379/0\"\n+      REDASH_DATABASE_URL: \"postgresql://redash:${REDASH_DB_PASSWORD:-}@redash-db:5432/redash\"\n+      REDASH_COOKIE_SECRET: \"${REDASH_COOKIE_SECRET:-}\"\n+      REDASH_SECRET_KEY: \"${REDASH_SECRET_KEY:-}\"\n+      QUEUES: \"queries,scheduled_queries,celery\"\n+      WORKERS_COUNT: \"2\"\n+    networks: [dash]\n+\n+  # Redash metadata DB. Private `dash` network — one client set\n+  # (server + worker), like miniflux's `feeds`. Digest reused from the node.\n+  redash-db:\n+    profiles: [apps]\n+    image: postgres:16-alpine@sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229\n+    container_name: redash-db\n+    restart: unless-stopped\n+    environment:\n+      POSTGRES_DB: redash\n+      POSTGRES_USER: redash\n+      POSTGRES_PASSWORD: ${REDASH_DB_PASSWORD:-}\n+    volumes:\n+      - redash_db:/var/lib/postgresql/data\n+    networks: [dash]\n+\n+  # Query-result queue + job bus. Ephemeral — not backed up; Redash\n+  # persists query definitions in postgres, not redis.\n+  redash-redis:\n+    profiles: [apps]\n+    image: redis:7-alpine\n+    container_name: redash-redis\n+    restart: unless-stopped\n+    networks: [dash]\n+\n+networks:\n+  front:\n+    internal: true\n+  dash:\n+    # Redash <-> its metadata DB + job bus. One client set, one network,\n+    # like miniflux's `feeds`. No egress, no docker socket.\n+    internal: true\n+\n+volumes:\n+  redash_db:\ndiff --git a/docker-compose.yml b/docker-compose.yml\nindex 209e779..b21e46b 100644\n--- a/docker-compose.yml\n+++ b/docker-compose.yml\n@@ -36,6 +36,8 @@ include:\n   - path: apps/floor/compose.yaml\n     env_file: secrets/floor.env\n   - path: apps/calino/compose.yaml\n+  - path: apps/redash/compose.yaml\n+    env_file: secrets/redash.env\n   - path: apps/fleet-sim/compose.yaml\n   - path: apps/copilot/compose.yaml\n     env_file: secrets/copilot.env\n@@ -283,7 +285,7 @@ services:\n       # Never accept a post-login redirect to an arbitrary host. Every\n       # shimmed browser surface must be named here (and in Pocket ID's\n       # callback list, minted by sso-setup.sh).\n-      OAUTH2_PROXY_WHITELIST_DOMAINS: cal.${NODE_DOMAIN},calino.${NODE_DOMAIN},copilot.${NODE_DOMAIN},traces.${NODE_DOMAIN}\n+      OAUTH2_PROXY_WHITELIST_DOMAINS: cal.${NODE_DOMAIN},calino.${NODE_DOMAIN},copilot.${NODE_DOMAIN},traces.${NODE_DOMAIN},dash.${NODE_DOMAIN}\n       OAUTH2_PROXY_EMAIL_DOMAINS: \"*\"\n       OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180\n       OAUTH2_PROXY_REVERSE_PROXY: \"true\"\n",
+    "redash132": "diff --git a/apps/redash/compose.yaml b/apps/redash/compose.yaml\nindex f13e78e..896ad34 100644\n--- a/apps/redash/compose.yaml\n+++ b/apps/redash/compose.yaml\n@@ -21,7 +21,23 @@\n # authshim (docs/SSO.md pattern 3): a Pocket ID passkey at the door, and\n # Redash trusts the forwarded identity via REDASH_REMOTE_USER_LOGIN (header\n # X-Auth-Request-Email, copied by the Caddy (authed) snippet) — one passkey\n-# opens it. Redash's own password login stays enabled as break-glass.\n+# opens it. Pocket ID is the ONLY login: password login is off, and the\n+# first-run /setup screen never appears because redash-init creates the org\n+# with the operator's Pocket ID email as its (passwordless) admin.\n+\n+# Backend env shared by init, scheduler and worker (the server adds its\n+# web/auth settings on top of the same values).\n+x-redash-backend-env: &redash-backend-env\n+  PYTHONUNBUFFERED: \"0\"\n+  REDASH_LOG_LEVEL: \"INFO\"\n+  REDASH_REDIS_URL: \"redis://redash-redis:6379/0\"\n+  REDASH_DATABASE_URL: \"postgresql://redash:${REDASH_DB_PASSWORD:-}@redash-db:5432/redash\"\n+  REDASH_COOKIE_SECRET: \"${REDASH_COOKIE_SECRET:-}\"\n+  REDASH_SECRET_KEY: \"${REDASH_SECRET_KEY:-}\"\n+  # The periodic version check phones home to version.redash.io — which\n+  # `dash` (internal) can't reach — and errors until the first-run setup\n+  # creates an org. Off.\n+  REDASH_VERSION_CHECK: \"false\"\n \n services:\n   # --- apps ring 1: dashboards ------------------------------------------------\n@@ -57,18 +73,24 @@ services:\n       REDASH_ENFORCE_HTTPS: \"false\"\n       # SSO via the authshim: a verified Pocket ID passkey sets\n       # X-Auth-Request-Email (copied by the (authed) snippet), which Redash\n-      # trusts as the logged-in user. Password login stays on as break-glass\n-      # (local admin, created on first run via the setup screen / CLI).\n+      # trusts at /remote_user/login (route.caddy sends /login there).\n+      # Pocket ID is the only login — no Redash passwords exist (redash-init\n+      # makes the admin passwordless). Break-glass is the CLI, e.g.\n+      #   docker compose exec redash-server ./manage.py users grant_admin <email>\n       REDASH_REMOTE_USER_LOGIN_ENABLED: \"true\"\n       REDASH_REMOTE_USER_HEADER: \"X-Auth-Request-Email\"\n-      REDASH_PASSWORD_LOGIN_ENABLED: \"true\"\n+      REDASH_PASSWORD_LOGIN_ENABLED: \"false\"\n     networks: [front, dash]\n \n-  # Schema bootstrap + migrations, one-shot. Redash never creates its own\n-  # tables: without this the server 500s on a fresh volume. create_tables is\n-  # a no-op once tables exist, and `db upgrade` applies any migrations a new\n-  # image tag brings — so it is safe (and wanted) on every `up`. Everything\n-  # below waits for it to exit 0.\n+  # Schema + org bootstrap and migrations, one-shot. Redash never creates its\n+  # own tables (the server 500s on a fresh volume), and with no organization\n+  # every page redirects to the /setup screen to invent a local admin. So:\n+  # create_tables (no-op once tables exist), `db upgrade` (migrations a new\n+  # tag brings), then — only while NO org exists — create_root the operator's\n+  # Pocket ID email as a passwordless admin (--google = no password; it\n+  # only matters that the email matches what the authshim forwards). Other\n+  # Pocket ID users land in the default group on first login. Safe (and\n+  # wanted) on every `up`; everything below waits for it to exit 0.\n   redash-init:\n     profiles: [apps]\n     image: redash/redash:10.1.0.b50633\n@@ -76,20 +98,26 @@ services:\n     container_name: redash-init\n     restart: \"no\"\n     entrypoint: [\"/bin/sh\", \"-c\"]\n-    command: [\"/app/manage.py database create_tables && /app/manage.py db upgrade\"]\n+    command:\n+      - |\n+        set -e\n+        /app/manage.py database create_tables\n+        /app/manage.py db upgrade\n+        if /app/manage.py org list | grep -q '^Slug:'; then\n+          echo \"redash-init: org exists, nothing to bootstrap\"\n+        elif [ -z \"$$REDASH_ADMIN_EMAIL\" ]; then\n+          echo \"redash-init: no org and RADICALE_OPERATOR_EMAIL unset — set it in .env (your Pocket ID email) and re-up\" >&2\n+          exit 1\n+        else\n+          /app/manage.py users create_root \"$$REDASH_ADMIN_EMAIL\" \"$$REDASH_ADMIN_EMAIL\" --google --org default\n+        fi\n     depends_on:\n       - redash-db\n-    environment: &redash-backend-env\n-      PYTHONUNBUFFERED: \"0\"\n-      REDASH_LOG_LEVEL: \"INFO\"\n-      REDASH_REDIS_URL: \"redis://redash-redis:6379/0\"\n-      REDASH_DATABASE_URL: \"postgresql://redash:${REDASH_DB_PASSWORD:-}@redash-db:5432/redash\"\n-      REDASH_COOKIE_SECRET: \"${REDASH_COOKIE_SECRET:-}\"\n-      REDASH_SECRET_KEY: \"${REDASH_SECRET_KEY:-}\"\n-      # The periodic version check phones home to version.redash.io — which\n-      # `dash` (internal) can't reach — and errors until the first-run setup\n-      # creates an org. Off.\n-      REDASH_VERSION_CHECK: \"false\"\n+    environment:\n+      <<: *redash-backend-env\n+      # The operator's Pocket ID email (root .env; the variable predates a\n+      # node-wide name — .env.example: \"the operator's Pocket ID email\").\n+      REDASH_ADMIN_EMAIL: \"${RADICALE_OPERATOR_EMAIL:-}\"\n     networks: [dash]\n \n   # RQ scheduler: only ENQUEUES periodic + scheduled-query jobs. It executes\n"
+  },
+  "deploy_info_cases": {
+    "prev_ok": {
+      "timestamp": "2026-09-19T10:00:00Z",
+      "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "short_hash": "aaaaaaa",
+      "url": "u",
+      "status": "ok",
+      "deployed_commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "messages": []
+    },
+    "prev_legacy_ok": {
+      "timestamp": "2026-09-18T10:00:00Z",
+      "commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "short_hash": "bbbbbbb",
+      "url": "u",
+      "status": "ok",
+      "messages": []
+    },
+    "prev_legacy_failed": {
+      "timestamp": "2026-09-18T10:00:00Z",
+      "commit": "cccccccccccccccccccccccccccccccccccccccc",
+      "short_hash": "ccccccc",
+      "url": "u",
+      "status": "failed",
+      "messages": []
+    },
+    "messages_two": [
+      [
+        "WARN",
+        "vendor staging failed — see above"
+      ],
+      [
+        "WARN",
+        "new service(s) not started: redash-worker — run: docker compose --profile apps up -d redash-worker"
+      ]
+    ]
+  }
+}
