@@ -35,6 +35,9 @@ timeout_seconds = 60
 # search_audit_db is a live Postgres data directory; it is pg_dump-ed by
 # scripts/backup.sh instead of file-copied (see Consistent DB snapshots there).
 backup = ["search_audit"]
+dump = [
+  { kind = "postgres", service = "search-audit-db", container = "search-audit-db", user = "search_audit_owner", database = "search_audit", file = "search-audit.dump" },
+]
 update_policy = "pinned"    # pinned to the [build].ref below; update by bumping
                             # version + ref together (same pattern as calino)
 

@@ -53,4 +53,6 @@ timeout_seconds = 60
 
 [lifecycle]
 backup = []
+# No volume, no database.
+dump = []
 update_policy = "staged"

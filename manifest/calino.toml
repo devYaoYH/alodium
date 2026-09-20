@@ -30,6 +30,8 @@ timeout_seconds = 15
 
 [lifecycle]
 backup = []
+# No volume, no database: calino holds nothing that survives a restart.
+dump = []
 update_policy = "pinned"    # pinned to upstream commit 8e21e96ec842; update by
                             # changing the ref in [build] section
 

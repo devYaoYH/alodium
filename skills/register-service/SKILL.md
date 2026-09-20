@@ -39,6 +39,18 @@ files. Checklist:
 - **Manifest** (`manifest/<name>.toml`): present and truthful; every volume
   that must survive the box listed under `[lifecycle] backup` — the restic
   include list is generated from it.
+- **Backup dumps** (`[lifecycle] dump`, same manifest): MANDATORY, no default.
+  A copy of a live database file is a copy of whatever was on disk
+  mid-transaction, so listing a volume under `backup` does not back up the
+  database inside it. Declare one entry per database — `kind = "postgres"`
+  (container, user, database) or `kind = "sqlite"` (volume, path) — plus the
+  `service` that owns it and the `file` it lands as inside the snapshot. An app
+  that holds no database writes `dump = []` and means it; `verify-config.sh`
+  fails a manifest that omits the key, because "we forgot" and "it has none"
+  must not look the same. `manifest/app.example.toml` documents every field.
+  backup.sh verifies each dump it takes (`pg_restore -l`, or SQLite
+  `integrity_check` plus a row count over every table) and degrades the whole
+  run if one does not read back.
 - **Build provenance (first-party apps only)**: If the app builds from its own
   Dockerfile (a `build:` line in the compose fragment or a `[build]` section
   in the manifest), the manifest MUST include a `[build]` section with

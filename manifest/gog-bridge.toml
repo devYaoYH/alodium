@@ -31,4 +31,8 @@ timeout_seconds = 30
 
 [lifecycle]
 backup = ["bridge_data"]         # the mail mirror — hourly, per DESIGN.md DR section
+# bridge_data is the OAuth token file plus a maildir mirror — files, not a
+# database. The volume copy is the restore unit; the mirror is rebuildable from
+# Google in any case.
+dump = []
 update_policy = "pinned"         # manual only: it holds your Google tokens

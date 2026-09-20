@@ -31,4 +31,14 @@ timeout_seconds = 60
 
 [lifecycle]
 backup = ["openwebui_data"]
+# webui.db is SQLite in WAL mode: chats, prompts, users, model config.
+#
+# Not declared, deliberately: vector_db/chroma.sqlite3 in the same volume. Its
+# sqlite file is only half of Chroma's store — the HNSW index files next to it
+# are not a database — so a "dump" of it would be a half-truth that reads as a
+# complete one. The read-only volume copy carries the whole directory, and Open
+# WebUI rebuilds the vector store from the documents in webui.db regardless.
+dump = [
+  { kind = "sqlite", service = "open-webui", volume = "openwebui_data", path = "webui.db", file = "webui.db" },
+]
 update_policy = "staged"

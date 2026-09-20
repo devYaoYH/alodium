@@ -258,10 +258,13 @@ fi
 # by fault-injecting against a live Docker host. Precedent: agent/forgejo.py +
 # agent/test_forgejo.py. Add a test_*.py next to any new module and it runs.
 sec "python unit tests (scripts/)"
-PYTESTS=$(git ls-files 'scripts/**/test_*.py' 2>/dev/null || true)
-# git ls-files exits 0 with no output for files that aren't staged yet, so fall
-# back to the glob rather than silently reporting "no tests".
-[[ -n "$PYTESTS" ]] || PYTESTS=$(ls scripts/*/test_*.py 2>/dev/null || true)
+# Tracked AND on-disk, unioned. git ls-files alone misses a test that has not
+# been added yet, and the old fallback only fired when the git list was
+# ENTIRELY empty — so adding a new test beside existing ones meant the gate ran
+# every test but the new one and still printed PASS. A gate that quietly checks
+# less than you think is the exact failure this section exists to catch.
+PYTESTS=$( { git ls-files 'scripts/**/test_*.py' 2>/dev/null || true;
+             ls scripts/*/test_*.py 2>/dev/null || true; } | sort -u)
 if [[ -z "$PYTESTS" ]]; then
   note "SKIP: no scripts/**/test_*.py found"
 else

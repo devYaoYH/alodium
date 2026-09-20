@@ -26,6 +26,20 @@ from .config import BackupError
 RESTIC_IMAGE = ("restic/restic:0.19.0@sha256:"
                 "7f44e0057b82348597568ea209360762d0b38f8e1dbc8ad859661ac1055e45f2")
 
+# The SQLite toolbox: a throwaway container that mounts each production volume
+# READ-ONLY and asks SQLite itself for a consistent snapshot. Same pin the
+# registry service already runs, so the backup path introduces no new image to
+# audit, and Python's stdlib sqlite3 is a full SQLite (VACUUM INTO,
+# integrity_check) with no apk install at backup time.
+SQLITE_IMAGE = ("python:3.12-alpine@sha256:"
+                "6d43704baacd1bfbe7c295d7f13079d5d8104ed33568873133f8fc69980419df")
+
+# Used only to read a dump back with `pg_restore -l`. Same pin as every
+# Postgres on this node, so pg_restore always matches the pg_dump that wrote
+# the file. Never given a production volume, never started as a server.
+POSTGRES_IMAGE = ("postgres:16-alpine@sha256:"
+                  "16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229")
+
 
 def _run(argv, **kw):
     return subprocess.run(argv, **kw)
@@ -100,13 +114,173 @@ class Docker:
         return set(proc.stdout.split()) if proc.returncode == 0 else set()
 
     def pg_dump(self, spec, path) -> bool:
-        """Dump one database to `path`. False on any failure; caller unlinks."""
+        """Dump one database to `path`. False on any failure; caller unlinks.
+
+        `-Fc`: custom format, compressed, and restorable selectively. The plain
+        SQL it replaces was 603.73 MB for litellm alone and dominated the whole
+        snapshot; the same data is 150.95 MB here. It also buys the readback
+        below — pg_restore can list a custom dump's table of contents, which a
+        plain .sql file offers no equivalent of short of loading it.
+        """
         with open(path, "wb") as out:
             proc = self._run(
-                ["docker", "exec", spec.container, "pg_dump", "-U", spec.user,
+                ["docker", "exec", spec.container, "pg_dump", "-Fc", "-U", spec.user,
                  spec.database],
                 stdout=out)
         return proc.returncode == 0
+
+
+class Dumps:
+    """The dump drivers: the two container runs, and pg_dump's readback.
+
+    Each driver takes the specs for its kind and returns
+    {filename: DumpResult}, which is all node_backup.dumps.execute_dumps needs
+    — so the classification and the degrade/skip bookkeeping stay pure and the
+    tests never start a container.
+
+    Verification lives HERE, inside the drivers, on purpose: a dump that was
+    written but cannot be read back reports FAILED exactly like one that was
+    never written, so it lands in the same degraded list. "Produced but
+    unusable" does not get a second mechanism.
+    """
+
+    def __init__(self, repo_root: Path, project: str, run=_run,
+                 sqlite_image: str = SQLITE_IMAGE,
+                 postgres_image: str = POSTGRES_IMAGE):
+        self.repo_root = Path(repo_root)
+        self.project = project
+        self._run = run
+        self.sqlite_image = sqlite_image
+        self.postgres_image = postgres_image
+
+    # --- postgres ----------------------------------------------------------
+
+    def postgres(self, specs, dump_dir) -> dict:
+        """pg_dump each database, then read every written archive back."""
+        from .dumps import DumpResult, FAILED, OK       # local: avoid a cycle
+
+        results = {}
+        written = []
+        for spec in specs:
+            path = Path(dump_dir) / spec.filename
+            if self._pg_dump_600(spec, path):
+                written.append(spec.filename)
+            else:
+                results[spec.filename] = DumpResult(
+                    FAILED,
+                    f"pg_dump failed against the running container "
+                    f"'{spec.container}'")
+        if not written:
+            return results
+
+        for filename, (ok, detail) in self._pg_restore_list(dump_dir, written).items():
+            results[filename] = (DumpResult(OK, detail) if ok
+                                 else DumpResult(FAILED, detail))
+        return results
+
+    def _pg_dump_600(self, spec, path) -> bool:
+        ok = Docker(self.repo_root, self._run).pg_dump(spec, path)
+        try:
+            Path(path).chmod(0o600)
+        except OSError:
+            pass
+        return ok
+
+    def _pg_restore_list(self, dump_dir, filenames) -> dict:
+        """{filename: (ok, detail)} from `pg_restore -l`.
+
+        pg_dump exiting 0 says the dump was written, not that it can be read.
+        Listing a custom-format archive's table of contents parses the whole
+        file, so a truncated or corrupt dump fails here rather than at restore
+        time — the same bargain integrity_check makes for the SQLite dumps.
+        """
+        script = (
+            'for f in "$@"; do\n'
+            '  if entries=$(pg_restore -l "/dumps/$f" 2>/dev/null | grep -c "^[0-9]"); then\n'
+            '    printf "OK\\t%s\\t%s\\n" "$f" "$entries"\n'
+            '  else\n'
+            '    printf "FAIL\\t%s\\t%s\\n" "$f" "$(pg_restore -l "/dumps/$f" 2>&1 | head -1)"\n'
+            '  fi\n'
+            'done\n')
+        proc = self._run(
+            ["docker", "run", "--rm", "-v", f"{dump_dir}:/dumps:ro",
+             "--entrypoint", "sh", self.postgres_image, "-c", script, "sh", *filenames],
+            capture_output=True, text=True)
+        if proc.returncode != 0:
+            sys.stderr.write(proc.stderr)
+            raise BackupError("the pg_restore readback container failed outright — "
+                              "the Postgres dumps are unverified")
+        out = {}
+        for line in proc.stdout.splitlines():
+            parts = line.split("\t")
+            if len(parts) != 3:
+                continue
+            status, filename, detail = parts
+            if status == "OK" and detail.isdigit() and int(detail) > 0:
+                out[filename] = (True, f"{detail} archive entries; pg_restore -l ok")
+            else:
+                out[filename] = (
+                    False,
+                    f"written by pg_dump but unreadable by pg_restore: "
+                    f"{detail or 'no table of contents'}")
+        for filename in filenames:
+            out.setdefault(filename, (False, "pg_restore printed no verdict for it"))
+        return out
+
+    # --- sqlite ------------------------------------------------------------
+
+    def sqlite(self, specs, dump_dir) -> dict:
+        """One container run for every SQLite database.
+
+        Each source volume is mounted READ-ONLY at /src/<volume>; the staging
+        dump directory is the only writable path. See sqlite_snapshot.py for
+        why VACUUM INTO on a read-only handle is the method and what was
+        rejected.
+        """
+        from .dumps import DumpResult, FAILED, MISSING, OK   # local: avoid a cycle
+
+        dump_dir = Path(dump_dir)
+        spec_file = dump_dir.parent / "sqlite-spec.json"
+        spec_file.write_text(json.dumps(
+            [{"volume": s.volume, "path": s.path, "file": s.filename} for s in specs]))
+        spec_file.chmod(0o600)
+
+        mounts = []
+        for volume in dict.fromkeys(s.volume for s in specs):
+            mounts += ["-v", f"{self.project}_{volume}:/src/{volume}:ro"]
+        program = self.repo_root / "scripts" / "node_backup" / "sqlite_snapshot.py"
+
+        proc = self._run(
+            ["docker", "run", "--rm", *mounts,
+             "-v", f"{dump_dir}:/dumps",
+             "-v", f"{program}:/sqlite_snapshot.py:ro",
+             "-v", f"{spec_file}:/spec.json:ro",
+             self.sqlite_image, "python3", "/sqlite_snapshot.py", "/spec.json"],
+            capture_output=True, text=True)
+        if proc.returncode != 0:
+            sys.stderr.write(proc.stdout + proc.stderr)
+            raise BackupError("the sqlite dump container failed outright — no SQLite "
+                              "database was snapshotted")
+
+        results = {}
+        for line in proc.stdout.splitlines():
+            parts = line.split("\t")
+            if len(parts) < 2:
+                continue
+            status, filename = parts[0], parts[1]
+            rest = parts[2:]
+            if status == "OK" and len(rest) == 3:
+                size, tables, rows = rest
+                results[filename] = DumpResult(
+                    OK, f"{size} bytes, {tables} tables, {rows} rows; integrity_check ok")
+            elif status == "MISSING":
+                results[filename] = DumpResult(
+                    MISSING, f"{rest[0] if rest else 'the file'} is not in its volume; "
+                             f"the app has not created it yet")
+            else:
+                results[filename] = DumpResult(
+                    FAILED, rest[0] if rest else "the sqlite driver gave no reason")
+        return results
 
 
 class Restic:

@@ -36,5 +36,12 @@ timeout_seconds = 30
 
 [lifecycle]
 backup = ["redash_db"]              # query/dashboard definitions live here; redis is ephemeral
+# Queries, dashboards, data-source connection settings and their encrypted
+# credentials. Redash had NO dump before coordination#71 PR 2 — the volume was
+# copied live and nothing else, which for a running Postgres is a copy of a
+# data directory mid-checkpoint.
+dump = [
+  { kind = "postgres", service = "redash-db", container = "redash-db", user = "redash", database = "redash", file = "redash.dump" },
+]
 update_policy = "staged"           # via the change pipeline (re-pin digest, then deploy)
 on_demand = false

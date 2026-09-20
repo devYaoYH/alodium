@@ -25,29 +25,6 @@ CORE_VOLUMES = [
 ]
 
 
-@dataclass(frozen=True)
-class DumpSpec:
-    """One Postgres database to dump, and the container to dump it from."""
-    container: str
-    service: str
-    user: str
-    database: str
-    filename: str
-
-
-# Dump Postgres rather than trusting a copy of live files. The list is still
-# hardcoded here; moving it into each app manifest — and adding the missing
-# redash and egress-audit dumps, `pg_dump -Fc`, and SQLite consistency — is
-# PR 2 of coordination#71. This list is the seam it replaces: PR 2 builds these
-# from the manifests instead of spelling them out.
-DUMP_SPECS = [
-    DumpSpec("litellm-db", "litellm-db", "litellm", "litellm", "litellm.sql"),
-    DumpSpec("miniflux-db", "miniflux-db", "miniflux", "miniflux", "miniflux.sql"),
-    DumpSpec("search-audit-db", "search-audit-db", "search_audit_owner",
-             "search_audit", "search_audit.sql"),
-]
-
-
 # --------------------------------------------------------------------------
 # Volumes
 # --------------------------------------------------------------------------
@@ -149,65 +126,3 @@ def plan_volumes(declared, owners, existing_volumes, ran_services,
             plan.skipped.append(f"{full} (profile never run: {svcs})")
 
     return plan
-
-
-# --------------------------------------------------------------------------
-# Dumps
-# --------------------------------------------------------------------------
-
-@dataclass
-class DumpPlan:
-    to_run: list[DumpSpec] = field(default_factory=list)
-    skipped: list[str] = field(default_factory=list)    # never ran here; clean
-    degraded: list[str] = field(default_factory=list)   # ran here, can't dump
-
-
-def plan_dumps(specs, running_containers, ran_services) -> DumpPlan:
-    """Three outcomes, and the distinction is the point.
-
-    The operator stops Docker to reclaim RAM, so a partially-up node is a
-    normal state here, not an edge case — and a dump that is missing because
-    its database was down must never ride inside a snapshot that reports
-    success. Mirrors the volume logic deliberately:
-
-        running                          -> dump it
-        has run on this node, but down   -> degraded
-        never run on this node           -> clean skip
-    """
-    plan = DumpPlan()
-    running_containers = set(running_containers)
-    ran_services = set(ran_services)
-
-    for spec in specs:
-        if spec.container in running_containers:
-            plan.to_run.append(spec)
-        elif spec.service in ran_services:
-            plan.degraded.append(
-                f"{spec.database} — service '{spec.service}' has run on this node "
-                f"but its container is not running")
-        else:
-            plan.skipped.append(
-                f"{spec.database} (service '{spec.service}' has never run)")
-    return plan
-
-
-def execute_dumps(plan: DumpPlan, dump_dir, pg_dump, unlink) -> tuple[list[str], list[str]]:
-    """Run the planned dumps. Returns (written filenames, new degraded reasons).
-
-    `pg_dump(spec, path) -> bool` and `unlink(path)` are injected so this is
-    testable without a daemon. A failing pg_dump against a *running* container
-    is degraded too, and the half-written file is deleted: a truncated dump
-    restores as a database and looks like data.
-    """
-    written: list[str] = []
-    degraded: list[str] = []
-    for spec in plan.to_run:
-        path = Path(dump_dir) / spec.filename
-        if pg_dump(spec, path):
-            written.append(spec.filename)
-        else:
-            unlink(path)
-            degraded.append(
-                f"{spec.database} — pg_dump failed against the running container "
-                f"'{spec.container}'")
-    return written, degraded

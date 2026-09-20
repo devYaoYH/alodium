@@ -55,6 +55,15 @@ def load_services() -> list[dict]:
             # Audit inventory: what it declared, therefore all it can hold.
             "needs": manifest.get("needs", {}),
             "backup": manifest.get("lifecycle", {}).get("backup", []),
+            # Which databases this app declared for a consistent dump. Same
+            # inventory, second claim: "restic includes this volume" and "the
+            # database inside it is actually dumped" are different statements,
+            # and only the second one survives a live Postgres or WAL SQLite.
+            "dumps": [
+                {"kind": d.get("kind"), "file": d.get("file")}
+                for d in manifest.get("lifecycle", {}).get("dump", [])
+                if isinstance(d, dict)
+            ],
         })
     return services
 
