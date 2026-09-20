@@ -133,7 +133,10 @@ and mirrors, and `search.<domain>` for the Ring 0 agent-search audit. See
     .claude/skills          -> ../skills, where Claude Code discovers them
     .forge/skills           -> ../skills, where forge discovers them (the jail)
     scripts/install.sh      the interview: manifest, reachability, validation
-    scripts/backup.sh       restic-in-a-container; include list generated from manifests
+    scripts/backup.sh       thin wrapper — the backup lives in backup.py
+    scripts/backup.py       restic-in-a-container; include list generated from manifests
+    scripts/node_backup/    its decisions (plan/policy/config) + offline tests,
+                            run by verify-config.sh — no daemon needed
     scripts/mirror.sh       cache an upstream repo in Forgejo (docs/MIRRORING.md)
     scripts/new-app.sh      seed apps/<name> in Forgejo from the skeleton
     scripts/pin-images.sh   re-pin compose images to current digests

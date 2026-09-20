@@ -1,0 +1,183 @@
+{
+  "_comment": "The live node's state on 2026-09-20, and the classification the MERGED BASH scripts/backup.sh (node-config a248c6f, PR #137) produced from it. The Python port must reproduce this exactly; test_plan.py asserts it. Regenerate only against a bash run you have actually observed.",
+  "volume_owners": {
+    "agent_workspace": [
+      "agent"
+    ],
+    "assistant_workspace": [
+      "assistant"
+    ],
+    "bridge_data": [
+      "gog-bridge"
+    ],
+    "caddy_config": [
+      "caddy"
+    ],
+    "caddy_data": [
+      "caddy"
+    ],
+    "copilot_workspace": [
+      "copilot"
+    ],
+    "egress_audit_db": [
+      "egress-audit-db"
+    ],
+    "forgejo_data": [
+      "forgejo"
+    ],
+    "launcher_audit": [
+      "launcher"
+    ],
+    "litellm_db": [
+      "litellm-db"
+    ],
+    "memos_data": [
+      "memos"
+    ],
+    "miniflux_db": [
+      "miniflux-db"
+    ],
+    "openwebui_data": [
+      "open-webui"
+    ],
+    "pocketid_data": [
+      "pocket-id"
+    ],
+    "radicale_data": [
+      "radicale"
+    ],
+    "redash_db": [
+      "redash-db"
+    ],
+    "search_audit": [
+      "search-audit-migrate"
+    ],
+    "search_audit_db": [
+      "search-audit-db"
+    ]
+  },
+  "existing_volumes": [
+    "sovereign-node_agent_workspace",
+    "sovereign-node_caddy_config",
+    "sovereign-node_caddy_data",
+    "sovereign-node_copilot_workspace",
+    "sovereign-node_forgejo_data",
+    "sovereign-node_launcher_audit",
+    "sovereign-node_litellm_db",
+    "sovereign-node_memos_data",
+    "sovereign-node_miniflux_db",
+    "sovereign-node_openwebui_data",
+    "sovereign-node_pocketid_data",
+    "sovereign-node_radicale_data",
+    "sovereign-node_redash_db",
+    "sovereign-node_search_audit",
+    "sovereign-node_search_audit_db"
+  ],
+  "ran_services": [
+    "caddy",
+    "calino",
+    "copilot",
+    "copilot-egress",
+    "copilot-headroom",
+    "docker-proxy",
+    "fleet-sim",
+    "floor",
+    "forgejo",
+    "homepage",
+    "launcher",
+    "launcher-docker-proxy",
+    "litellm",
+    "litellm-db",
+    "memos",
+    "miniflux",
+    "miniflux-db",
+    "oauth2-proxy",
+    "open-webui",
+    "pocket-id",
+    "radicale",
+    "radicale-toolshim",
+    "redash-db",
+    "redash-init",
+    "redash-redis",
+    "redash-scheduler",
+    "redash-server",
+    "redash-worker",
+    "registry",
+    "search-audit-api",
+    "search-audit-db",
+    "search-broker",
+    "search-broker-toolshim",
+    "search-egress",
+    "snake"
+  ],
+  "bash_include": [
+    "sovereign-node_forgejo_data",
+    "sovereign-node_litellm_db",
+    "sovereign-node_radicale_data",
+    "sovereign-node_caddy_data",
+    "sovereign-node_pocketid_data",
+    "sovereign-node_memos_data",
+    "sovereign-node_miniflux_db",
+    "sovereign-node_openwebui_data",
+    "sovereign-node_redash_db",
+    "sovereign-node_search_audit"
+  ],
+  "bash_skipped": [
+    "sovereign-node_egress_audit_db (profile never run: egress-audit-db)",
+    "sovereign-node_bridge_data (profile never run: gog-bridge)"
+  ],
+  "bash_dumps": [
+    "litellm.sql",
+    "miniflux.sql",
+    "search_audit.sql"
+  ],
+  "bash_running_containers": [
+    "caddy",
+    "calino",
+    "copilot",
+    "copilot-egress",
+    "copilot-headroom",
+    "docker-proxy",
+    "doorbell-runner",
+    "floor",
+    "forgejo",
+    "homepage",
+    "launcher",
+    "launcher-docker-proxy",
+    "litellm",
+    "litellm-db",
+    "memos",
+    "miniflux",
+    "miniflux-db",
+    "oauth2-proxy",
+    "open-webui",
+    "pocket-id",
+    "radicale",
+    "radicale-toolshim",
+    "redash-db",
+    "redash-redis",
+    "redash-scheduler",
+    "redash-server",
+    "redash-worker",
+    "registry",
+    "search-audit-api",
+    "search-audit-db",
+    "search-broker",
+    "search-broker-toolshim",
+    "search-egress"
+  ],
+  "declared_volumes": [
+    "forgejo_data",
+    "litellm_db",
+    "radicale_data",
+    "caddy_data",
+    "pocketid_data",
+    "egress_audit_db",
+    "bridge_data",
+    "memos_data",
+    "miniflux_db",
+    "openwebui_data",
+    "redash_db",
+    "search_audit"
+  ]
+}
