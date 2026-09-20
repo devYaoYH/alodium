@@ -365,11 +365,22 @@ done
 DATA_MOUNTS+=(-v "$DUMP_DIR:/data/dumps:ro")
 TARGETS+=("/data/dumps")
 
+# Every snapshot is tagged with its class — `complete` or `partial` — and the
+# `complete` tag is NOT redundant, however much it looks it. Do not "simplify"
+# it away: retention keeps the NEWEST snapshot in each period, so without a tag
+# that distinguishes the classes, a degraded run at 14:00 makes that day's
+# newest snapshot the partial one, and the next clean run's `forget` deletes the
+# complete 03:00 snapshot in its favour. Tagging both classes lets retention
+# treat them as separate pools (see the two `forget` calls below).
+#
 # A degraded run still takes the snapshot — partial data beats no data when the
-# operator actually needs a restore — but it is tagged so it can be told apart
-# from a complete one without reading a log.
+# operator actually needs a restore.
 SNAPSHOT_TAGS=(--tag "$PROJECT")
-if (( ${#DEGRADED[@]} )); then SNAPSHOT_TAGS+=(--tag partial); fi
+if (( ${#DEGRADED[@]} )); then
+  SNAPSHOT_TAGS+=(--tag partial)
+else
+  SNAPSHOT_TAGS+=(--tag complete)
+fi
 
 # --host is not cosmetic: without it restic records the container's random
 # hostname, every snapshot lands in its own retention group, and `forget` never
@@ -386,12 +397,29 @@ if (( ${#DEGRADED[@]} )); then
   die "degraded run: snapshot taken and tagged 'partial', ${#DEGRADED[@]} dump(s) missing (listed above). Volumes are backed up; the databases above are not."
 fi
 
-# Retention. Scoped to this repository by construction — the container sees only
-# the configured repo — and grouped by host alone: one host, one backup job, one
-# history. Grouping by paths or tags would fragment it every time an app is added
-# or a run is tagged 'partial', leaving groups that are each too young to expire.
-restic_run forget --host "$PROJECT" --tag "$PROJECT" --group-by host \
-  --keep-daily 7 --keep-weekly 4 --keep-monthly 6 --prune
+# Retention, in two pools and one prune. Scoped to this repository by
+# construction — the container is only ever shown /repo.
+#
+# `--group-by host` (not host,tags or host,paths): one host, one backup job, one
+# history. Grouping by paths would fragment it every time an app is added, and
+# grouping by tags would give the partial pool its own group of every age.
+# Instead the two pools are selected explicitly by tag, so the real policy can
+# only ever be satisfied by a complete snapshot — a partial can never cause a
+# complete one to be deleted.
+#
+# `--tag "a,b"` means AND, so these two calls are disjoint. Snapshots written
+# before this scheme existed carry neither class tag and are left alone; that is
+# academic for the real repository, which has not been created yet.
+restic_run forget --host "$PROJECT" --tag "$PROJECT,complete" --group-by host \
+  --keep-daily 7 --keep-weekly 4 --keep-monthly 6
+
+# Partials are kept only so a restore has something recent to fall back on while
+# the node is half up. Bounded, so a week of degraded runs cannot fill the disk.
+restic_run forget --host "$PROJECT" --tag "$PROJECT,partial" --group-by host \
+  --keep-last 3
+
+# One prune for both, rather than once per pool.
+restic_run prune
 
 BACKUP_OK=1
 # BSD date (macOS) has no -Is; deploy.sh spells it out the same way.

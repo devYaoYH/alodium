@@ -319,8 +319,16 @@ partially-up node is a normal state and the backup has three outcomes, not two.
 A database whose service has never run is a clean skip. A database whose service
 has run but is currently down is a *degraded* run: the volume snapshot is still
 taken, because partial data beats no data when a restore is actually needed, but
-it is tagged `partial`, retention is skipped so nothing complete is expired to
-make room for it, and the script exits non-zero. Success is never the default.
+it is tagged `partial`, retention is skipped for that run, and the script exits
+non-zero. Success is never the default.
+
+Every snapshot therefore carries a class tag — `complete` or `partial` — and
+retention treats the two as separate pools: the real policy (7 daily / 4 weekly
+/ 6 monthly) selects `complete` only, partials are bounded to the last few, and
+a single prune follows. The tag is load-bearing, not decoration: retention keeps
+the *newest* snapshot in each period, so in one undifferentiated pool a degraded
+afternoon run would make the partial that day's survivor and the next clean run
+would expire the good morning snapshot in its favour.
 
 The Recovery Kit ships in the box: a printed card carrying the restic
 passphrase and recovery codes as QR. The card alone MUST be sufficient — it
