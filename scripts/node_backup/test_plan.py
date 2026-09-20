@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Offline tests for node_backup.plan. No Docker, no daemon, no fault injection:
+Offline tests for node_backup.plan (volumes). No Docker, no daemon, no fault injection:
 the inputs are a compose-config dict, a set of volume names and a set of
 services, so every branch is a dict literal.
 
@@ -10,8 +10,10 @@ Covers the classifications a backup gets wrong:
   - the empty include set is flagged fatal
   - core + manifest volumes dedupe (radicale_data is both)
   - volume_owners reads only real volume mounts, not bind mounts
-  - dumps: running -> dump, has-run-but-down -> degraded, never-ran -> skip
-  - a failed pg_dump is degraded AND the half-written file is deleted
+
+Dump classification moved to test_dumps.py when the dump table became
+manifest-declared (coordination#71 PR 2); the volume equivalence below stays
+here because it is this module's claim.
   - EQUIVALENCE with the merged bash implementation: testdata/bash_baseline.json
     holds the live node's state and the classification bash produced from it
     (node-config a248c6f, PR #137); these functions must reproduce it exactly
@@ -149,68 +151,7 @@ check("manifest: a manifest with no backup list contributes nothing", len(vols) 
 check("manifest: the example manifest is not inventory", "notes-data" not in vols)
 
 
-# ---- 5. plan_dumps: the three outcomes -------------------------------------
-
-SPECS = [
-    plan.DumpSpec("litellm-db", "litellm-db", "litellm", "litellm", "litellm.sql"),
-    plan.DumpSpec("redash-db", "redash-db", "redash", "redash", "redash.sql"),
-    plan.DumpSpec("egress-audit-db", "egress-audit-db", "e", "egress_audit", "e.sql"),
-]
-d = plan.plan_dumps(SPECS,
-                    running_containers={"litellm-db"},
-                    ran_services={"litellm-db", "redash-db"})
-check("dumps: a running container is dumped",
-      [s.container for s in d.to_run] == ["litellm-db"])
-check("dumps: has run here but is down -> degraded", len(d.degraded) == 1)
-check("dumps: the degraded message names the service", "'redash-db'" in d.degraded[0],
-      detail=d.degraded[0])
-check("dumps: never ran here -> clean skip, not degraded",
-      len(d.skipped) == 1 and "egress_audit" in d.skipped[0], detail=str(d.skipped))
-check("dumps: a down container is NOT silently omitted",
-      any("redash" in x for x in d.degraded))
-
-all_up = plan.plan_dumps(SPECS, {s.container for s in SPECS}, set())
-check("dumps: everything up -> nothing degraded, nothing skipped",
-      len(all_up.to_run) == 3 and not all_up.degraded and not all_up.skipped)
-
-
-# ---- 6. execute_dumps: a failed pg_dump is degraded AND cleaned up ---------
-
-with tempfile.TemporaryDirectory() as td:
-    good = plan.DumpSpec("a-db", "a", "u", "a", "a.sql")
-    bad = plan.DumpSpec("b-db", "b", "u", "b", "b.sql")
-    dplan = plan.DumpPlan(to_run=[good, bad])
-    unlinked = []
-
-    def fake_pg_dump(spec, path):
-        # Both write something: the failing one leaves a half-written file,
-        # which is exactly the case that must not survive into a snapshot.
-        Path(path).write_text("-- partial\n")
-        return spec is good
-
-    written, degraded = plan.execute_dumps(
-        dplan, td, fake_pg_dump, lambda p: (unlinked.append(Path(p).name),
-                                            Path(p).unlink(missing_ok=True)))
-    left = sorted(os.listdir(td))
-
-check("execute: the good dump is reported written", written == ["a.sql"], detail=str(written))
-check("execute: the failed dump is degraded", len(degraded) == 1)
-check("execute: the degraded message names the container", "'b-db'" in degraded[0],
-      detail=degraded[0])
-check("execute: the half-written file is deleted", unlinked == ["b.sql"] and left == ["a.sql"],
-      detail=f"unlinked={unlinked} left={left}")
-
-
-# ---- 7. the shipped dump list ----------------------------------------------
-
-check("shipped: three dumps, one per known Postgres", len(plan.DUMP_SPECS) == 3)
-check("shipped: litellm-db is not special-cased into an unconditional dump",
-      all(isinstance(s, plan.DumpSpec) for s in plan.DUMP_SPECS))
-check("shipped: every spec names a container and a service",
-      all(s.container and s.service for s in plan.DUMP_SPECS))
-
-
-# ---- 8. equivalence with the merged bash implementation --------------------
+# ---- 5. equivalence with the merged bash implementation --------------------
 # This is the port's whole claim: same inputs, same decisions. The fixture is a
 # recording of the live node plus what bash decided there, so a refactor that
 # quietly reclassifies a volume fails here rather than in six months when
@@ -235,34 +176,6 @@ check("equiv: same skip list",
 check("equiv: bash found nothing missing, and neither do we", bl_plan.missing == [])
 check("equiv: ten volumes, two skipped — the node as it actually was",
       len(bl_plan.include) == 10 and len(bl_plan.skipped) == 2)
-
-bl_dumps = plan.plan_dumps(plan.DUMP_SPECS, BASELINE["bash_running_containers"],
-                           BASELINE["ran_services"])
-check("equiv: same dump set as bash wrote",
-      [s.filename for s in bl_dumps.to_run] == BASELINE["bash_dumps"],
-      detail=f"py={[s.filename for s in bl_dumps.to_run]} bash={BASELINE['bash_dumps']}")
-check("equiv: bash degraded nothing on that node, and neither do we",
-      bl_dumps.degraded == [] and bl_dumps.skipped == [])
-
-# The same recording with one container taken away. The merged bash already
-# degrades here (node-config 75afad1) and so must the port: this is the branch
-# no single live run can exercise without stopping a production database, which
-# is exactly why it belongs in a fixture and not in a fault-injection session.
-down = [c for c in BASELINE["bash_running_containers"] if c != "miniflux-db"]
-partial = plan.plan_dumps(plan.DUMP_SPECS, down, BASELINE["ran_services"])
-check("equiv: a down miniflux-db is degraded, never silently omitted",
-      len(partial.degraded) == 1 and "miniflux" in partial.degraded[0],
-      detail=str(partial.degraded))
-check("equiv: the other two dumps still run", len(partial.to_run) == 2)
-
-# And with litellm-db down — the case the PRE-#137 script turned into a total
-# abort, because its dump was unconditional. Volumes still get backed up.
-no_litellm = [c for c in BASELINE["bash_running_containers"] if c != "litellm-db"]
-without = plan.plan_dumps(plan.DUMP_SPECS, no_litellm, BASELINE["ran_services"])
-check("equiv: litellm-db down degrades the run, it does not abort it",
-      len(without.degraded) == 1 and len(without.to_run) == 2,
-      detail=str(without.degraded))
-
 
 print()
 if FAIL == 0:

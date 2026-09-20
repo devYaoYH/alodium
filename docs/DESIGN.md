@@ -330,6 +330,30 @@ the *newest* snapshot in each period, so in one undifferentiated pool a degraded
 afternoon run would make the partial that day's survivor and the next clean run
 would expire the good morning snapshot in its favour.
 
+**What gets dumped is declared by the app that owns the data**, in
+`[lifecycle] dump` next to `[lifecycle] backup`, and the key is mandatory: an
+app holding no database writes `dump = []` and means it, so "declared none" and
+"nobody decided" cannot look alike. `verify-config.sh` rejects a manifest that
+omits it, which is what stops a new app arriving with an undeclared — and
+therefore unbacked-up — database. The core stack (litellm, forgejo, pocket-id)
+declares in `backup.sh` beside the core volume list, for the same reason that
+list is literal: these are not apps on the node, they are the node, and they
+ship no manifest because the registry would otherwise advertise Forgejo as a
+callable app.
+
+A copy of the volume is not a backup of the database inside it. Postgres is
+dumped with `pg_dump -Fc` through the running container; SQLite — Forgejo,
+Pocket ID, Open WebUI and Memos, three of the four in WAL mode — is snapshotted
+with `VACUUM INTO` against a *read-only* mount of the volume, which has SQLite
+itself read the main file and the WAL as of one instant rather than trusting a
+file copy that can be torn or stale. Nothing is ever written into a production
+volume; every artifact lands in the staging directory. And every dump is **read
+back before the snapshot may call itself complete** — `pg_restore` parses the
+archive, SQLite runs `integrity_check` plus a row count over every table. A
+dump that fails is deleted and the run degrades, because a dump nobody has read
+is a rumour, and one that rides inside a snapshot reporting success is worse
+than no dump at all.
+
 The Recovery Kit ships in the box: a printed card carrying the restic
 passphrase and recovery codes as QR. The card alone MUST be sufficient — it
 covers the case where phone and box are lost together. A family-quorum reset

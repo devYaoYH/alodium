@@ -50,3 +50,29 @@ timeout_seconds = 300
 backup = ["notes-data"]            # volumes restic must include
 update_policy = "staged"           # staged = via change pipeline | pinned = manual only
 on_demand = false                   # true = launched only on explicit request (see snake)
+# Consistent database snapshots. MANDATORY — there is no default, and an app
+# that holds no database says so with `dump = []` and means it. A copy of a
+# live database file is a copy of whatever was on disk mid-transaction, so
+# backing up the volume is not backing up the database; the volume copy rides
+# along, but a restore reloads the dump.
+#
+# scripts/backup.sh generates its dump table from these declarations and
+# scripts/verify-config.sh refuses a manifest that omits the key, so "we
+# forgot to declare one" and "it genuinely has none" can never look the same.
+#
+# Every entry needs `kind`, `service` (the compose service that owns the data —
+# backup.sh uses it to tell "never installed here, skip cleanly" from
+# "installed, and its dump is missing, which is a degraded backup") and `file`
+# (the name it gets inside the snapshot; unique across the whole node).
+#
+#   kind = "postgres"  also needs container, user, database
+#                      -> docker exec <container> pg_dump -Fc
+#   kind = "sqlite"    also needs volume, path (inside that volume)
+#                      -> VACUUM INTO, from a READ-ONLY mount of that volume
+#
+# Both are verified before the snapshot may call itself complete: pg_restore
+# lists the archive, SQLite runs integrity_check plus a row count over every
+# table. A dump that fails verification is deleted and the run is degraded.
+dump = [
+  { kind = "sqlite", service = "meeting-notes", volume = "notes-data", path = "notes.db", file = "meeting-notes.db" },
+]

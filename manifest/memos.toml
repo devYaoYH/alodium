@@ -35,4 +35,11 @@ timeout_seconds = 30
 
 [lifecycle]
 backup = ["memos_data"]
+# Memos runs on SQLite in WAL mode, so the main file alone is missing whatever
+# is still in the -wal. Snapshotted with VACUUM INTO from a read-only mount of
+# the volume; the image is busybox-only, so there is nothing to exec into and
+# nothing is written back into memos_data.
+dump = [
+  { kind = "sqlite", service = "memos", volume = "memos_data", path = "memos_prod.db", file = "memos.db" },
+]
 update_policy = "staged"

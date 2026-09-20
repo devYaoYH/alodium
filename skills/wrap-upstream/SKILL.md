@@ -16,6 +16,14 @@ description: Package an existing open-source app to run on this node — mirror,
 3. Write `manifest/<name>.toml` in node-config (copy the shape of
    `manifest/app.example.toml`): `[needs]` minimal, volumes named,
    backups declared in `[lifecycle]`, health endpoint if it has one.
+   Work out from the upstream you just read **which database it keeps and
+   where** — most of these ship SQLite inside a volume, some run their own
+   Postgres — and declare each one under `[lifecycle] dump`. That key is
+   mandatory: the volume copy alone captures a live database mid-transaction,
+   so an undeclared database is a database that is not really backed up.
+   `dump = []` is the right answer for an app that keeps only files, and it is
+   an answer rather than a blank. `verify-config.sh` rejects a manifest that
+   omits it; `manifest/app.example.toml` documents the fields per kind.
 4. Register it with the register-service skill: pinned compose service,
    route in the right ring, homepage entry if ring 1.
 5. Data migrations (imports, converters) ship as scripts the operator can

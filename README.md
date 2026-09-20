@@ -104,8 +104,14 @@ and mirrors, and `search.<domain>` for the Ring 0 agent-search audit. See
        ./scripts/backup.sh                  # a snapshot; scheduling comes next
 
    restic runs in a pinned container with every volume mounted read-only —
-   no host `restic`, and nothing that can write to your data. The repository
-   defaults to `~/.alodium/backups/restic` and restic's cache to
+   no host `restic`, and nothing that can write to your data. Every database
+   is additionally dumped through its own engine — `pg_dump -Fc`, and SQLite
+   `VACUUM INTO` from a read-only mount — because a copy of a live database
+   file is a copy of whatever was on disk mid-transaction. Which databases
+   those are is declared by each app in `manifest/<app>.toml` under
+   `[lifecycle] dump`, and each dump is read back and verified before a
+   snapshot is allowed to report success. The repository defaults to
+   `~/.alodium/backups/restic` and restic's cache to
    `~/.alodium/cache/restic`. A repo on the same disk as the data is a real
    improvement over nothing, not a backup strategy: add a second copy off this
    disk as soon as you have somewhere to put it.
@@ -134,9 +140,9 @@ and mirrors, and `search.<domain>` for the Ring 0 agent-search audit. See
     .forge/skills           -> ../skills, where forge discovers them (the jail)
     scripts/install.sh      the interview: manifest, reachability, validation
     scripts/backup.sh       thin wrapper — the backup lives in backup.py
-    scripts/backup.py       restic-in-a-container; include list generated from manifests
-    scripts/node_backup/    its decisions (plan/policy/config) + offline tests,
-                            run by verify-config.sh — no daemon needed
+    scripts/backup.py       restic-in-a-container; volumes AND dumps from manifests
+    scripts/node_backup/    its decisions (plan/policy/config/dumps) + offline
+                            tests, run by verify-config.sh — no daemon needed
     scripts/mirror.sh       cache an upstream repo in Forgejo (docs/MIRRORING.md)
     scripts/new-app.sh      seed apps/<name> in Forgejo from the skeleton
     scripts/pin-images.sh   re-pin compose images to current digests

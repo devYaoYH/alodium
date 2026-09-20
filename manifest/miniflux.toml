@@ -29,4 +29,7 @@ timeout_seconds = 30
 
 [lifecycle]
 backup = ["miniflux_db"]
+dump = [
+  { kind = "postgres", service = "miniflux-db", container = "miniflux-db", user = "miniflux", database = "miniflux", file = "miniflux.dump" },
+]
 update_policy = "staged"

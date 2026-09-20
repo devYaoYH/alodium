@@ -30,4 +30,8 @@ timeout_seconds = 30
 
 [lifecycle]
 backup = ["radicale_data"]
+# Radicale stores collections as plain .ics/.vcf files in a directory tree, not
+# in a database — there is no engine to ask for a consistent snapshot, and the
+# read-only volume copy IS the restore unit. Declared empty on purpose.
+dump = []
 update_policy = "staged"

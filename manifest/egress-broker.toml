@@ -37,4 +37,10 @@ timeout_seconds = 30
 
 [lifecycle]
 backup = ["egress_audit_db"]
+# The egress audit ledger. This profile has never been started on this node, so
+# backup.sh classifies it as a clean skip rather than a degraded run — the
+# declaration is what makes the difference visible either way.
+dump = [
+  { kind = "postgres", service = "egress-audit-db", container = "egress-audit-db", user = "egress_audit_owner", database = "egress_audit", file = "egress-audit.dump" },
+]
 update_policy = "pinned"

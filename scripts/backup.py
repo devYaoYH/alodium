@@ -6,8 +6,8 @@ This box is your identity; a backup you haven't restored is a rumor.
     ./scripts/backup.sh init     # once, after ~/.alodium/backup.env exists
     ./scripts/backup.sh          # then schedule it (PR 4 owns scheduling)
 
-The decisions live in scripts/node_backup/{plan,policy,config}.py as pure
-functions with offline tests; this file is the wiring between them and
+The decisions live in scripts/node_backup/{plan,dumps,policy,config}.py as
+pure functions with offline tests; this file is the wiring between them and
 scripts/node_backup/runner.py, which is the only place that shells out.
 
 Nothing here may write to a production volume. Every data mount is :ro.
@@ -16,7 +16,6 @@ Nothing here may write to a production volume. Every data mount is :ro.
 import json
 import os
 import shutil
-import stat
 import subprocess
 import sys
 import tempfile
@@ -25,9 +24,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from node_backup import config, plan, policy                      # noqa: E402
+from node_backup import config, dumps, plan, policy               # noqa: E402
 from node_backup.config import BackupError                        # noqa: E402
-from node_backup.runner import Docker, Restic, RESTIC_IMAGE       # noqa: E402
+from node_backup.runner import Docker, Dumps, Restic, RESTIC_IMAGE  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -132,7 +131,12 @@ def run_backup(restic: Restic, stage: Path) -> int:
     compose_config = docker.compose_config(docker.all_profiles())
     owners = plan.volume_owners(compose_config)
     declared = plan.declared_volumes(plan.manifest_backup_volumes(REPO_ROOT / "manifest"))
-    vplan = plan.plan_volumes(declared, owners, docker.volumes(), docker.project_services())
+    # Asked once and shared: the volume plan and the dump plan classify against
+    # the same view of the node, so a volume cannot be present for one and
+    # absent for the other.
+    volumes = docker.volumes()
+    ran_services = docker.project_services()
+    vplan = plan.plan_volumes(declared, owners, volumes, ran_services)
 
     for skipped in vplan.skipped:
         log(f"skip    {skipped}")
@@ -156,15 +160,24 @@ def run_backup(restic: Restic, stage: Path) -> int:
     dump_dir.mkdir()
     dump_dir.chmod(0o700)
 
-    dplan = plan.plan_dumps(plan.DUMP_SPECS, docker.running_containers(),
-                            docker.project_services())
-    written, failed = plan.execute_dumps(
+    # What gets dumped is declared by the app that owns the data. A manifest
+    # that declares nothing DEGRADES the run rather than aborting it: refusing
+    # to protect the other twelve apps because one manifest is incomplete is
+    # the worse outcome, and "degraded" already means exactly "there is data
+    # here we did not capture". verify-config.sh blocks it pre-merge, where it
+    # is cheap to fix.
+    specs, decl_errors = dumps.declared_dumps(REPO_ROOT / "manifest")
+    dplan = dumps.plan_dumps(specs, docker.running_containers(),
+                             ran_services, volumes)
+    drivers = Dumps(REPO_ROOT, plan.PROJECT)
+    written, failed, uninitialized = dumps.execute_dumps(
         dplan, dump_dir,
-        pg_dump=lambda spec, path: _pg_dump_600(docker, spec, path),
+        run_postgres=drivers.postgres,
+        run_sqlite=drivers.sqlite,
         unlink=lambda path: Path(path).unlink(missing_ok=True))
-    degraded = dplan.degraded + failed
+    degraded = dumps.declaration_outcomes(decl_errors) + dplan.degraded + failed
 
-    for skipped in dplan.skipped:
+    for skipped in dplan.skipped + uninitialized:
         log(f"skip    dump {skipped}")
     log(f"dumps   {' '.join(written) if written else '<none>'}")
     for reason in degraded:
@@ -187,15 +200,6 @@ def run_backup(restic: Restic, stage: Path) -> int:
     log(f"complete: {stamp}  volumes={len(vplan.include)} "
         f"skipped={len(vplan.skipped)} dumps={len(written)}")
     return 0
-
-
-def _pg_dump_600(docker: Docker, spec, path) -> bool:
-    ok = docker.pg_dump(spec, path)
-    try:
-        Path(path).chmod(stat.S_IRUSR | stat.S_IWUSR)
-    except OSError:
-        pass
-    return ok
 
 
 if __name__ == "__main__":
