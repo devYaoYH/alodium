@@ -314,6 +314,14 @@ The passphrase itself is resolved on the host — the macOS Keychain via
 `--password-command` — and never enters a tracked file, argv, or a container's
 environment.
 
+Because the Docker daemon here is stopped deliberately to reclaim RAM, a
+partially-up node is a normal state and the backup has three outcomes, not two.
+A database whose service has never run is a clean skip. A database whose service
+has run but is currently down is a *degraded* run: the volume snapshot is still
+taken, because partial data beats no data when a restore is actually needed, but
+it is tagged `partial`, retention is skipped so nothing complete is expired to
+make room for it, and the script exits non-zero. Success is never the default.
+
 The Recovery Kit ships in the box: a printed card carrying the restic
 passphrase and recovery codes as QR. The card alone MUST be sufficient — it
 covers the case where phone and box are lost together. A family-quorum reset

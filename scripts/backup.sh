@@ -47,12 +47,28 @@ cleanup() {
   local ec=$?
   if [[ -n "${STAGE_DIR:-}" ]]; then rm -rf "$STAGE_DIR"; fi
   if (( BACKUP_OK != 1 )); then
-    printf 'backup: FAILED (exit %s) — the run did not reach completion\n' "$ec" >&2
-    if (( ec == 0 )); then ec=1; fi
+    if (( ec == 0 )); then
+      printf 'backup: FAILED — ended early with a zero status (bash %s); reporting failure\n' "${BASH_VERSION%%(*}" >&2
+      ec=1
+    else
+      printf 'backup: FAILED (exit %s)\n' "$ec" >&2
+    fi
     exit "$ec"
   fi
 }
 trap cleanup EXIT
+
+# --- preflight: the local layer ----------------------------------------------
+# Deciding what to back up means parsing the compose tree, and compose needs the
+# local layer git never sees: .env for the ${VARS}, secrets/<app>.env for every
+# env_file. Run this from a git worktree and compose dies with
+# "stat …/secrets/radicale.env: no such file or directory", which sends the
+# reader hunting for a missing secret instead of telling them where they are.
+for required in .env secrets; do
+  if [[ ! -e "$required" ]]; then
+    die "missing '$required' in $PWD — backup.sh needs the local layer (.env, secrets/) and must run from the live checkout, not a git worktree."
+  fi
+done
 
 # --- configuration -----------------------------------------------------------
 # ~/.alodium/backup.env is the documented home (mode 600: it names the repo and
@@ -277,10 +293,19 @@ fi
 for v in ${VOLUMES[@]+"${VOLUMES[@]}"}; do log "include $v"; done
 
 # --- consistent DB snapshots -------------------------------------------------
-# Dump Postgres rather than trusting a copy of live files. Still hardcoded per
-# container; making this manifest-driven — and adding the missing redash and
-# egress-audit dumps, plus SQLite consistency — is PR 2 of coordination#71.
-# This block is the seam it replaces.
+# Dump Postgres rather than trusting a copy of live files. The list is still
+# hardcoded here; moving it into each app manifest — and adding the missing
+# redash and egress-audit dumps, `pg_dump -Fc`, and SQLite consistency — is
+# PR 2 of coordination#71. This table is the seam it replaces: PR 2 generates
+# these rows instead of spelling them out.
+#
+#   container | compose service | pg user | database | dump file
+DUMP_SPECS=(
+  "litellm-db|litellm-db|litellm|litellm|litellm.sql"
+  "miniflux-db|miniflux-db|miniflux|miniflux|miniflux.sql"
+  "search-audit-db|search-audit-db|search_audit_owner|search_audit|search_audit.sql"
+)
+
 # Dumps stage in a private mktemp -d (700) removed by the EXIT trap, so a crash
 # no longer leaves LiteLLM keys and user data readable in /tmp. The umask makes
 # the dump files themselves 600, which is also the mode a restore replays.
@@ -289,14 +314,43 @@ DUMP_DIR="$STAGE_DIR/dumps"
 mkdir -p "$DUMP_DIR"
 chmod 700 "$DUMP_DIR"
 
-docker exec litellm-db pg_dump -U litellm litellm > "$DUMP_DIR/litellm.sql"
-if docker ps --format '{{.Names}}' | grep -qx miniflux-db; then
-  docker exec miniflux-db pg_dump -U miniflux miniflux > "$DUMP_DIR/miniflux.sql"
-fi
-if docker ps --format '{{.Names}}' | grep -qx search-audit-db; then
-  docker exec search-audit-db pg_dump -U search_audit_owner search_audit > "$DUMP_DIR/search_audit.sql"
-fi
-log "dumps   $(cd "$DUMP_DIR" && printf '%s ' *.sql)"
+RUNNING_CONTAINERS="$STAGE_DIR/running.txt"
+docker ps --format '{{.Names}}' > "$RUNNING_CONTAINERS"
+
+# Three outcomes, and the distinction is the point. The operator stops Docker
+# to reclaim RAM, so a partially-up node is a normal state here, not an edge
+# case — and a dump that is missing because its database was down must never
+# ride inside a snapshot that reports success.
+#
+#   running                          -> dump it
+#   has run on this node, but down   -> DEGRADED: snapshot anyway, exit non-zero
+#   never run on this node           -> clean skip, same as the volume logic
+DUMPED=()
+DUMP_SKIPPED=()
+DEGRADED=()
+for spec in "${DUMP_SPECS[@]}"; do
+  IFS='|' read -r d_container d_service d_user d_db d_file <<< "$spec"
+  if grep -qx "$d_container" "$RUNNING_CONTAINERS"; then
+    if docker exec "$d_container" pg_dump -U "$d_user" "$d_db" > "$DUMP_DIR/$d_file"; then
+      DUMPED+=("$d_file")
+    else
+      # A half-written dump is worse than none: it would restore as a truncated
+      # database and look like data.
+      rm -f "$DUMP_DIR/$d_file"
+      DEGRADED+=("$d_db — pg_dump failed against the running container '$d_container'")
+    fi
+  elif service_has_run "$d_service"; then
+    DEGRADED+=("$d_db — service '$d_service' has run on this node but its container is not running")
+  else
+    DUMP_SKIPPED+=("$d_db (service '$d_service' has never run)")
+  fi
+done
+
+for s in ${DUMP_SKIPPED[@]+"${DUMP_SKIPPED[@]}"}; do log "skip    dump $s"; done
+log "dumps   ${DUMPED[*]:-<none>}"
+for d in ${DEGRADED[@]+"${DEGRADED[@]}"}; do
+  printf 'backup: DEGRADED dump missing: %s\n' "$d" >&2
+done
 
 # --- the snapshot ------------------------------------------------------------
 # Each volume is mounted READ-ONLY at a predictable /data/<volume>, so a path in
@@ -311,22 +365,37 @@ done
 DATA_MOUNTS+=(-v "$DUMP_DIR:/data/dumps:ro")
 TARGETS+=("/data/dumps")
 
+# A degraded run still takes the snapshot — partial data beats no data when the
+# operator actually needs a restore — but it is tagged so it can be told apart
+# from a complete one without reading a log.
+SNAPSHOT_TAGS=(--tag "$PROJECT")
+if (( ${#DEGRADED[@]} )); then SNAPSHOT_TAGS+=(--tag partial); fi
+
 # --host is not cosmetic: without it restic records the container's random
 # hostname, every snapshot lands in its own retention group, and `forget` never
 # expires anything. A fixed name also survives a restore onto another machine.
 docker run --rm "${BASE_MOUNTS[@]}" "${DATA_MOUNTS[@]}" "${RESTIC_ENV[@]}" "$RESTIC_IMAGE" \
-  backup "${TARGETS[@]}" --host "$PROJECT" --tag "$PROJECT" --exclude-caches
+  backup "${TARGETS[@]}" --host "$PROJECT" "${SNAPSHOT_TAGS[@]}" --exclude-caches
+
+# Retention never runs on a degraded run: expiring a complete snapshot to make
+# room for a partial one is exactly the wrong trade. Nothing is deleted, the
+# partial snapshot stays for the restore it might be needed for, and the run
+# exits non-zero so whatever scheduled it knows.
+if (( ${#DEGRADED[@]} )); then
+  log "retention skipped — nothing was expired"
+  die "degraded run: snapshot taken and tagged 'partial', ${#DEGRADED[@]} dump(s) missing (listed above). Volumes are backed up; the databases above are not."
+fi
 
 # Retention. Scoped to this repository by construction — the container sees only
-# the configured repo — and grouped by host+tags so that adding an app, which
-# changes the path list, does not fragment the history into groups that are each
-# too young to expire.
-restic_run forget --host "$PROJECT" --tag "$PROJECT" --group-by host,tags \
+# the configured repo — and grouped by host alone: one host, one backup job, one
+# history. Grouping by paths or tags would fragment it every time an app is added
+# or a run is tagged 'partial', leaving groups that are each too young to expire.
+restic_run forget --host "$PROJECT" --tag "$PROJECT" --group-by host \
   --keep-daily 7 --keep-weekly 4 --keep-monthly 6 --prune
 
 BACKUP_OK=1
 # BSD date (macOS) has no -Is; deploy.sh spells it out the same way.
-log "complete: $(date -u +%Y-%m-%dT%H:%M:%SZ)  volumes=${#VOLUMES[@]} skipped=${#SKIPPED[@]}"
+log "complete: $(date -u +%Y-%m-%dT%H:%M:%SZ)  volumes=${#VOLUMES[@]} skipped=${#SKIPPED[@]} dumps=${#DUMPED[@]}"
 
 # Restore drill (quarterly, minimum). PR 5 of coordination#71 turns this into
 # scripts/restore.sh + docs/RESTORE.md, drilled in the SUT VM, never against
