@@ -180,6 +180,29 @@ else
   fi
 fi
 
+# --- 5b. Unit tests for the Python under scripts/ ---------------------------
+# Offline, stdlib-only, no daemon: the decisions a backup gets wrong (include
+# vs skip vs missing, dump vs degraded vs never-ran, which retention pool a
+# snapshot lands in) are pure functions, so they are checked here rather than
+# by fault-injecting against a live Docker host. Precedent: agent/forgejo.py +
+# agent/test_forgejo.py. Add a test_*.py next to any new module and it runs.
+sec "python unit tests (scripts/)"
+PYTESTS=$(git ls-files 'scripts/**/test_*.py' 2>/dev/null || true)
+# git ls-files exits 0 with no output for files that aren't staged yet, so fall
+# back to the glob rather than silently reporting "no tests".
+[[ -n "$PYTESTS" ]] || PYTESTS=$(ls scripts/*/test_*.py 2>/dev/null || true)
+if [[ -z "$PYTESTS" ]]; then
+  note "SKIP: no scripts/**/test_*.py found"
+else
+  for t in $PYTESTS; do
+    if python3 "$t" >/tmp/vc_py.log 2>&1; then
+      note "OK: $t"
+    else
+      note "FAIL: $t —"; sed 's/^/    /' /tmp/vc_py.log | tail -20; FAIL=1
+    fi
+  done
+fi
+
 # --- 6. Copilot containment invariants -------------------------------------
 # The copilot seat is a capable, subscription-backed Claude Code session. Its
 # safety rests on a hard code/data-plane split: it may reach ONLY its door
