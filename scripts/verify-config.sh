@@ -73,9 +73,37 @@ class StrictLoader(yaml.SafeLoader):
     pass
 
 
+MERGE_TAG = "tag:yaml.org,2002:merge"
+
+
 def strict_mapping(loader, node, deep=True):
     seen = {}
+    merge_line = None
     for key_node, _ in node.value:
+        # `<<` is a merge directive, not a key. Constructing it as one is what
+        # made this check reject every compose file using an anchor merge
+        # (apps/redash/compose.yaml, a924d45): SafeLoader has no constructor for
+        # the merge tag, so the gate went red for a legal file.
+        #
+        # Resolving it by calling flatten_mapping() BEFORE this scan is worse,
+        # and was measured rather than assumed: flatten_mapping PREPENDS the
+        # merged pairs to node.value, so `<<: *anchor` followed by an explicit
+        # key that overrides one of the anchor's keys — the normal, legal
+        # pattern — comes out as the same key twice and gets flagged as a
+        # duplicate. Skip the merge nodes instead and let
+        # SafeConstructor.construct_mapping do the flattening below, where the
+        # override wins as YAML says it should.
+        #
+        # A REPEATED `<<` in one mapping is still a duplicate: compose refuses
+        # it ("mapping key \"<<\" already defined"), so this must too.
+        if key_node.tag == MERGE_TAG:
+            if merge_line is not None:
+                raise yaml.constructor.ConstructorError(
+                    "while constructing a mapping", node.start_mark,
+                    "duplicate merge key '<<' (first defined on line %d)" % merge_line,
+                    key_node.start_mark)
+            merge_line = key_node.start_mark.line + 1
+            continue
         key = loader.construct_object(key_node, deep=True)
         if key in seen:
             raise yaml.constructor.ConstructorError(
@@ -96,6 +124,49 @@ def compose_tag(loader, suffix, node):  # !reset / !override: parse the value un
 
 StrictLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, strict_mapping)
 StrictLoader.add_multi_constructor("!", compose_tag)
+
+# Self-check. This loader has exactly two jobs — reject a duplicated key,
+# accept the legal merge patterns — and both have been got wrong here: the
+# duplicate scan shipped blind to `<<`, and the obvious repair (flatten first)
+# turns a legal override into a false duplicate. Neither mistake is visible in
+# the output when the checked files happen not to exercise it, so the gate
+# proves itself on every run instead of trusting a comment.
+SELF_TESTS = [
+    ("a duplicated key is rejected",
+     "a: 1\na: 2\n", None),
+    ("a duplicated key nested in a service is rejected",
+     "services:\n  s:\n    image: x\n    image: y\n", None),
+    ("a duplicate inside an anchor is rejected",
+     "x: &x\n  a: 1\n  a: 2\ny:\n  <<: *x\n", None),
+    ("a repeated merge key is rejected, as compose rejects it",
+     "x: &x {a: 1}\nz: &z {b: 2}\ny:\n  <<: *x\n  <<: *z\n", None),
+    ("a merge is accepted",
+     "x: &x {a: 1}\ny:\n  <<: *x\n  b: 2\n", {"a": 1, "b": 2}),
+    ("a key overridden after a merge is accepted, and the override wins",
+     "x: &x {a: 1}\ny:\n  <<: *x\n  a: 2\n", {"a": 2}),
+    ("a merge of a list of anchors is accepted, first anchor winning",
+     "x: &x {a: 1}\nz: &z {a: 9, b: 2}\ny:\n  <<: [*x, *z]\n", {"a": 1, "b": 2}),
+]
+self_failed = False
+for name, doc, expected in SELF_TESTS:
+    # `expected` is None for documents that MUST be rejected; otherwise it is
+    # the value of the `y` mapping, so the merge cases assert the resulting
+    # keys and not merely that parsing succeeded.
+    try:
+        got = yaml.load(doc, Loader=StrictLoader)
+    except yaml.YAMLError:
+        if expected is not None:
+            print("FAIL: yaml self-check — %s: rejected, should parse" % name)
+            self_failed = True
+        continue
+    if expected is None:
+        print("FAIL: yaml self-check — %s: parsed, should be rejected" % name)
+        self_failed = True
+    elif got.get("y") != expected:
+        print("FAIL: yaml self-check — %s: y=%r, want %r" % (name, got.get("y"), expected))
+        self_failed = True
+if self_failed:
+    sys.exit(1)
 
 failed = False
 for path in sys.argv[1:]:
