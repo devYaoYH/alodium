@@ -12,6 +12,9 @@ Covers the classifications a backup gets wrong:
   - volume_owners reads only real volume mounts, not bind mounts
   - dumps: running -> dump, has-run-but-down -> degraded, never-ran -> skip
   - a failed pg_dump is degraded AND the half-written file is deleted
+  - EQUIVALENCE with the merged bash implementation: testdata/bash_baseline.json
+    holds the live node's state and the classification bash produced from it
+    (node-config a248c6f, PR #137); these functions must reproduce it exactly
 
 Run:  python3 scripts/node_backup/test_plan.py     (from the repo root)
       ./scripts/verify-config.sh                   (runs it with the rest)
@@ -19,6 +22,7 @@ Stdlib only.
 """
 
 import importlib.util
+import json
 import os
 import sys
 import tempfile
@@ -204,6 +208,60 @@ check("shipped: litellm-db is not special-cased into an unconditional dump",
       all(isinstance(s, plan.DumpSpec) for s in plan.DUMP_SPECS))
 check("shipped: every spec names a container and a service",
       all(s.container and s.service for s in plan.DUMP_SPECS))
+
+
+# ---- 8. equivalence with the merged bash implementation --------------------
+# This is the port's whole claim: same inputs, same decisions. The fixture is a
+# recording of the live node plus what bash decided there, so a refactor that
+# quietly reclassifies a volume fails here rather than in six months when
+# someone tries to restore.
+
+BASELINE = json.loads((HERE / "testdata" / "bash_baseline.json").read_text())
+
+bl_owners = BASELINE["volume_owners"]
+bl_declared = BASELINE["declared_volumes"]
+bl_plan = plan.plan_volumes(bl_declared, bl_owners,
+                            BASELINE["existing_volumes"], BASELINE["ran_services"])
+
+check("equiv: the declared list still matches what bash enumerated",
+      plan.declared_volumes(bl_declared[len(plan.CORE_VOLUMES):]) == bl_declared,
+      detail=str(bl_declared))
+check("equiv: same include list, same order",
+      bl_plan.include == BASELINE["bash_include"],
+      detail=f"py={bl_plan.include} bash={BASELINE['bash_include']}")
+check("equiv: same skip list",
+      bl_plan.skipped == BASELINE["bash_skipped"],
+      detail=f"py={bl_plan.skipped} bash={BASELINE['bash_skipped']}")
+check("equiv: bash found nothing missing, and neither do we", bl_plan.missing == [])
+check("equiv: ten volumes, two skipped — the node as it actually was",
+      len(bl_plan.include) == 10 and len(bl_plan.skipped) == 2)
+
+bl_dumps = plan.plan_dumps(plan.DUMP_SPECS, BASELINE["bash_running_containers"],
+                           BASELINE["ran_services"])
+check("equiv: same dump set as bash wrote",
+      [s.filename for s in bl_dumps.to_run] == BASELINE["bash_dumps"],
+      detail=f"py={[s.filename for s in bl_dumps.to_run]} bash={BASELINE['bash_dumps']}")
+check("equiv: bash degraded nothing on that node, and neither do we",
+      bl_dumps.degraded == [] and bl_dumps.skipped == [])
+
+# The same recording with one container taken away. The merged bash already
+# degrades here (node-config 75afad1) and so must the port: this is the branch
+# no single live run can exercise without stopping a production database, which
+# is exactly why it belongs in a fixture and not in a fault-injection session.
+down = [c for c in BASELINE["bash_running_containers"] if c != "miniflux-db"]
+partial = plan.plan_dumps(plan.DUMP_SPECS, down, BASELINE["ran_services"])
+check("equiv: a down miniflux-db is degraded, never silently omitted",
+      len(partial.degraded) == 1 and "miniflux" in partial.degraded[0],
+      detail=str(partial.degraded))
+check("equiv: the other two dumps still run", len(partial.to_run) == 2)
+
+# And with litellm-db down — the case the PRE-#137 script turned into a total
+# abort, because its dump was unconditional. Volumes still get backed up.
+no_litellm = [c for c in BASELINE["bash_running_containers"] if c != "litellm-db"]
+without = plan.plan_dumps(plan.DUMP_SPECS, no_litellm, BASELINE["ran_services"])
+check("equiv: litellm-db down degrades the run, it does not abort it",
+      len(without.degraded) == 1 and len(without.to_run) == 2,
+      detail=str(without.degraded))
 
 
 print()
