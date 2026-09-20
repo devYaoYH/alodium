@@ -301,6 +301,19 @@ done. The human does three things: plug in, scan, approve. Maximum loss is one
 backup interval; the mail-mirror and calendar volumes get hourly snapshots,
 everything else daily.
 
+restic itself runs **in a pinned container**, with every backed-up volume
+mounted read-only at `/data/<volume>`. That is not a packaging preference: a
+host `restic` would need `/var/lib/docker/volumes/...`, which on Docker Desktop
+exists only inside the LinuxKit VM, so the host-path version of this script
+quietly snapshotted nothing at all. Running where the data is makes the backup
+path identical on macOS, Windows/WSL2 and Linux — which is the same property
+the restore path needs. Host-side state lives in `~/.alodium` (mode 700):
+`backups/restic` for the repository, `cache/restic` for restic's cache, and
+`backup.env` (mode 600) naming the repository and how to fetch the passphrase.
+The passphrase itself is resolved on the host — the macOS Keychain via
+`--password-command` — and never enters a tracked file, argv, or a container's
+environment.
+
 The Recovery Kit ships in the box: a printed card carrying the restic
 passphrase and recovery codes as QR. The card alone MUST be sufficient — it
 covers the case where phone and box are lost together. A family-quorum reset
