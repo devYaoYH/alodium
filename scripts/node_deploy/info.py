@@ -57,6 +57,31 @@ def deployed_commit_for(status: str, commit: str, previous) -> str:
     return previous.get("commit", "") if previous.get("status") != FAILED else ""
 
 
+def watcher_deployed(text) -> str:
+    """The OTHER reader: what scripts/deploy_watch.py takes as deployed.
+
+    `text` is the file's contents, or None when it does not exist. The bash:
+
+        if "deployed_commit" in d: print(d["deployed_commit"] or "")
+        elif d.get("status") != "failed": print(d.get("commit", ""))
+
+    with any failure (unparsable, not an object) reading as "". Values are
+    printed, so they come back as str() — a JSON null `commit` is "None",
+    which matches no commit and so triggers a deploy: the safe direction.
+    """
+    if text is None:
+        return ""
+    try:
+        d = json.loads(text)
+        if "deployed_commit" in d:
+            return str(d["deployed_commit"] or "").rstrip("\n")
+        if d.get("status") != FAILED:
+            return str(d.get("commit", "")).rstrip("\n")
+        return ""
+    except Exception:                                        # noqa: BLE001
+        return ""
+
+
 def message_entries(messages) -> list[dict]:
     """[(level, text)] -> the JSON array the homepage renders.
 
@@ -103,4 +128,4 @@ def render(info: dict) -> str:
 
 
 __all__ = ["OK", "WARNING", "FAILED", "final_status", "deployed_commit_for",
-           "message_entries", "commit_url", "build", "render"]
+           "watcher_deployed", "message_entries", "commit_url", "build", "render"]

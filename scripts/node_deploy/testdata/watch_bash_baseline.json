@@ -1,0 +1,468 @@
+{
+ "_comment": "OBSERVED behavior of the bash host jobs at source_commit, recorded by executing them — /bin/bash GNU bash, version 3.2.57(1)-release (arm64-apple-darwin25), macOS 26.6.1, the node's own awk/sed/tr — in throwaway checkouts built by node_host/testkit.py from the scenario inputs, against a fake Forgejo/LiteLLM (curl), docker, sleep, run-task, dispatch-run spawn and trace-render. The only edit to the scripts was '/usr/bin/curl ' -> 'curl ' so the fake could answer. `_stderr` is kept for the reader, not asserted. Regenerate only against a bash run you have actually observed.",
+ "source_commit": "3f26296138591cbe10742243b65e66173f6c52f2",
+ "scenarios": {
+  "up_to_date": {
+   "exit": 0,
+   "stdout": [],
+   "calls": [],
+   "deploys": 0,
+   "stamps_after": [],
+   "head_after": "{C2}",
+   "lock_left": false,
+   "_stderr": []
+  },
+  "up_to_date_dry": {
+   "exit": 0,
+   "stdout": [
+    "[deploy-watch] deployed hash matches remote at {C3.12} — nothing to do"
+   ],
+   "calls": [],
+   "deploys": 0,
+   "stamps_after": [],
+   "head_after": "{C2}",
+   "lock_left": false,
+   "_stderr": []
+  },
+  "parked_on_branch": {
+   "exit": 0,
+   "stdout": [
+    "[deploy-watch] checkout parked on 'feature' — skipping"
+   ],
+   "calls": [],
+   "deploys": 0,
+   "stamps_after": [],
+   "head_after": "{C2}",
+   "lock_left": false,
+   "_stderr": []
+  },
+  "tracked_edits": {
+   "exit": 0,
+   "stdout": [
+    "[deploy-watch] tracked edits in working tree — skipping"
+   ],
+   "calls": [],
+   "deploys": 0,
+   "stamps_after": [],
+   "head_after": "{C2}",
+   "lock_left": false,
+   "_stderr": []
+  },
+  "already_reported": {
+   "exit": 0,
+   "stdout": [
+    "[deploy-watch] {C3.12} already failed and was reported — waiting for a fix or new commits"
+   ],
+   "calls": [],
+   "deploys": 0,
+   "stamps_after": [
+    "deploy-fail-{C3}"
+   ],
+   "head_after": "{C2}",
+   "lock_left": false,
+   "_stderr": []
+  },
+  "diverged": {
+   "exit": 1,
+   "stdout": [
+    "[deploy-watch] local main and forgejo/main have DIVERGED — refusing (operator decision, not a script's)"
+   ],
+   "calls": [
+    [
+     "GET",
+     "GET labels?limit=100",
+     null
+    ],
+    [
+     "POST",
+     "POST issues",
+     {
+      "title": "Auto-deploy blocked: main diverged at {C3.12}",
+      "body": "Local main (`{L1.12}`) is not an ancestor of forgejo/main (`{C3.12}`), so the fast-forward-only deploy refuses to run. Reconcile the checkout by hand, then run `./scripts/deploy.sh` — auto-deploy resumes on the next merge after that. (Stamp `.task-dispatch/deploy-fail-{C3.12}…` suppresses repeat reports of this tip.)",
+      "labels": [
+       9
+      ]
+     }
+    ]
+   ],
+   "deploys": 0,
+   "stamps_after": [
+    "deploy-fail-{C3}"
+   ],
+   "head_after": "{L1}",
+   "lock_left": false,
+   "_stderr": []
+  },
+  "diverged_dry": {
+   "exit": 1,
+   "stdout": [
+    "[deploy-watch] local main and forgejo/main have DIVERGED — refusing (operator decision, not a script's)"
+   ],
+   "calls": [],
+   "deploys": 0,
+   "stamps_after": [],
+   "head_after": "{L1}",
+   "lock_left": false,
+   "_stderr": []
+  },
+  "diverged_no_blocked_label": {
+   "exit": 1,
+   "stdout": [
+    "[deploy-watch] local main and forgejo/main have DIVERGED — refusing (operator decision, not a script's)"
+   ],
+   "calls": [
+    [
+     "GET",
+     "GET labels?limit=100",
+     null
+    ],
+    [
+     "POST",
+     "POST issues",
+     {
+      "title": "Auto-deploy blocked: main diverged at {C3.12}",
+      "body": "Local main (`{L1.12}`) is not an ancestor of forgejo/main (`{C3.12}`), so the fast-forward-only deploy refuses to run. Reconcile the checkout by hand, then run `./scripts/deploy.sh` — auto-deploy resumes on the next merge after that. (Stamp `.task-dispatch/deploy-fail-{C3.12}…` suppresses repeat reports of this tip.)",
+      "labels": []
+     }
+    ]
+   ],
+   "deploys": 0,
+   "stamps_after": [
+    "deploy-fail-{C3}"
+   ],
+   "head_after": "{L1}",
+   "lock_left": false,
+   "_stderr": []
+  },
+  "deploy_ok": {
+   "exit": 0,
+   "stdout": [
+    "[deploy-watch] deployment needed — deploying from {C2.12} to {C3.12}",
+    "deploy: step one",
+    "deploy: step two",
+    "[deploy-watch] deployed {C3.12}"
+   ],
+   "calls": [],
+   "deploys": 1,
+   "stamps_after": [
+    "keep-me"
+   ],
+   "head_after": "{C2}",
+   "lock_left": false,
+   "_stderr": []
+  },
+  "deploy_fails": {
+   "exit": 5,
+   "stdout": [
+    "[deploy-watch] deployment needed — deploying from {C2.12} to {C3.12}",
+    "deploy line 1",
+    "deploy line 2",
+    "deploy line 3",
+    "deploy line 4",
+    "deploy line 5",
+    "deploy line 6",
+    "deploy line 7",
+    "deploy line 8",
+    "deploy line 9",
+    "deploy line 10",
+    "deploy line 11",
+    "deploy line 12",
+    "deploy line 13",
+    "deploy line 14",
+    "deploy line 15",
+    "deploy line 16",
+    "deploy line 17",
+    "deploy line 18",
+    "deploy line 19",
+    "deploy line 20"
+   ],
+   "calls": [
+    [
+     "GET",
+     "GET labels?limit=100",
+     null
+    ],
+    [
+     "POST",
+     "POST issues",
+     {
+      "title": "Auto-deploy FAILED at {C3.12} (exit 5)",
+      "body": "`scripts/deploy.sh` failed after the merge of `{C3.12}`. Tail:\n\n```\ndeploy line 6\ndeploy line 7\ndeploy line 8\ndeploy line 9\ndeploy line 10\ndeploy line 11\ndeploy line 12\ndeploy line 13\ndeploy line 14\ndeploy line 15\ndeploy line 16\ndeploy line 17\ndeploy line 18\ndeploy line 19\ndeploy line 20\n```\n\nFix the cause, then run `./scripts/deploy.sh` by hand (or merge a fix — auto-deploy retries when main moves). Full log: `.task-dispatch/deploy-watch.log`.",
+      "labels": [
+       9
+      ]
+     }
+    ]
+   ],
+   "deploys": 1,
+   "stamps_after": [
+    "deploy-fail-{C3}"
+   ],
+   "head_after": "{C2}",
+   "lock_left": false,
+   "_stderr": []
+  },
+  "deploy_fails_forgejo_down": {
+   "exit": 1,
+   "stdout": [
+    "[deploy-watch] deployment needed — deploying from {C2.12} to {C3.12}",
+    "compose exploded"
+   ],
+   "calls": [
+    [
+     "GET",
+     "GET labels?limit=100",
+     null
+    ]
+   ],
+   "deploys": 1,
+   "stamps_after": [
+    "deploy-fail-{C3}"
+   ],
+   "head_after": "{C2}",
+   "lock_left": false,
+   "_stderr": [
+    "    obj, end = self.raw_decode(s, idx=_w(s, 0).end())",
+    "               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
+    "  File \"/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/json/decoder.py\", line 355, in raw_decode",
+    "    raise JSONDecodeError(\"Expecting value\", s, err.value) from None",
+    "json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)"
+   ]
+  },
+  "deploy_fails_empty_output": {
+   "exit": 2,
+   "stdout": [
+    "[deploy-watch] deployment needed — deploying from {C2.12} to {C3.12}",
+    ""
+   ],
+   "calls": [
+    [
+     "GET",
+     "GET labels?limit=100",
+     null
+    ],
+    [
+     "POST",
+     "POST issues",
+     {
+      "title": "Auto-deploy FAILED at {C3.12} (exit 2)",
+      "body": "`scripts/deploy.sh` failed after the merge of `{C3.12}`. Tail:\n\n```\n\n```\n\nFix the cause, then run `./scripts/deploy.sh` by hand (or merge a fix — auto-deploy retries when main moves). Full log: `.task-dispatch/deploy-watch.log`.",
+      "labels": [
+       9
+      ]
+     }
+    ]
+   ],
+   "deploys": 1,
+   "stamps_after": [
+    "deploy-fail-{C3}"
+   ],
+   "head_after": "{C2}",
+   "lock_left": false,
+   "_stderr": []
+  },
+  "dry_would_deploy": {
+   "exit": 0,
+   "stdout": [
+    "[deploy-watch] would deploy {C1.12}..{C3.12}:",
+    "    {C3.abbrev} C3",
+    "    {C2.abbrev} C2"
+   ],
+   "calls": [],
+   "deploys": 0,
+   "stamps_after": [],
+   "head_after": "{C2}",
+   "lock_left": false,
+   "_stderr": []
+  },
+  "dry_nothing_recorded": {
+   "exit": 0,
+   "stdout": [
+    "[deploy-watch] would deploy ..{C3.12}:",
+    "    (no successful deploy recorded — last commits on forgejo/main:)",
+    "    {C3.abbrev} C3",
+    "    {C2.abbrev} C2",
+    "    {C1.abbrev} C1"
+   ],
+   "calls": [],
+   "deploys": 0,
+   "stamps_after": [],
+   "head_after": "{C2}",
+   "lock_left": false,
+   "_stderr": []
+  },
+  "dry_unknown_deployed": {
+   "exit": 0,
+   "stdout": [
+    "[deploy-watch] would deploy 0123456789ab..{C3.12}:",
+    "    (cannot show log; deployed hash not in current tree)"
+   ],
+   "calls": [],
+   "deploys": 0,
+   "stamps_after": [],
+   "head_after": "{C2}",
+   "lock_left": false,
+   "_stderr": []
+  },
+  "legacy_failed_file": {
+   "exit": 0,
+   "stdout": [
+    "[deploy-watch] deployment needed — deploying from  to {C3.12}",
+    "ok",
+    "[deploy-watch] deployed {C3.12}"
+   ],
+   "calls": [],
+   "deploys": 1,
+   "stamps_after": [],
+   "head_after": "{C2}",
+   "lock_left": false,
+   "_stderr": []
+  },
+  "legacy_ok_file": {
+   "exit": 0,
+   "stdout": [],
+   "calls": [],
+   "deploys": 0,
+   "stamps_after": [],
+   "head_after": "{C2}",
+   "lock_left": false,
+   "_stderr": []
+  },
+  "null_deployed_commit": {
+   "exit": 0,
+   "stdout": [
+    "[deploy-watch] deployment needed — deploying from  to {C3.12}",
+    "ok",
+    "[deploy-watch] deployed {C3.12}"
+   ],
+   "calls": [],
+   "deploys": 1,
+   "stamps_after": [],
+   "head_after": "{C2}",
+   "lock_left": false,
+   "_stderr": []
+  },
+  "corrupt_file": {
+   "exit": 0,
+   "stdout": [
+    "[deploy-watch] would deploy ..{C3.12}:",
+    "    (no successful deploy recorded — last commits on forgejo/main:)",
+    "    {C3.abbrev} C3",
+    "    {C2.abbrev} C2",
+    "    {C1.abbrev} C1"
+   ],
+   "calls": [],
+   "deploys": 0,
+   "stamps_after": [],
+   "head_after": "{C2}",
+   "lock_left": false,
+   "_stderr": []
+  },
+  "lock_held": {
+   "exit": 0,
+   "stdout": [],
+   "calls": [],
+   "deploys": 0,
+   "stamps_after": [],
+   "head_after": "{C2}",
+   "lock_left": true,
+   "_stderr": []
+  },
+  "lock_stale": {
+   "exit": 0,
+   "stdout": [
+    "[deploy-watch] stealing stale lock (>2h)"
+   ],
+   "calls": [],
+   "deploys": 0,
+   "stamps_after": [],
+   "head_after": "{C2}",
+   "lock_left": false,
+   "_stderr": []
+  },
+  "fetch_fails": {
+   "exit": 128,
+   "stdout": [],
+   "calls": [],
+   "deploys": 0,
+   "stamps_after": [],
+   "head_after": "{C2}",
+   "lock_left": false,
+   "_stderr": [
+    "fatal: '/var/folders/jl/5yx5dpb95bn6c7pd73hwqdkr0000gn/T/tmp9pk6x9fb/nowhere.git' does not appear to be a git repository",
+    "fatal: Could not read from remote repository.",
+    "",
+    "Please make sure you have the correct access rights",
+    "and the repository exists."
+   ]
+  }
+ },
+ "pipelines": {
+  "watcher_deployed": [
+   {
+    "text": null,
+    "out": ""
+   },
+   {
+    "text": "",
+    "out": ""
+   },
+   {
+    "text": "{bad",
+    "out": ""
+   },
+   {
+    "text": "[]",
+    "out": ""
+   },
+   {
+    "text": "\"str\"",
+    "out": ""
+   },
+   {
+    "text": "{}",
+    "out": ""
+   },
+   {
+    "text": "{\"deployed_commit\": \"abc\"}",
+    "out": "abc"
+   },
+   {
+    "text": "{\"deployed_commit\": \"\"}",
+    "out": ""
+   },
+   {
+    "text": "{\"deployed_commit\": null, \"commit\": \"x\"}",
+    "out": ""
+   },
+   {
+    "text": "{\"commit\": \"c1\", \"status\": \"ok\"}",
+    "out": "c1"
+   },
+   {
+    "text": "{\"commit\": \"c1\", \"status\": \"failed\"}",
+    "out": ""
+   },
+   {
+    "text": "{\"commit\": null}",
+    "out": "None"
+   },
+   {
+    "text": "{\"deployed_commit\": 0}",
+    "out": ""
+   },
+   {
+    "text": "{\"deployed_commit\": \"a\\n\"}",
+    "out": "a"
+   },
+   {
+    "text": "{\"status\": \"failed\"}",
+    "out": ""
+   },
+   {
+    "text": "{\"deployed_commit\": \"x\", \"status\": \"failed\"}",
+    "out": "x"
+   }
+  ]
+ }
+}

@@ -1,0 +1,374 @@
+{
+ "_comment": "OBSERVED behavior of the bash host jobs at source_commit, recorded by executing them — /bin/bash GNU bash, version 3.2.57(1)-release (arm64-apple-darwin25), macOS 26.6.1, the node's own awk/sed/tr — in throwaway checkouts built by node_host/testkit.py from the scenario inputs, against a fake Forgejo/LiteLLM (curl), docker, sleep, run-task, dispatch-run spawn and trace-render. The only edit to the scripts was '/usr/bin/curl ' -> 'curl ' so the fake could answer. `_stderr` is kept for the reader, not asserted. Regenerate only against a bash run you have actually observed.",
+ "source_commit": "3f26296138591cbe10742243b65e66173f6c52f2",
+ "pipelines": {
+  "front": [
+   {
+    "text": "---\ndispatch: auto\n---\n",
+    "key": "dispatch",
+    "out": "auto"
+   },
+   {
+    "text": "---\ndispatch: auto   # c\n---\n",
+    "key": "dispatch",
+    "out": "auto"
+   },
+   {
+    "text": "---\ndispatch:auto\n---\n",
+    "key": "dispatch",
+    "out": ""
+   },
+   {
+    "text": "---\n  dispatch: auto\n---\n",
+    "key": "dispatch",
+    "out": "auto"
+   },
+   {
+    "text": "---\n\tdispatch:\tauto\n---\n",
+    "key": "dispatch",
+    "out": "\tauto"
+   },
+   {
+    "text": "---\ndispatch: auto\ndispatch: auto\n---\n",
+    "key": "dispatch",
+    "out": "auto\nauto"
+   },
+   {
+    "text": "---\nmodel: a#b\n---\n",
+    "key": "model",
+    "out": "a"
+   },
+   {
+    "text": "---\nmodel: vendor/m:free # x\n---\n",
+    "key": "model",
+    "out": "vendor/m:free"
+   },
+   {
+    "text": "---\nx: 1\n---\ndispatch: auto\n",
+    "key": "dispatch",
+    "out": ""
+   },
+   {
+    "text": "no frontmatter\ndispatch: auto\n",
+    "key": "dispatch",
+    "out": "auto"
+   },
+   {
+    "text": "dispatch: auto\n---\n",
+    "key": "dispatch",
+    "out": "auto"
+   },
+   {
+    "text": "---\ndispatch: \n---\n",
+    "key": "dispatch",
+    "out": ""
+   },
+   {
+    "text": "---\ndispatch: auto\r\n---\n",
+    "key": "dispatch",
+    "out": "auto"
+   },
+   {
+    "text": "---\r\ndispatch: auto\r\n---\r\n",
+    "key": "dispatch",
+    "out": "auto"
+   },
+   {
+    "text": "---\ndispatch: auto",
+    "key": "dispatch",
+    "out": "auto"
+   },
+   {
+    "text": "---\nbudget_usd: 2.00         # per-issue ceiling\n---\n",
+    "key": "budget_usd",
+    "out": "2.00"
+   },
+   {
+    "text": "---\ndispatch_x: auto\n---\n",
+    "key": "dispatch",
+    "out": ""
+   },
+   {
+    "text": "---\ndispatch: auto: yes\n---\n",
+    "key": "dispatch",
+    "out": "auto: yes"
+   },
+   {
+    "text": "---\n#dispatch: auto\n---\n",
+    "key": "dispatch",
+    "out": ""
+   },
+   {
+    "text": "---\ndispatch: \"auto\"\n---\n",
+    "key": "dispatch",
+    "out": "\"auto\""
+   },
+   {
+    "text": "---\ndispatch: AUTO\n---\n",
+    "key": "dispatch",
+    "out": "AUTO"
+   },
+   {
+    "text": "",
+    "key": "dispatch",
+    "out": ""
+   }
+  ],
+  "envfile": [
+   {
+    "text": "A=plain\n",
+    "values": {
+     "A": "plain"
+    }
+   },
+   {
+    "text": "A='single $HOME'\n",
+    "values": {
+     "A": "single $HOME"
+    }
+   },
+   {
+    "text": "A=\"double $BASE ${BASE}x\"\n",
+    "values": {
+     "A": "double b bx"
+    }
+   },
+   {
+    "text": "A=\n",
+    "values": {
+     "A": ""
+    }
+   },
+   {
+    "text": "export A=exported\n",
+    "values": {
+     "A": "exported"
+    }
+   },
+   {
+    "text": "A=a\"b c\"'d e'\n",
+    "values": {
+     "A": "ab cd e"
+    }
+   },
+   {
+    "text": "A=value # comment\n",
+    "values": {
+     "A": "value"
+    }
+   },
+   {
+    "text": "A=val#ue\n",
+    "values": {
+     "A": "val#ue"
+    }
+   },
+   {
+    "text": "A=~/p\nB=~\n",
+    "values": {
+     "A": "/home/op/p",
+     "B": "/home/op"
+    }
+   },
+   {
+    "text": "A=$BASE/x\n",
+    "values": {
+     "A": "b/x"
+    }
+   },
+   {
+    "text": "A=1\nB=${A}2\n",
+    "values": {
+     "A": "1",
+     "B": "12"
+    }
+   },
+   {
+    "text": "  A=indented\n",
+    "values": {
+     "A": "indented"
+    }
+   },
+   {
+    "text": "# c\n\nA=x\n",
+    "values": {
+     "A": "x"
+    }
+   },
+   {
+    "text": "A=\"esc \\\" \\$ \\\\ q\"\n",
+    "values": {
+     "A": "esc \" $ \\ q"
+    }
+   },
+   {
+    "text": "A=a\\ b\n",
+    "values": {
+     "A": "a b"
+    }
+   },
+   {
+    "text": "A=two words\n",
+    "error": true,
+    "exit": 127
+   },
+   {
+    "text": "A=$(echo hi)\n",
+    "values": {
+     "A": "hi"
+    }
+   },
+   {
+    "text": "A=`echo hi`\n",
+    "values": {
+     "A": "hi"
+    }
+   },
+   {
+    "text": "A=${BASE:-d}\n",
+    "values": {
+     "A": "b"
+    }
+   },
+   {
+    "text": "A=$UNSET_VAR\n",
+    "error": true,
+    "exit": 1
+   },
+   {
+    "text": "echo hi\n",
+    "values": {}
+   },
+   {
+    "text": "A=x;B=y\n",
+    "values": {
+     "A": "x",
+     "B": "y"
+    }
+   },
+   {
+    "text": "A=\"unterminated\n",
+    "error": true,
+    "exit": 2
+   },
+   {
+    "text": "A=cr\r\n",
+    "values": {
+     "A": "cr\r"
+    }
+   },
+   {
+    "text": "A=\"$\"\n",
+    "values": {
+     "A": "$"
+    }
+   },
+   {
+    "text": "A=trailing \n",
+    "values": {
+     "A": "trailing"
+    }
+   },
+   {
+    "text": "EXTRA_TRUSTED_RANGES=\"10.0.0.0/8 192.168.0.0/16\"\n",
+    "values": {
+     "EXTRA_TRUSTED_RANGES": "10.0.0.0/8 192.168.0.0/16"
+    }
+   }
+  ],
+  "clean_run": [
+   {
+    "in": "",
+    "out": ""
+   },
+   {
+    "in": "one",
+    "out": "one"
+   },
+   {
+    "in": "a\nb\n",
+    "out": "a\nb"
+   },
+   {
+    "in": "\u001b[31mred\u001b[0m text\r\nline2\n",
+    "out": "red text\nline2"
+   },
+   {
+    "in": "Processing...\nreasoning\nkeep\nCtrl+C\n\n  \t\n",
+    "out": "keep"
+   },
+   {
+    "in": "l0\nl1\nl2\nl3\nl4\nl5\nl6\nl7\nl8\nl9\nl10\nl11\nl12\nl13\nl14\nl15\nl16\nl17\nl18\nl19\nl20\nl21\nl22\nl23\nl24\nl25\nl26\nl27\nl28\nl29\n",
+    "out": "l18\nl19\nl20\nl21\nl22\nl23\nl24\nl25\nl26\nl27\nl28\nl29"
+   },
+   {
+    "in": "x\u001b[1;32mbold\u001b[m\n",
+    "out": "xbold"
+   },
+   {
+    "in": "a\r\rb\n\n\n",
+    "out": "ab"
+   },
+   {
+    "in": "\u001b]0;title\u0007after\n",
+    "out": "\u001b]0;title\u0007after"
+   }
+  ],
+  "tail15": [
+   {
+    "in": "",
+    "out": ""
+   },
+   {
+    "in": "\n",
+    "out": ""
+   },
+   {
+    "in": "a",
+    "out": "a"
+   },
+   {
+    "in": "a\n",
+    "out": "a"
+   },
+   {
+    "in": "a\nb\n\n\n",
+    "out": "a\nb"
+   },
+   {
+    "in": "l0\nl1\nl2\nl3\nl4\nl5\nl6\nl7\nl8\nl9\nl10\nl11\nl12\nl13\nl14\nl15\nl16\nl17\nl18\nl19\n",
+    "out": "l5\nl6\nl7\nl8\nl9\nl10\nl11\nl12\nl13\nl14\nl15\nl16\nl17\nl18\nl19"
+   },
+   {
+    "in": "l0\nl1\nl2\nl3\nl4\nl5\nl6\nl7\nl8\nl9\nl10\nl11\nl12\nl13\nl14\nl15\nl16\nl17\nl18\nl19\n\n\n",
+    "out": "l7\nl8\nl9\nl10\nl11\nl12\nl13\nl14\nl15\nl16\nl17\nl18\nl19"
+   },
+   {
+    "in": "x\n\n\ny",
+    "out": "x\n\n\ny"
+   }
+  ],
+  "audit_line": [
+   {
+    "detail": "actor=operator",
+    "out": "{\"ts\":\"TS\",\"issue\":7,\"action\":\"act\",\"run\":\"\",\"detail\":\"actor=operator\"}\n"
+   },
+   {
+    "detail": "say \"hi\"",
+    "out": "{\"ts\":\"TS\",\"issue\":7,\"action\":\"act\",\"run\":\"\",\"detail\":\"say \\'hi\\'\"}\n"
+   },
+   {
+    "detail": "back\\slash",
+    "out": "{\"ts\":\"TS\",\"issue\":7,\"action\":\"act\",\"run\":\"\",\"detail\":\"back\\slash\"}\n"
+   },
+   {
+    "detail": "",
+    "out": "{\"ts\":\"TS\",\"issue\":7,\"action\":\"act\",\"run\":\"\",\"detail\":\"\"}\n"
+   },
+   {
+    "detail": "tab\there",
+    "out": "{\"ts\":\"TS\",\"issue\":7,\"action\":\"act\",\"run\":\"\",\"detail\":\"tab\there\"}\n"
+   }
+  ]
+ }
+}

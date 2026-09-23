@@ -41,6 +41,16 @@ Elsewhere, cron:
 Disable: `ENABLE_AUTODEPLOY=0` in the environment before running up.sh, or
 `launchctl unload ~/Library/LaunchAgents/node.deploywatch.plist`.
 
+## Where the code lives
+
+`scripts/deploy-watch.sh` is a thin wrapper (the plist and the docs call it);
+the pass is `scripts/deploy_watch.py`, sharing `.env` parsing, the pass lock
+and the pinned Forgejo client with the dispatcher in `scripts/node_host/`.
+It needs only python3 and git — no BSD/GNU tool differences — and it still
+never pulls: `deploy.py` does the fast-forward, and diffs the pre-deploy HEAD
+to decide what to rebuild. `scripts/node_deploy/test_watch.py` replays real-git
+scenarios recorded from the bash implementation.
+
 ## Test it
 
     ./scripts/deploy-watch.sh --dry-run   # reports what it would do, runs nothing
