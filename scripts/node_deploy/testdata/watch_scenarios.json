@@ -1,0 +1,400 @@
+{
+ "_comment": "Scenario INPUTS for node_deploy/test_watch.py. A real git repo is built per scenario: a bare 'forgejo' remote whose main is C1..C3, and a checkout on main at C2 (plus a local-only commit L1 when local_extra). {Cn}/{L1} are replaced with the real hashes. Each scenario was executed against the bash scripts/deploy-watch.sh at source_commit with a fake deploy.sh and a fake Forgejo; see watch_bash_baseline.json.",
+ "scenarios": {
+  "up_to_date": {
+   "deploy_info": {
+    "deployed_commit": "{C3}",
+    "commit": "{C3}",
+    "status": "ok"
+   },
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "argv": []
+  },
+  "up_to_date_dry": {
+   "deploy_info": {
+    "deployed_commit": "{C3}",
+    "status": "ok"
+   },
+   "argv": [
+    "--dry-run"
+   ],
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   }
+  },
+  "parked_on_branch": {
+   "branch": "feature",
+   "deploy_info": {
+    "deployed_commit": "{C1}"
+   },
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "argv": []
+  },
+  "tracked_edits": {
+   "dirty": true,
+   "deploy_info": {
+    "deployed_commit": "{C1}"
+   },
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "argv": []
+  },
+  "already_reported": {
+   "deploy_info": {
+    "deployed_commit": "{C2}"
+   },
+   "stamps": [
+    "deploy-fail-{C3}"
+   ],
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "argv": []
+  },
+  "diverged": {
+   "local_extra": true,
+   "deploy_info": {
+    "deployed_commit": "{C2}"
+   },
+   "routes": {
+    "GET labels?limit=100": [
+     {
+      "id": 5,
+      "name": "handoff"
+     },
+     {
+      "id": 9,
+      "name": "blocked"
+     }
+    ]
+   },
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "argv": []
+  },
+  "diverged_dry": {
+   "local_extra": true,
+   "deploy_info": {
+    "deployed_commit": "{C2}"
+   },
+   "argv": [
+    "--dry-run"
+   ],
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   }
+  },
+  "diverged_no_blocked_label": {
+   "local_extra": true,
+   "deploy_info": {
+    "deployed_commit": "{C2}"
+   },
+   "routes": {
+    "GET labels?limit=100": []
+   },
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "argv": []
+  },
+  "deploy_ok": {
+   "deploy_info": {
+    "deployed_commit": "{C2}",
+    "status": "ok"
+   },
+   "stamps": [
+    "deploy-fail-{C1}",
+    "deploy-fail-junk",
+    "keep-me"
+   ],
+   "deploy": {
+    "rc": 0,
+    "output": "deploy: step one\ndeploy: step two\n\n\n"
+   },
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "argv": []
+  },
+  "deploy_fails": {
+   "deploy_info": {
+    "deployed_commit": "{C2}",
+    "status": "ok"
+   },
+   "routes": {
+    "GET labels?limit=100": [
+     {
+      "id": 9,
+      "name": "blocked"
+     }
+    ]
+   },
+   "deploy": {
+    "rc": 5,
+    "output": "deploy line 1\ndeploy line 2\ndeploy line 3\ndeploy line 4\ndeploy line 5\ndeploy line 6\ndeploy line 7\ndeploy line 8\ndeploy line 9\ndeploy line 10\ndeploy line 11\ndeploy line 12\ndeploy line 13\ndeploy line 14\ndeploy line 15\ndeploy line 16\ndeploy line 17\ndeploy line 18\ndeploy line 19\ndeploy line 20\n"
+   },
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "argv": []
+  },
+  "deploy_fails_forgejo_down": {
+   "deploy_info": {
+    "deployed_commit": "{C2}"
+   },
+   "down": true,
+   "deploy": {
+    "rc": 5,
+    "output": "compose exploded\n"
+   },
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "argv": []
+  },
+  "deploy_fails_empty_output": {
+   "deploy_info": {
+    "deployed_commit": "{C2}"
+   },
+   "routes": {
+    "GET labels?limit=100": [
+     {
+      "id": 9,
+      "name": "blocked"
+     }
+    ]
+   },
+   "deploy": {
+    "rc": 2,
+    "output": ""
+   },
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "argv": []
+  },
+  "dry_would_deploy": {
+   "deploy_info": {
+    "deployed_commit": "{C1}"
+   },
+   "argv": [
+    "--dry-run"
+   ],
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   }
+  },
+  "dry_nothing_recorded": {
+   "argv": [
+    "--dry-run"
+   ],
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   }
+  },
+  "dry_unknown_deployed": {
+   "deploy_info": {
+    "deployed_commit": "0123456789abcdef0123456789abcdef01234567"
+   },
+   "argv": [
+    "--dry-run"
+   ],
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   }
+  },
+  "legacy_failed_file": {
+   "deploy_info": {
+    "commit": "{C3}",
+    "status": "failed"
+   },
+   "deploy": {
+    "rc": 0,
+    "output": "ok\n"
+   },
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "argv": []
+  },
+  "legacy_ok_file": {
+   "deploy_info": {
+    "commit": "{C3}",
+    "status": "ok"
+   },
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "argv": []
+  },
+  "null_deployed_commit": {
+   "deploy_info": {
+    "deployed_commit": null,
+    "commit": "{C3}"
+   },
+   "deploy": {
+    "rc": 0,
+    "output": "ok\n"
+   },
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "argv": []
+  },
+  "corrupt_file": {
+   "deploy_info_raw": "{not json",
+   "argv": [
+    "--dry-run"
+   ],
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   }
+  },
+  "lock_held": {
+   "lock_age": 100,
+   "deploy_info": {
+    "deployed_commit": "{C1}"
+   },
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "argv": []
+  },
+  "lock_stale": {
+   "lock_age": 8000,
+   "deploy_info": {
+    "deployed_commit": "{C3}"
+   },
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "argv": []
+  },
+  "fetch_fails": {
+   "broken_remote": true,
+   "deploy_info": {
+    "deployed_commit": "{C1}"
+   },
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "argv": []
+  }
+ }
+}
