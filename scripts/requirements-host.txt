@@ -1,0 +1,14 @@
+# Third-party Python the HOST side needs — not the node, which is containers.
+# Everything else under scripts/ is stdlib-only; add here only what the host
+# genuinely cannot do without, and pin it. This file is the seed of the host
+# app's bundle.
+#
+#   python3 -m venv ~/.alodium/venv
+#   ~/.alodium/venv/bin/pip install -r scripts/requirements-host.txt
+#
+# scripts/backup.sh prefers ~/.alodium/venv/bin/python3 when it exists.
+
+# The platform secret store for the restic passphrase: macOS Keychain,
+# Windows Credential Manager, Linux Secret Service. Imported lazily by
+# scripts/node_backup/keyring_store.py, only when it is the chosen source.
+keyring==25.7.0

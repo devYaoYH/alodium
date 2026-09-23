@@ -113,4 +113,5 @@ echo "       ./scripts/bootstrap-forgejo.sh     (git + agent user + coordination
 echo "       ./scripts/sso-setup.sh             (one passkey at every door)"
 echo "       mkdir -p ~/.alodium && chmod 700 ~/.alodium"
 echo "       cp scripts/backup.env.example ~/.alodium/backup.env && chmod 600 ~/.alodium/backup.env"
+echo "       ./scripts/backup.sh passphrase set --generate   (platform keyring; README step 7)"
 echo "       ./scripts/backup.sh init          (then ./scripts/backup.sh)"

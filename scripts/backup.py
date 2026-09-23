@@ -3,16 +3,20 @@
 Encrypted backup of every node volume — restic, in a container.
 This box is your identity; a backup you haven't restored is a rumor.
 
+    ./scripts/backup.sh passphrase set   # once: into the platform keyring
     ./scripts/backup.sh init     # once, after ~/.alodium/backup.env exists
     ./scripts/backup.sh          # then schedule it (PR 4 owns scheduling)
+    ./scripts/backup.sh passphrase check # which source resolves; never prints it
 
 The decisions live in scripts/node_backup/{plan,dumps,policy,config}.py as
 pure functions with offline tests; this file is the wiring between them and
-scripts/node_backup/runner.py, which is the only place that shells out.
+scripts/node_backup/runner.py, which is the only place that shells out, and
+keyring_store.py, the only place that touches the platform secret store.
 
 Nothing here may write to a production volume. Every data mount is :ro.
 """
 
+import getpass
 import json
 import os
 import shutil
@@ -71,9 +75,91 @@ def build_restic(cfg_env: dict, repo, cache_dir: Path, pass_file: Path) -> Resti
     return Restic(base_mounts, env_flags, RESTIC_IMAGE)
 
 
+def optional_env(alodium_home: Path) -> dict:
+    """backup.env if there is one, else {} — `passphrase` works before it exists."""
+    try:
+        env_file, _ = config.find_env_file(alodium_home, REPO_ROOT)
+    except BackupError:
+        return {}
+    return source_env_file(env_file)
+
+
+def manage_passphrase(args, alodium_home: Path) -> int:
+    """`backup.sh passphrase set [--generate]` and `backup.sh passphrase check`.
+
+    The passphrase is read with getpass (the terminal, no echo) and written
+    in-process through keyring, so it never appears in argv, in a subprocess
+    or in a log. `check` resolves it exactly the way a backup would and
+    reports only where it came from.
+    """
+    from node_backup import keyring_store
+
+    action = args[0] if args else ""
+    flags = args[1:]
+    cfg_env = optional_env(alodium_home)
+    override = config.passphrase_source(cfg_env)
+    account = keyring_store.default_account()
+    where = f"service '{keyring_store.SERVICE}', account '{account}'"
+
+    if action == "check":
+        config.resolve_passphrase(cfg_env, home=os.environ.get("HOME", ""))
+        if override == config.KEYRING_SOURCE:
+            log(f"passphrase ok — platform keyring ({keyring_store.backend_name()}), {where}")
+        else:
+            log(f"passphrase ok — {override} in backup.env (overrides the platform keyring)")
+        return 0
+
+    if action != "set" or not set(flags) <= {"--generate"}:
+        raise BackupError("usage: backup.sh passphrase set [--generate] | passphrase check")
+
+    generate = "--generate" in flags
+    # Shown once so it can be written on paper. Only to a terminal: a
+    # redirected stdout is a file or a log, and that is where it must not go.
+    if generate and not sys.stdout.isatty():
+        raise BackupError("--generate prints the passphrase once and needs a terminal")
+
+    log(f"platform keyring: {keyring_store.backend_name()}")
+    # Replacing the entry is how a repository gets locked out: restic keeps
+    # the old key, the store forgets it. That takes a deliberate step outside
+    # this script, not a re-run of it.
+    if keyring_store.get(keyring_store.SERVICE, account):
+        raise BackupError(
+            f"the platform keyring already holds a passphrase ({where}). Refusing to "
+            f"replace it: any repository initialised with it would become "
+            f"unreadable. To rotate, `restic key add` first; then remove the old "
+            f"entry with your platform's credential manager and re-run this.")
+
+    if generate:
+        value = keyring_store.generate()
+    else:
+        value = getpass.getpass("restic passphrase: ")
+        if not value:
+            raise BackupError("empty passphrase — nothing stored")
+        if getpass.getpass("again: ") != value:
+            raise BackupError("the two entries differ — nothing stored")
+
+    keyring_store.put(keyring_store.SERVICE, account, value)
+    if keyring_store.get(keyring_store.SERVICE, account) != value:
+        raise BackupError(f"stored, but reading it back returned something else ({where})")
+    log(f"stored in the platform keyring ({where}) and read back")
+    if generate:
+        print(f"\n    {value}\n")
+        print("Write this down and keep the paper off this machine. Losing it loses "
+              "every backup; restic cannot recover it.")
+    if override != config.KEYRING_SOURCE:
+        err(f"WARN backup.env sets {override}, which overrides the keyring — "
+            f"remove it for this entry to be used")
+    return 0
+
+
 def main(argv) -> int:
     subcommand = argv[1] if len(argv) > 1 else ""
     os.chdir(REPO_ROOT)
+
+    # Managing the passphrase needs neither the stack nor the local layer:
+    # it is the step before `init`, and it runs from any checkout.
+    if subcommand == "passphrase":
+        return manage_passphrase(argv[2:], config.alodium_home())
 
     config.preflight_local_layer(REPO_ROOT)
 
@@ -114,7 +200,7 @@ def main(argv) -> int:
             log(f"repository initialized: {repo.value}")
             return 0
         if subcommand:
-            raise BackupError(f"unknown subcommand '{subcommand}' (expected none, or 'init')")
+            raise BackupError(f"unknown subcommand '{subcommand}' (expected none, 'init' or 'passphrase')")
 
         if repo.is_local and not (repo.path / "config").is_file():
             raise BackupError(f"no restic repository at {repo.path} — run "
