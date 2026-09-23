@@ -1,0 +1,2745 @@
+{
+ "_comment": "OBSERVED behavior of the bash host jobs at source_commit, recorded by executing them — /bin/bash GNU bash, version 3.2.57(1)-release (arm64-apple-darwin25), macOS 26.6.1, the node's own awk/sed/tr — in throwaway checkouts built by node_host/testkit.py from the scenario inputs, against a fake Forgejo/LiteLLM (curl), docker, sleep, run-task, dispatch-run spawn and trace-render. The only edit to the scripts was '/usr/bin/curl ' -> 'curl ' so the fake could answer. `_stderr` is kept for the reader, not asserted. Regenerate only against a bash run you have actually observed.",
+ "source_commit": "3f26296138591cbe10742243b65e66173f6c52f2",
+ "dispatcher": {
+  "empty_disabled": {
+   "exit": 0,
+   "stdout": [
+    "[dispatch] assigned-issue mode DISABLED: no 'in-progress' label in operator/coordination (operator must create it once)",
+    "[dispatch] pass complete: <ts>"
+   ],
+   "calls": [
+    [
+     "GET",
+     "GET issues?state=open&labels=task-request&type=issues",
+     null
+    ],
+    [
+     "GET",
+     "GET labels",
+     null
+    ]
+   ],
+   "run_task": [],
+   "spawns": [],
+   "sleeps": 0,
+   "touched": [],
+   "audit": [],
+   "spool_left": null,
+   "lock_left": false,
+   "_stderr": []
+  },
+  "requests_mix": {
+   "exit": 0,
+   "stdout": [
+    "[dispatch] #1 -> brief 'nosuch'",
+    "[dispatch] #2 -> brief 'manual'",
+    "[dispatch] #3 -> brief 'igest'",
+    "[dispatch] #4 -> brief 'digest'",
+    "[dispatch] #5 -> brief 'dup'",
+    "[dispatch] #6 -> brief 'digest'",
+    "[dispatch] #6 deferred — 'digest' ran within the hour",
+    "[dispatch] #7 -> brief 'bodyonly'",
+    "[dispatch] #8 -> brief ''",
+    "[dispatch] #9 -> brief 'bare'",
+    "[dispatch] pass complete: <ts>"
+   ],
+   "calls": [
+    [
+     "GET",
+     "GET issues?state=open&labels=task-request&type=issues",
+     null
+    ],
+    [
+     "POST",
+     "POST issues/1/comments",
+     {
+      "body": "Rejected: no tracked brief `tasks/nosuch.md`. New capabilities are a `handoff` to agent-dev (brief ships as a PR), not a request."
+     }
+    ],
+    [
+     "PATCH",
+     "PATCH issues/1",
+     {
+      "state": "closed"
+     }
+    ],
+    [
+     "POST",
+     "POST issues/2/comments",
+     {
+      "body": "Rejected: `tasks/manual.md` is not marked `dispatch: auto`. Flipping that flag is a reviewed PR — ask agent-dev via `handoff`."
+     }
+    ],
+    [
+     "PATCH",
+     "PATCH issues/2",
+     {
+      "state": "closed"
+     }
+    ],
+    [
+     "POST",
+     "POST issues/3/comments",
+     {
+      "body": "Rejected: no tracked brief `tasks/igest.md`. New capabilities are a `handoff` to agent-dev (brief ships as a PR), not a request."
+     }
+    ],
+    [
+     "PATCH",
+     "PATCH issues/3",
+     {
+      "state": "closed"
+     }
+    ],
+    [
+     "POST",
+     "POST issues/4/comments",
+     {
+      "body": "Ran `digest` as an ephemeral tenant.\n\n**Jail summary**\n- **Model:** `glm-5.2` (budget $1.25, from brief frontmatter)\n- **Harness:** `forge`\n- **Image:** `sovereign-node/agent:local` (sha256: `ab12cd34ef56`)\n- **Skills available:** coordination,propose-change,wrap-upstream (3)\n\nTail of the run:\n```\nrun line 6\nrun line 7\nrun line 8\nrun line 9\nrun line 10\nrun line 11\nrun line 12\nrun line 13\nrun line 14\nrun line 15\nrun line 16\nrun line 17\nrun line 18\nrun line 19\nrun line 20\n```\nThe deliverable, if any, is its own issue (label `digest`/`handoff`)."
+     }
+    ],
+    [
+     "PATCH",
+     "PATCH issues/4",
+     {
+      "state": "closed"
+     }
+    ],
+    [
+     "POST",
+     "POST issues/5/comments",
+     {
+      "body": "Rejected: `tasks/dup.md` is not marked `dispatch: auto`. Flipping that flag is a reviewed PR — ask agent-dev via `handoff`."
+     }
+    ],
+    [
+     "PATCH",
+     "PATCH issues/5",
+     {
+      "state": "closed"
+     }
+    ],
+    [
+     "POST",
+     "POST issues/7/comments",
+     {
+      "body": "Ran `bodyonly` as an ephemeral tenant.\n\n**Jail summary**\n- **Model:** `flash-x` (budget $0.50, from brief frontmatter)\n- **Harness:** `forge`\n- **Image:** `sovereign-node/agent:local` (sha256: `ab12cd34ef56`)\n- **Skills available:** coordination,propose-change,wrap-upstream (3)\n\nTail of the run:\n```\nrun line 6\nrun line 7\nrun line 8\nrun line 9\nrun line 10\nrun line 11\nrun line 12\nrun line 13\nrun line 14\nrun line 15\nrun line 16\nrun line 17\nrun line 18\nrun line 19\nrun line 20\n```\nThe deliverable, if any, is its own issue (label `digest`/`handoff`)."
+     }
+    ],
+    [
+     "PATCH",
+     "PATCH issues/7",
+     {
+      "state": "closed"
+     }
+    ],
+    [
+     "POST",
+     "POST issues/8/comments",
+     {
+      "body": "Rejected: no tracked brief `tasks/.md`. New capabilities are a `handoff` to agent-dev (brief ships as a PR), not a request."
+     }
+    ],
+    [
+     "PATCH",
+     "PATCH issues/8",
+     {
+      "state": "closed"
+     }
+    ],
+    [
+     "POST",
+     "POST issues/9/comments",
+     {
+      "body": "Ran `bare` as an ephemeral tenant.\n\n**Jail summary**\n- **Model:** `flash-x` (budget $0.50, from brief frontmatter)\n- **Harness:** `forge`\n- **Image:** `sovereign-node/agent:local` (sha256: `ab12cd34ef56`)\n- **Skills available:** coordination,propose-change,wrap-upstream (3)\n\nTail of the run:\n```\nrun line 6\nrun line 7\nrun line 8\nrun line 9\nrun line 10\nrun line 11\nrun line 12\nrun line 13\nrun line 14\nrun line 15\nrun line 16\nrun line 17\nrun line 18\nrun line 19\nrun line 20\n```\nThe deliverable, if any, is its own issue (label `digest`/`handoff`)."
+     }
+    ],
+    [
+     "PATCH",
+     "PATCH issues/9",
+     {
+      "state": "closed"
+     }
+    ],
+    [
+     "GET",
+     "GET labels",
+     null
+    ],
+    [
+     "GET",
+     "GET issues?state=open&type=issues&limit=50",
+     null
+    ]
+   ],
+   "run_task": [
+    [
+     "tasks/digest.md"
+    ],
+    [
+     "tasks/bodyonly.md"
+    ],
+    [
+     "tasks/bare.md"
+    ]
+   ],
+   "spawns": [],
+   "sleeps": 0,
+   "touched": [
+    "bare",
+    "bodyonly",
+    "digest"
+   ],
+   "audit": [],
+   "spool_left": null,
+   "lock_left": false,
+   "_stderr": []
+  },
+  "request_cooldown": {
+   "exit": 0,
+   "stdout": [
+    "[dispatch] #4 -> brief 'digest'",
+    "[dispatch] #4 deferred — 'digest' ran within the hour",
+    "[dispatch] #9 -> brief 'bare'",
+    "[dispatch] pass complete: <ts>"
+   ],
+   "calls": [
+    [
+     "GET",
+     "GET issues?state=open&labels=task-request&type=issues",
+     null
+    ],
+    [
+     "POST",
+     "POST issues/9/comments",
+     {
+      "body": "Ran `bare` as an ephemeral tenant.\n\n**Jail summary**\n- **Model:** `flash-x` (budget $0.50, from brief frontmatter)\n- **Harness:** `forge`\n- **Image:** `custom/jail:1` (sha256: `?`)\n- **Skills available:** coordination,propose-change,wrap-upstream (3)\n\nTail of the run:\n```\nboom\n```\nThe deliverable, if any, is its own issue (label `digest`/`handoff`)."
+     }
+    ],
+    [
+     "PATCH",
+     "PATCH issues/9",
+     {
+      "state": "closed"
+     }
+    ],
+    [
+     "GET",
+     "GET labels",
+     null
+    ],
+    [
+     "GET",
+     "GET issues?state=open&type=issues&limit=50",
+     null
+    ]
+   ],
+   "run_task": [
+    [
+     "tasks/bare.md"
+    ]
+   ],
+   "spawns": [],
+   "sleeps": 0,
+   "touched": [
+    "bare"
+   ],
+   "audit": [],
+   "spool_left": null,
+   "lock_left": false,
+   "_stderr": []
+  },
+  "request_defaults": {
+   "exit": 0,
+   "stdout": [
+    "[dispatch] #9 -> brief 'bare'",
+    "[dispatch] pass complete: <ts>"
+   ],
+   "calls": [
+    [
+     "GET",
+     "GET issues?state=open&labels=task-request&type=issues",
+     null
+    ],
+    [
+     "POST",
+     "POST issues/9/comments",
+     {
+      "body": "Ran `bare` as an ephemeral tenant.\n\n**Jail summary**\n- **Model:** `deepseek-flash` (budget $0.50, from brief frontmatter)\n- **Harness:** `forge`\n- **Image:** `sovereign-node/agent:local` (sha256: `?`)\n- **Skills available:** (empty) (0)\n\nTail of the run:\n```\n\n```\nThe deliverable, if any, is its own issue (label `digest`/`handoff`)."
+     }
+    ],
+    [
+     "PATCH",
+     "PATCH issues/9",
+     {
+      "state": "closed"
+     }
+    ],
+    [
+     "GET",
+     "GET labels",
+     null
+    ],
+    [
+     "GET",
+     "GET issues?state=open&type=issues&limit=50",
+     null
+    ]
+   ],
+   "run_task": [
+    [
+     "tasks/bare.md"
+    ]
+   ],
+   "spawns": [],
+   "sleeps": 0,
+   "touched": [
+    "bare"
+   ],
+   "audit": [],
+   "spool_left": null,
+   "lock_left": false,
+   "_stderr": []
+  },
+  "dry_run": {
+   "exit": 0,
+   "stdout": [
+    "[dispatch] #4 -> brief 'digest'",
+    "[dispatch] #2 -> brief 'manual'",
+    "[assign] #10 assigned to agent-dev, unclaimed — checking authorization",
+    "[assign] #10 WOULD LAUNCH issue-work (operator-authorized, unclaimed)",
+    "[assign] #11 assigned to agent-dev, unclaimed — checking authorization",
+    "[assign] #11 REFUSED: latest assignment actor='agent-dev' != operator='operator'",
+    "[dispatch] pass complete: <ts>"
+   ],
+   "calls": [
+    [
+     "GET",
+     "GET issues?state=open&labels=task-request&type=issues",
+     null
+    ],
+    [
+     "POST",
+     "POST issues/4/comments",
+     {
+      "body": "Dry-run: request is valid; `digest` would run now (budget $1.25, model glm-5.2). Leaving open."
+     }
+    ],
+    [
+     "POST",
+     "POST issues/2/comments",
+     {
+      "body": "Rejected: `tasks/manual.md` is not marked `dispatch: auto`. Flipping that flag is a reviewed PR — ask agent-dev via `handoff`."
+     }
+    ],
+    [
+     "PATCH",
+     "PATCH issues/2",
+     {
+      "state": "closed"
+     }
+    ],
+    [
+     "GET",
+     "GET labels",
+     null
+    ],
+    [
+     "GET",
+     "GET issues?state=open&type=issues&limit=50",
+     null
+    ],
+    [
+     "GET",
+     "GET issues/10/timeline?limit=100",
+     null
+    ],
+    [
+     "GET",
+     "GET issues/11/timeline?limit=100",
+     null
+    ]
+   ],
+   "run_task": [],
+   "spawns": [],
+   "sleeps": 0,
+   "touched": [],
+   "audit": [
+    "{\"ts\":\"<ts>\",\"issue\":11,\"action\":\"refused\",\"run\":\"\",\"detail\":\"actor=agent-dev\"}"
+   ],
+   "spool_left": [
+    "keep.txt"
+   ],
+   "lock_left": false,
+   "_stderr": []
+  },
+  "assigned_gates": {
+   "exit": 0,
+   "stdout": [
+    "[assign] #20 assigned to agent-dev, unclaimed — checking authorization",
+    "[assign] #20 claimed (in-progress); spawning detached issue-work",
+    "[assign] #23 assigned to agent-dev, unclaimed — checking authorization",
+    "[assign] #23 REFUSED: latest assignment actor='agent-dev' != operator='operator'",
+    "[assign] #24 assigned to agent-dev, unclaimed — checking authorization",
+    "[assign] #24 claimed (in-progress); spawning detached issue-work",
+    "[assign] #25 assigned to agent-dev, unclaimed — checking authorization",
+    "[assign] #25 deferred — a launch failed within the hour; cooling down",
+    "[assign] #26 assigned to agent-dev, unclaimed — checking authorization",
+    "[assign] #26 claimed (in-progress); spawning detached issue-work",
+    "[assign] #27 assigned to agent-dev, unclaimed — checking authorization",
+    "[assign] #27 REFUSED: latest assignment actor='none' != operator='operator'",
+    "[dispatch] pass complete: <ts>"
+   ],
+   "calls": [
+    [
+     "GET",
+     "GET issues?state=open&labels=task-request&type=issues",
+     null
+    ],
+    [
+     "GET",
+     "GET labels",
+     null
+    ],
+    [
+     "GET",
+     "GET issues?state=open&type=issues&limit=50",
+     null
+    ],
+    [
+     "GET",
+     "GET issues/20/timeline?limit=100",
+     null
+    ],
+    [
+     "POST",
+     "POST issues/20/labels",
+     {
+      "labels": [
+       7
+      ]
+     }
+    ],
+    [
+     "GET",
+     "GET issues/23/timeline?limit=100",
+     null
+    ],
+    [
+     "POST",
+     "POST issues/23/comments",
+     {
+      "body": "Not dispatched: this issue was assigned to `agent-dev` by `agent-dev`, not the operator. Auto-dispatch only honors operator assignments — an agent cannot task another agent by self-assigning. If this is real work, the operator should (re)assign it."
+     }
+    ],
+    [
+     "GET",
+     "GET issues/24/timeline?limit=100",
+     null
+    ],
+    [
+     "POST",
+     "POST issues/24/labels",
+     {
+      "labels": [
+       7
+      ]
+     }
+    ],
+    [
+     "GET",
+     "GET issues/25/timeline?limit=100",
+     null
+    ],
+    [
+     "GET",
+     "GET issues/26/timeline?limit=100",
+     null
+    ],
+    [
+     "POST",
+     "POST issues/26/labels",
+     {
+      "labels": [
+       7
+      ]
+     }
+    ],
+    [
+     "GET",
+     "GET issues/27/timeline?limit=100",
+     null
+    ],
+    [
+     "POST",
+     "POST issues/27/comments",
+     {
+      "body": "Not dispatched: this issue was assigned to `agent-dev` by `someone other than the operator`, not the operator. Auto-dispatch only honors operator assignments — an agent cannot task another agent by self-assigning. If this is real work, the operator should (re)assign it."
+     }
+    ]
+   ],
+   "run_task": [],
+   "spawns": [
+    [
+     "20"
+    ],
+    [
+     "24"
+    ],
+    [
+     "26"
+    ]
+   ],
+   "sleeps": 3,
+   "touched": [
+    "issue-25"
+   ],
+   "audit": [
+    "{\"ts\":\"<ts>\",\"issue\":20,\"action\":\"dispatched\",\"run\":\"\",\"detail\":\"actor=operator\"}",
+    "{\"ts\":\"<ts>\",\"issue\":23,\"action\":\"refused\",\"run\":\"\",\"detail\":\"actor=agent-dev\"}",
+    "{\"ts\":\"<ts>\",\"issue\":24,\"action\":\"dispatched\",\"run\":\"\",\"detail\":\"actor=operator\"}",
+    "{\"ts\":\"<ts>\",\"issue\":25,\"action\":\"deferred\",\"run\":\"\",\"detail\":\"cooldown\"}",
+    "{\"ts\":\"<ts>\",\"issue\":26,\"action\":\"dispatched\",\"run\":\"\",\"detail\":\"actor=operator\"}",
+    "{\"ts\":\"<ts>\",\"issue\":27,\"action\":\"refused\",\"run\":\"\",\"detail\":\"actor=none\"}"
+   ],
+   "spool_left": [
+    ".hidden.nudge",
+    "keep.txt"
+   ],
+   "lock_left": false,
+   "_stderr": []
+  },
+  "host_cap": {
+   "exit": 0,
+   "stdout": [
+    "[assign] #30 assigned to agent-dev, unclaimed — checking authorization",
+    "[assign] #30 deferred — 4 tenants already running (host cap); next pass",
+    "[dispatch] pass complete: <ts>"
+   ],
+   "calls": [
+    [
+     "GET",
+     "GET issues?state=open&labels=task-request&type=issues",
+     null
+    ],
+    [
+     "GET",
+     "GET labels",
+     null
+    ],
+    [
+     "GET",
+     "GET issues?state=open&type=issues&limit=50",
+     null
+    ],
+    [
+     "GET",
+     "GET issues/30/timeline?limit=100",
+     null
+    ]
+   ],
+   "run_task": [],
+   "spawns": [],
+   "sleeps": 0,
+   "touched": [],
+   "audit": [
+    "{\"ts\":\"<ts>\",\"issue\":30,\"action\":\"deferred\",\"run\":\"\",\"detail\":\"at-host-cap=4\"}"
+   ],
+   "spool_left": null,
+   "lock_left": false,
+   "_stderr": []
+  },
+  "unlimited": {
+   "exit": 0,
+   "stdout": [
+    "[assign] #31 assigned to agent-dev, unclaimed — checking authorization",
+    "[assign] #31 claimed (in-progress); spawning detached issue-work",
+    "[dispatch] pass complete: <ts>"
+   ],
+   "calls": [
+    [
+     "GET",
+     "GET issues?state=open&labels=task-request&type=issues",
+     null
+    ],
+    [
+     "GET",
+     "GET labels",
+     null
+    ],
+    [
+     "GET",
+     "GET issues?state=open&type=issues&limit=50",
+     null
+    ],
+    [
+     "GET",
+     "GET issues/31/timeline?limit=100",
+     null
+    ],
+    [
+     "POST",
+     "POST issues/31/labels",
+     {
+      "labels": [
+       7
+      ]
+     }
+    ]
+   ],
+   "run_task": [],
+   "spawns": [
+    [
+     "31"
+    ]
+   ],
+   "sleeps": 1,
+   "touched": [],
+   "audit": [
+    "{\"ts\":\"<ts>\",\"issue\":31,\"action\":\"dispatched\",\"run\":\"\",\"detail\":\"actor=operator\"}"
+   ],
+   "spool_left": null,
+   "lock_left": false,
+   "_stderr": []
+  },
+  "operator_override": {
+   "exit": 0,
+   "stdout": [
+    "[assign] #32 assigned to bot, unclaimed — checking authorization",
+    "[assign] #32 REFUSED: latest assignment actor='operator' != operator='alice'",
+    "[assign] #33 assigned to bot, unclaimed — checking authorization",
+    "[assign] #33 claimed (in-progress); spawning detached issue-work",
+    "[dispatch] pass complete: <ts>"
+   ],
+   "calls": [
+    [
+     "GET",
+     "GET issues?state=open&labels=task-request&type=issues",
+     null
+    ],
+    [
+     "GET",
+     "GET labels",
+     null
+    ],
+    [
+     "GET",
+     "GET issues?state=open&type=issues&limit=50",
+     null
+    ],
+    [
+     "GET",
+     "GET issues/32/timeline?limit=100",
+     null
+    ],
+    [
+     "POST",
+     "POST issues/32/comments",
+     {
+      "body": "Not dispatched: this issue was assigned to `bot` by `operator`, not the operator. Auto-dispatch only honors operator assignments — an agent cannot task another agent by self-assigning. If this is real work, the operator should (re)assign it."
+     }
+    ],
+    [
+     "GET",
+     "GET issues/33/timeline?limit=100",
+     null
+    ],
+    [
+     "POST",
+     "POST issues/33/labels",
+     {
+      "labels": [
+       7
+      ]
+     }
+    ]
+   ],
+   "run_task": [],
+   "spawns": [
+    [
+     "33"
+    ]
+   ],
+   "sleeps": 1,
+   "touched": [],
+   "audit": [
+    "{\"ts\":\"<ts>\",\"issue\":32,\"action\":\"refused\",\"run\":\"\",\"detail\":\"actor=operator\"}",
+    "{\"ts\":\"<ts>\",\"issue\":33,\"action\":\"dispatched\",\"run\":\"\",\"detail\":\"actor=alice\"}"
+   ],
+   "spool_left": null,
+   "lock_left": false,
+   "_stderr": []
+  },
+  "spawn_fails": {
+   "exit": 0,
+   "stdout": [
+    "[assign] #35 assigned to agent-dev, unclaimed — checking authorization",
+    "[assign] #35 claimed (in-progress); spawning detached issue-work",
+    "[dispatch] pass complete: <ts>"
+   ],
+   "calls": [
+    [
+     "GET",
+     "GET issues?state=open&labels=task-request&type=issues",
+     null
+    ],
+    [
+     "GET",
+     "GET labels",
+     null
+    ],
+    [
+     "GET",
+     "GET issues?state=open&type=issues&limit=50",
+     null
+    ],
+    [
+     "GET",
+     "GET issues/35/timeline?limit=100",
+     null
+    ],
+    [
+     "POST",
+     "POST issues/35/labels",
+     {
+      "labels": [
+       7
+      ]
+     }
+    ],
+    [
+     "DELETE",
+     "DELETE issues/35/labels/7",
+     null
+    ],
+    [
+     "POST",
+     "POST issues/35/comments",
+     {
+      "body": "Dispatch FAILED before the tenant started (host-side spawn error — see .task-dispatch/dispatch-run.log). Claim released; re-assign or remove/re-add a label to retry once the host is fixed."
+     }
+    ]
+   ],
+   "run_task": [],
+   "spawns": [],
+   "sleeps": 0,
+   "touched": [],
+   "audit": [
+    "{\"ts\":\"<ts>\",\"issue\":35,\"action\":\"spawn-failed\",\"run\":\"\",\"detail\":\"detach spawn returned nonzero\"}"
+   ],
+   "spool_left": null,
+   "lock_left": false,
+   "_stderr": [
+    "  File \"/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/subprocess.py\", line 1022, in __init__",
+    "    self._execute_child(args, executable, preexec_fn, close_fds,",
+    "  File \"/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/subprocess.py\", line 1899, in _execute_child",
+    "    raise child_exception_type(errno_num, err_msg, err_filename)",
+    "PermissionError: [Errno 13] Permission denied: './scripts/dispatch-run.sh'"
+   ]
+  },
+  "forgejo_down": {
+   "exit": 1,
+   "stdout": [],
+   "calls": [
+    [
+     "GET",
+     "GET issues?state=open&labels=task-request&type=issues",
+     null
+    ]
+   ],
+   "run_task": [],
+   "spawns": [],
+   "sleeps": 0,
+   "touched": [],
+   "audit": [],
+   "spool_left": null,
+   "lock_left": false,
+   "_stderr": [
+    "    obj, end = self.raw_decode(s, idx=_w(s, 0).end())",
+    "               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
+    "  File \"/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/json/decoder.py\", line 355, in raw_decode",
+    "    raise JSONDecodeError(\"Expecting value\", s, err.value) from None",
+    "json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)"
+   ]
+  },
+  "comment_post_down": {
+   "exit": 7,
+   "stdout": [
+    "[dispatch] #1 -> brief 'nosuch'"
+   ],
+   "calls": [
+    [
+     "GET",
+     "GET issues?state=open&labels=task-request&type=issues",
+     null
+    ],
+    [
+     "POST",
+     "POST issues/1/comments",
+     {
+      "body": "Rejected: no tracked brief `tasks/nosuch.md`. New capabilities are a `handoff` to agent-dev (brief ships as a PR), not a request."
+     }
+    ]
+   ],
+   "run_task": [],
+   "spawns": [],
+   "sleeps": 0,
+   "touched": [],
+   "audit": [],
+   "spool_left": null,
+   "lock_left": false,
+   "_stderr": []
+  },
+  "claim_post_down": {
+   "exit": 7,
+   "stdout": [
+    "[assign] #36 assigned to agent-dev, unclaimed — checking authorization"
+   ],
+   "calls": [
+    [
+     "GET",
+     "GET issues?state=open&labels=task-request&type=issues",
+     null
+    ],
+    [
+     "GET",
+     "GET labels",
+     null
+    ],
+    [
+     "GET",
+     "GET issues?state=open&type=issues&limit=50",
+     null
+    ],
+    [
+     "GET",
+     "GET issues/36/timeline?limit=100",
+     null
+    ],
+    [
+     "POST",
+     "POST issues/36/labels",
+     {
+      "labels": [
+       7
+      ]
+     }
+    ]
+   ],
+   "run_task": [],
+   "spawns": [],
+   "sleeps": 0,
+   "touched": [],
+   "audit": [],
+   "spool_left": null,
+   "lock_left": false,
+   "_stderr": []
+  },
+  "labels_unreadable": {
+   "exit": 1,
+   "stdout": [
+    "[dispatch] #1 -> brief 'nosuch'"
+   ],
+   "calls": [
+    [
+     "GET",
+     "GET issues?state=open&labels=task-request&type=issues",
+     null
+    ],
+    [
+     "POST",
+     "POST issues/1/comments",
+     {
+      "body": "Rejected: no tracked brief `tasks/nosuch.md`. New capabilities are a `handoff` to agent-dev (brief ships as a PR), not a request."
+     }
+    ],
+    [
+     "PATCH",
+     "PATCH issues/1",
+     {
+      "state": "closed"
+     }
+    ],
+    [
+     "GET",
+     "GET labels",
+     null
+    ]
+   ],
+   "run_task": [],
+   "spawns": [],
+   "sleeps": 0,
+   "touched": [],
+   "audit": [],
+   "spool_left": null,
+   "lock_left": false,
+   "_stderr": [
+    "Traceback (most recent call last):",
+    "  File \"<string>\", line 1, in <module>",
+    "  File \"<string>\", line 1, in <listcomp>",
+    "TypeError: string indices must be integers, not 'str'"
+   ]
+  },
+  "timeline_unreadable": {
+   "exit": 1,
+   "stdout": [
+    "[assign] #37 assigned to agent-dev, unclaimed — checking authorization"
+   ],
+   "calls": [
+    [
+     "GET",
+     "GET issues?state=open&labels=task-request&type=issues",
+     null
+    ],
+    [
+     "GET",
+     "GET labels",
+     null
+    ],
+    [
+     "GET",
+     "GET issues?state=open&type=issues&limit=50",
+     null
+    ],
+    [
+     "GET",
+     "GET issues/37/timeline?limit=100",
+     null
+    ]
+   ],
+   "run_task": [],
+   "spawns": [],
+   "sleeps": 0,
+   "touched": [],
+   "audit": [],
+   "spool_left": null,
+   "lock_left": false,
+   "_stderr": [
+    "    obj, end = self.raw_decode(s, idx=_w(s, 0).end())",
+    "               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
+    "  File \"/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/json/decoder.py\", line 355, in raw_decode",
+    "    raise JSONDecodeError(\"Expecting value\", s, err.value) from None",
+    "json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)"
+   ]
+  },
+  "lock_held": {
+   "exit": 0,
+   "stdout": [
+    "[dispatch] another pass holds the lock; exiting"
+   ],
+   "calls": [],
+   "run_task": [],
+   "spawns": [],
+   "sleeps": 0,
+   "touched": [],
+   "audit": [],
+   "spool_left": null,
+   "lock_left": true,
+   "_stderr": []
+  },
+  "lock_stale": {
+   "exit": 0,
+   "stdout": [
+    "[dispatch] stealing stale pass lock (>30m)",
+    "[dispatch] pass complete: <ts>"
+   ],
+   "calls": [
+    [
+     "GET",
+     "GET issues?state=open&labels=task-request&type=issues",
+     null
+    ],
+    [
+     "GET",
+     "GET labels",
+     null
+    ],
+    [
+     "GET",
+     "GET issues?state=open&type=issues&limit=50",
+     null
+    ]
+   ],
+   "run_task": [],
+   "spawns": [],
+   "sleeps": 0,
+   "touched": [],
+   "audit": [],
+   "spool_left": null,
+   "lock_left": false,
+   "_stderr": []
+  }
+ },
+ "dispatch_run": {
+  "default_tier": {
+   "exit": 0,
+   "stdout": [
+    "[dispatch-run] #42: no difficulty label, using default tier -> model=deepseek-flash budget=\"1.0\""
+   ],
+   "calls": [
+    [
+     "GET",
+     "GET labels?limit=100",
+     null
+    ],
+    [
+     "GET",
+     "GET issues/42",
+     null
+    ],
+    [
+     "POST",
+     "POST issues/42/comments",
+     {
+      "body": "Dispatched to an ephemeral `agent-dev` tenant (operator-authorized). Claimed with `in-progress`.\n\n**Jail summary**\n- **Model:** `deepseek-flash` (budget $1.0, resolved via `default-tier`)\n- **Harness:** `forge`\n- **Image:** `sovereign-node/agent:local` (sha256: `?`)\n- **Skills available:** coordination,propose-change,wrap-upstream (3)\n\nDeliverable is a node-config PR + a comment here; if I'm blocked I'll say so."
+     }
+    ],
+    [
+     "POST",
+     "POST issues/42/comments",
+     {
+      "body": "Run finished — see the agent's comment above for the PR. **To request changes:** leave your feedback as a comment here, then **remove the `in-progress` label**; that re-launches a tenant which reads your feedback and revises the same PR. (A comment alone does nothing — removing the label is the 'go again' signal.) Leave `in-progress` on and the issue rests until you merge or clear it."
+     }
+    ]
+   ],
+   "run_task": [
+    [
+     "tasks/issue-work.md",
+     "--issue",
+     "42",
+     "--model",
+     "deepseek-flash",
+     "--budget",
+     "1.0"
+    ]
+   ],
+   "trace_render": [],
+   "touched": [],
+   "audit": [
+    "{\"ts\":\"<ts>\",\"issue\":42,\"action\":\"announced\",\"run\":\"issue-42\",\"detail\":\"model=deepseek-flash harness=forge image=sovereign-node/agent:local:? skills=3\"}",
+    "{\"ts\":\"<ts>\",\"issue\":42,\"action\":\"completed\",\"run\":\"issue-42\",\"detail\":\"rc=0\"}"
+   ],
+   "_stderr": []
+  },
+  "hard_live": {
+   "exit": 0,
+   "stdout": [
+    "[dispatch-run] #42: operator-applied label 'difficulty:hard' -> tier 'hard'",
+    "[dispatch-run] #42: resolved tier 'hard' -> model=glm-5.2 budget=\"4.0\"",
+    "[dispatch-run] #42: label 'trace' present but not added by operator (actor='agent-dev'); ignoring"
+   ],
+   "calls": [
+    [
+     "GET",
+     "GET labels?limit=100",
+     null
+    ],
+    [
+     "GET",
+     "GET issues/42",
+     null
+    ],
+    [
+     "GET",
+     "GET issues/42/timeline?limit=100",
+     null
+    ],
+    [
+     "GET",
+     "GET llm:/v1/models",
+     null
+    ],
+    [
+     "POST",
+     "POST issues/42/comments",
+     {
+      "body": "Dispatched to an ephemeral `agent-dev` tenant (operator-authorized). Claimed with `in-progress`.\n\n**Jail summary**\n- **Model:** `glm-5.2` (budget $4.0, resolved via `difficulty-label`)\n- **Harness:** `forge`\n- **Image:** `sovereign-node/agent:local` (sha256: `?`)\n- **Skills available:** coordination,propose-change,wrap-upstream (3)\n\nDeliverable is a node-config PR + a comment here; if I'm blocked I'll say so."
+     }
+    ],
+    [
+     "GET",
+     "GET issues/42/timeline?limit=100",
+     null
+    ],
+    [
+     "POST",
+     "POST issues/42/comments",
+     {
+      "body": "Run finished — see the agent's comment above for the PR. **To request changes:** leave your feedback as a comment here, then **remove the `in-progress` label**; that re-launches a tenant which reads your feedback and revises the same PR. (A comment alone does nothing — removing the label is the 'go again' signal.) Leave `in-progress` on and the issue rests until you merge or clear it."
+     }
+    ]
+   ],
+   "run_task": [
+    [
+     "tasks/issue-work.md",
+     "--issue",
+     "42",
+     "--model",
+     "glm-5.2",
+     "--budget",
+     "4.0"
+    ]
+   ],
+   "trace_render": [],
+   "touched": [],
+   "audit": [
+    "{\"ts\":\"<ts>\",\"issue\":42,\"action\":\"announced\",\"run\":\"issue-42\",\"detail\":\"model=glm-5.2 harness=forge image=sovereign-node/agent:local:? skills=3\"}",
+    "{\"ts\":\"<ts>\",\"issue\":42,\"action\":\"completed\",\"run\":\"issue-42\",\"detail\":\"rc=0\"}"
+   ],
+   "_stderr": []
+  },
+  "hard_by_agent": {
+   "exit": 0,
+   "stdout": [
+    "[dispatch-run] #42: label 'difficulty:hard' present but not added by operator (actor='agent-dev'); ignoring",
+    "[dispatch-run] #42: no difficulty label, using default tier -> model=deepseek-flash budget=\"1.0\""
+   ],
+   "calls": [
+    [
+     "GET",
+     "GET labels?limit=100",
+     null
+    ],
+    [
+     "GET",
+     "GET issues/42",
+     null
+    ],
+    [
+     "GET",
+     "GET issues/42/timeline?limit=100",
+     null
+    ],
+    [
+     "POST",
+     "POST issues/42/comments",
+     {
+      "body": "Dispatched to an ephemeral `agent-dev` tenant (operator-authorized). Claimed with `in-progress`.\n\n**Jail summary**\n- **Model:** `deepseek-flash` (budget $1.0, resolved via `default-tier`)\n- **Harness:** `forge`\n- **Image:** `sovereign-node/agent:local` (sha256: `?`)\n- **Skills available:** coordination,propose-change,wrap-upstream (3)\n\nDeliverable is a node-config PR + a comment here; if I'm blocked I'll say so."
+     }
+    ],
+    [
+     "POST",
+     "POST issues/42/comments",
+     {
+      "body": "Run finished — see the agent's comment above for the PR. **To request changes:** leave your feedback as a comment here, then **remove the `in-progress` label**; that re-launches a tenant which reads your feedback and revises the same PR. (A comment alone does nothing — removing the label is the 'go again' signal.) Leave `in-progress` on and the issue rests until you merge or clear it."
+     }
+    ]
+   ],
+   "run_task": [
+    [
+     "tasks/issue-work.md",
+     "--issue",
+     "42",
+     "--model",
+     "deepseek-flash",
+     "--budget",
+     "1.0"
+    ]
+   ],
+   "trace_render": [],
+   "touched": [],
+   "audit": [
+    "{\"ts\":\"<ts>\",\"issue\":42,\"action\":\"announced\",\"run\":\"issue-42\",\"detail\":\"model=deepseek-flash harness=forge image=sovereign-node/agent:local:? skills=3\"}",
+    "{\"ts\":\"<ts>\",\"issue\":42,\"action\":\"completed\",\"run\":\"issue-42\",\"detail\":\"rc=0\"}"
+   ],
+   "_stderr": []
+  },
+  "relabelled_by_agent": {
+   "exit": 0,
+   "stdout": [
+    "[dispatch-run] #42: label 'difficulty:hard' present but not added by operator (actor='agent-dev'); ignoring",
+    "[dispatch-run] #42: no difficulty label, using default tier -> model=deepseek-flash budget=\"1.0\""
+   ],
+   "calls": [
+    [
+     "GET",
+     "GET labels?limit=100",
+     null
+    ],
+    [
+     "GET",
+     "GET issues/42",
+     null
+    ],
+    [
+     "GET",
+     "GET issues/42/timeline?limit=100",
+     null
+    ],
+    [
+     "POST",
+     "POST issues/42/comments",
+     {
+      "body": "Dispatched to an ephemeral `agent-dev` tenant (operator-authorized). Claimed with `in-progress`.\n\n**Jail summary**\n- **Model:** `deepseek-flash` (budget $1.0, resolved via `default-tier`)\n- **Harness:** `forge`\n- **Image:** `sovereign-node/agent:local` (sha256: `?`)\n- **Skills available:** coordination,propose-change,wrap-upstream (3)\n\nDeliverable is a node-config PR + a comment here; if I'm blocked I'll say so."
+     }
+    ],
+    [
+     "POST",
+     "POST issues/42/comments",
+     {
+      "body": "Run finished — see the agent's comment above for the PR. **To request changes:** leave your feedback as a comment here, then **remove the `in-progress` label**; that re-launches a tenant which reads your feedback and revises the same PR. (A comment alone does nothing — removing the label is the 'go again' signal.) Leave `in-progress` on and the issue rests until you merge or clear it."
+     }
+    ]
+   ],
+   "run_task": [
+    [
+     "tasks/issue-work.md",
+     "--issue",
+     "42",
+     "--model",
+     "deepseek-flash",
+     "--budget",
+     "1.0"
+    ]
+   ],
+   "trace_render": [],
+   "touched": [],
+   "audit": [
+    "{\"ts\":\"<ts>\",\"issue\":42,\"action\":\"announced\",\"run\":\"issue-42\",\"detail\":\"model=deepseek-flash harness=forge image=sovereign-node/agent:local:? skills=3\"}",
+    "{\"ts\":\"<ts>\",\"issue\":42,\"action\":\"completed\",\"run\":\"issue-42\",\"detail\":\"rc=0\"}"
+   ],
+   "_stderr": []
+  },
+  "unknown_tier": {
+   "exit": 0,
+   "stdout": [
+    "[dispatch-run] #42: operator-applied label 'difficulty:bogus' -> tier 'bogus'",
+    "[dispatch-run] #42: unknown tier 'bogus' (bogus->default:easy); falling back to brief default",
+    "[dispatch-run] #42: no difficulty label, using default tier -> model=deepseek-flash budget=\"1.0\""
+   ],
+   "calls": [
+    [
+     "GET",
+     "GET labels?limit=100",
+     null
+    ],
+    [
+     "GET",
+     "GET issues/42",
+     null
+    ],
+    [
+     "GET",
+     "GET issues/42/timeline?limit=100",
+     null
+    ],
+    [
+     "POST",
+     "POST issues/42/comments",
+     {
+      "body": "Difficulty label `difficulty:bogus` not recognized — tier `bogus` is not in the dispatch table. Falling back to the default tier. Valid tiers: `trivial`, `easy`, `moderate`, `hard`."
+     }
+    ],
+    [
+     "POST",
+     "POST issues/42/comments",
+     {
+      "body": "Dispatched to an ephemeral `agent-dev` tenant (operator-authorized). Claimed with `in-progress`.\n\n**Jail summary**\n- **Model:** `deepseek-flash` (budget $1.0, resolved via `default-tier`)\n- **Harness:** `forge`\n- **Image:** `sovereign-node/agent:local` (sha256: `?`)\n- **Skills available:** coordination,propose-change,wrap-upstream (3)\n\nDeliverable is a node-config PR + a comment here; if I'm blocked I'll say so."
+     }
+    ],
+    [
+     "POST",
+     "POST issues/42/comments",
+     {
+      "body": "Run finished — see the agent's comment above for the PR. **To request changes:** leave your feedback as a comment here, then **remove the `in-progress` label**; that re-launches a tenant which reads your feedback and revises the same PR. (A comment alone does nothing — removing the label is the 'go again' signal.) Leave `in-progress` on and the issue rests until you merge or clear it."
+     }
+    ]
+   ],
+   "run_task": [
+    [
+     "tasks/issue-work.md",
+     "--issue",
+     "42",
+     "--model",
+     "deepseek-flash",
+     "--budget",
+     "1.0"
+    ]
+   ],
+   "trace_render": [],
+   "touched": [],
+   "audit": [
+    "{\"ts\":\"<ts>\",\"issue\":42,\"action\":\"announced\",\"run\":\"issue-42\",\"detail\":\"model=deepseek-flash harness=forge image=sovereign-node/agent:local:? skills=3\"}",
+    "{\"ts\":\"<ts>\",\"issue\":42,\"action\":\"completed\",\"run\":\"issue-42\",\"detail\":\"rc=0\"}"
+   ],
+   "_stderr": []
+  },
+  "model_not_served": {
+   "exit": 0,
+   "stdout": [
+    "[dispatch-run] #42: operator-applied label 'difficulty:moderate' -> tier 'moderate'",
+    "[dispatch-run] #42: resolved tier 'moderate' -> model=minimax-m3 budget=\"2.0\"",
+    "[dispatch-run] #42: model 'minimax-m3' not in LiteLLM model list; falling back to deepseek-flash"
+   ],
+   "calls": [
+    [
+     "GET",
+     "GET labels?limit=100",
+     null
+    ],
+    [
+     "GET",
+     "GET issues/42",
+     null
+    ],
+    [
+     "GET",
+     "GET issues/42/timeline?limit=100",
+     null
+    ],
+    [
+     "GET",
+     "GET llm:/v1/models",
+     null
+    ],
+    [
+     "POST",
+     "POST issues/42/comments",
+     {
+      "body": "⚠️ Tier `moderate` resolved to model `minimax-m3` but that model is not currently served by LiteLLM. Falling back to `deepseek-flash`. Check `config/litellm.yaml` if this persists."
+     }
+    ],
+    [
+     "POST",
+     "POST issues/42/comments",
+     {
+      "body": "Dispatched to an ephemeral `agent-dev` tenant (operator-authorized). Claimed with `in-progress`.\n\n**Jail summary**\n- **Model:** `deepseek-flash` (budget $0.50, resolved via `fallback`)\n- **Harness:** `forge`\n- **Image:** `sovereign-node/agent:local` (sha256: `?`)\n- **Skills available:** coordination,propose-change,wrap-upstream (3)\n\nDeliverable is a node-config PR + a comment here; if I'm blocked I'll say so."
+     }
+    ],
+    [
+     "POST",
+     "POST issues/42/comments",
+     {
+      "body": "Run finished — see the agent's comment above for the PR. **To request changes:** leave your feedback as a comment here, then **remove the `in-progress` label**; that re-launches a tenant which reads your feedback and revises the same PR. (A comment alone does nothing — removing the label is the 'go again' signal.) Leave `in-progress` on and the issue rests until you merge or clear it."
+     }
+    ]
+   ],
+   "run_task": [
+    [
+     "tasks/issue-work.md",
+     "--issue",
+     "42",
+     "--model",
+     "deepseek-flash",
+     "--budget",
+     "0.50"
+    ]
+   ],
+   "trace_render": [],
+   "touched": [],
+   "audit": [
+    "{\"ts\":\"<ts>\",\"issue\":42,\"action\":\"announced\",\"run\":\"issue-42\",\"detail\":\"model=deepseek-flash harness=forge image=sovereign-node/agent:local:? skills=3\"}",
+    "{\"ts\":\"<ts>\",\"issue\":42,\"action\":\"completed\",\"run\":\"issue-42\",\"detail\":\"rc=0\"}"
+   ],
+   "_stderr": []
+  },
+  "litellm_down": {
+   "exit": 1,
+   "stdout": [
+    "[dispatch-run] #42: operator-applied label 'difficulty:hard' -> tier 'hard'",
+    "[dispatch-run] #42: resolved tier 'hard' -> model=glm-5.2 budget=\"4.0\"",
+    "[dispatch-run] #42: could not reach LiteLLM (error:Expecting value: line 1 column 1 (char 0)",
+    "error:curl_failed); aborting — won't silently run the wrong model"
+   ],
+   "calls": [
+    [
+     "GET",
+     "GET labels?limit=100",
+     null
+    ],
+    [
+     "GET",
+     "GET issues/42",
+     null
+    ],
+    [
+     "GET",
+     "GET issues/42/timeline?limit=100",
+     null
+    ],
+    [
+     "GET",
+     "GET llm:/v1/models",
+     null
+    ],
+    [
+     "POST",
+     "POST issues/42/comments",
+     {
+      "body": "⚠️ Could not reach LiteLLM to verify model availability (`error:Expecting value: line 1 column 1 (char 0)\nerror:curl_failed`). Aborting this run — the model for tier `hard` (`glm-5.2`) may be live but cannot be confirmed. Check LiteLLM and retry by assigning the issue again."
+     }
+    ],
+    [
+     "DELETE",
+     "DELETE issues/42/labels/7",
+     null
+    ]
+   ],
+   "run_task": [],
+   "trace_render": [],
+   "touched": [
+    "issue-42"
+   ],
+   "audit": [
+    "{\"ts\":\"<ts>\",\"issue\":42,\"action\":\"abort\",\"run\":\"issue-42\",\"detail\":\"LiteLlm unreachable: error:Expecting value: line 1 column 1 (char 0)",
+    "error:curl_failed\"}"
+   ],
+   "_stderr": []
+  },
+  "litellm_401": {
+   "exit": 0,
+   "stdout": [
+    "[dispatch-run] #42: operator-applied label 'difficulty:hard' -> tier 'hard'",
+    "[dispatch-run] #42: resolved tier 'hard' -> model=glm-5.2 budget=\"4.0\"",
+    "[dispatch-run] #42: model 'glm-5.2' not in LiteLLM model list; falling back to deepseek-flash"
+   ],
+   "calls": [
+    [
+     "GET",
+     "GET labels?limit=100",
+     null
+    ],
+    [
+     "GET",
+     "GET issues/42",
+     null
+    ],
+    [
+     "GET",
+     "GET issues/42/timeline?limit=100",
+     null
+    ],
+    [
+     "GET",
+     "GET llm:/v1/models",
+     null
+    ],
+    [
+     "POST",
+     "POST issues/42/comments",
+     {
+      "body": "⚠️ Tier `hard` resolved to model `glm-5.2` but that model is not currently served by LiteLLM. Falling back to `deepseek-flash`. Check `config/litellm.yaml` if this persists."
+     }
+    ],
+    [
+     "POST",
+     "POST issues/42/comments",
+     {
+      "body": "Dispatched to an ephemeral `agent-dev` tenant (operator-authorized). Claimed with `in-progress`.\n\n**Jail summary**\n- **Model:** `deepseek-flash` (budget $0.50, resolved via `fallback`)\n- **Harness:** `forge`\n- **Image:** `sovereign-node/agent:local` (sha256: `?`)\n- **Skills available:** coordination,propose-change,wrap-upstream (3)\n\nDeliverable is a node-config PR + a comment here; if I'm blocked I'll say so."
+     }
+    ],
+    [
+     "POST",
+     "POST issues/42/comments",
+     {
+      "body": "Run finished — see the agent's comment above for the PR. **To request changes:** leave your feedback as a comment here, then **remove the `in-progress` label**; that re-launches a tenant which reads your feedback and revises the same PR. (A comment alone does nothing — removing the label is the 'go again' signal.) Leave `in-progress` on and the issue rests until you merge or clear it."
+     }
+    ]
+   ],
+   "run_task": [
+    [
+     "tasks/issue-work.md",
+     "--issue",
+     "42",
+     "--model",
+     "deepseek-flash",
+     "--budget",
+     "0.50"
+    ]
+   ],
+   "trace_render": [],
+   "touched": [],
+   "audit": [
+    "{\"ts\":\"<ts>\",\"issue\":42,\"action\":\"announced\",\"run\":\"issue-42\",\"detail\":\"model=deepseek-flash harness=forge image=sovereign-node/agent:local:? skills=3\"}",
+    "{\"ts\":\"<ts>\",\"issue\":42,\"action\":\"completed\",\"run\":\"issue-42\",\"detail\":\"rc=0\"}"
+   ],
+   "_stderr": []
+  },
+  "no_tier_table": {
+   "exit": 0,
+   "stdout": [
+    "[dispatch-run] #42: operator-applied label 'difficulty:hard' -> tier 'hard'",
+    "[dispatch-run] #42: ERROR parsing dispatch-tiers.yaml: [Errno 2] No such file or directory: 'config/dispatch-tiers.yaml'"
+   ],
+   "calls": [
+    [
+     "GET",
+     "GET labels?limit=100",
+     null
+    ],
+    [
+     "GET",
+     "GET issues/42",
+     null
+    ],
+    [
+     "GET",
+     "GET issues/42/timeline?limit=100",
+     null
+    ],
+    [
+     "POST",
+     "POST issues/42/comments",
+     {
+      "body": "Dispatched to an ephemeral `agent-dev` tenant (operator-authorized). Claimed with `in-progress`.\n\n**Jail summary**\n- **Model:** `<unresolved>` (budget $0, resolved via `brief`)\n- **Harness:** `forge`\n- **Image:** `sovereign-node/agent:local` (sha256: `?`)\n- **Skills available:** coordination,propose-change,wrap-upstream (3)\n\nDeliverable is a node-config PR + a comment here; if I'm blocked I'll say so."
+     }
+    ],
+    [
+     "POST",
+     "POST issues/42/comments",
+     {
+      "body": "Run finished — see the agent's comment above for the PR. **To request changes:** leave your feedback as a comment here, then **remove the `in-progress` label**; that re-launches a tenant which reads your feedback and revises the same PR. (A comment alone does nothing — removing the label is the 'go again' signal.) Leave `in-progress` on and the issue rests until you merge or clear it."
+     }
+    ]
+   ],
+   "run_task": [
+    [
+     "tasks/issue-work.md",
+     "--issue",
+     "42"
+    ]
+   ],
+   "trace_render": [],
+   "touched": [],
+   "audit": [
+    "{\"ts\":\"<ts>\",\"issue\":42,\"action\":\"announced\",\"run\":\"issue-42\",\"detail\":\"model=? harness=forge image=sovereign-node/agent:local:? skills=3\"}",
+    "{\"ts\":\"<ts>\",\"issue\":42,\"action\":\"completed\",\"run\":\"issue-42\",\"detail\":\"rc=0\"}"
+   ],
+   "_stderr": []
+  },
+  "run_fails": {
+   "exit": 0,
+   "stdout": [
+    "[dispatch-run] #42: no difficulty label, using default tier -> model=deepseek-flash budget=\"1.0\""
+   ],
+   "calls": [
+    [
+     "GET",
+     "GET labels?limit=100",
+     null
+    ],
+    [
+     "GET",
+     "GET issues/42",
+     null
+    ],
+    [
+     "POST",
+     "POST issues/42/comments",
+     {
+      "body": "Dispatched to an ephemeral `agent-dev` tenant (operator-authorized). Claimed with `in-progress`.\n\n**Jail summary**\n- **Model:** `deepseek-flash` (budget $1.0, resolved via `default-tier`)\n- **Harness:** `forge`\n- **Image:** `sovereign-node/agent:local` (sha256: `?`)\n- **Skills available:** coordination,propose-change,wrap-upstream (3)\n\nDeliverable is a node-config PR + a comment here; if I'm blocked I'll say so."
+     }
+    ],
+    [
+     "DELETE",
+     "DELETE issues/42/labels/7",
+     null
+    ],
+    [
+     "POST",
+     "POST issues/42/comments",
+     {
+      "body": "Dispatch FAILED (exit 3) — released `in-progress` for retry (1h cooldown). Tail:\n\n```\nstep 5\nstep 6\nstep 7\nstep 8\nstep 9\nstep 10\nstep 11\nstep 12\nstep 13\nstep 14\nstep 15\nerror: exploded\n```\nFix the cause, then re-assign or wait for the cooldown."
+     }
+    ]
+   ],
+   "run_task": [
+    [
+     "tasks/issue-work.md",
+     "--issue",
+     "42",
+     "--model",
+     "deepseek-flash",
+     "--budget",
+     "1.0"
+    ]
+   ],
+   "trace_render": [],
+   "touched": [
+    "issue-42"
+   ],
+   "audit": [
+    "{\"ts\":\"<ts>\",\"issue\":42,\"action\":\"announced\",\"run\":\"issue-42\",\"detail\":\"model=deepseek-flash harness=forge image=sovereign-node/agent:local:? skills=3\"}",
+    "{\"ts\":\"<ts>\",\"issue\":42,\"action\":\"failed\",\"run\":\"issue-42\",\"detail\":\"rc=3\"}"
+   ],
+   "_stderr": []
+  },
+  "run_fails_no_label": {
+   "exit": 0,
+   "stdout": [
+    "[dispatch-run] #42: no difficulty label, using default tier -> model=deepseek-flash budget=\"1.0\""
+   ],
+   "calls": [
+    [
+     "GET",
+     "GET labels?limit=100",
+     null
+    ],
+    [
+     "GET",
+     "GET issues/42",
+     null
+    ],
+    [
+     "POST",
+     "POST issues/42/comments",
+     {
+      "body": "Dispatched to an ephemeral `agent-dev` tenant (operator-authorized). Claimed with `in-progress`.\n\n**Jail summary**\n- **Model:** `deepseek-flash` (budget $1.0, resolved via `default-tier`)\n- **Harness:** `forge`\n- **Image:** `sovereign-node/agent:local` (sha256: `?`)\n- **Skills available:** coordination,propose-change,wrap-upstream (3)\n\nDeliverable is a node-config PR + a comment here; if I'm blocked I'll say so."
+     }
+    ],
+    [
+     "POST",
+     "POST issues/42/comments",
+     {
+      "body": "Dispatch FAILED (exit 1) — released `in-progress` for retry (1h cooldown). Tail:\n\n```\nnope\n```\nFix the cause, then re-assign or wait for the cooldown."
+     }
+    ]
+   ],
+   "run_task": [
+    [
+     "tasks/issue-work.md",
+     "--issue",
+     "42",
+     "--model",
+     "deepseek-flash",
+     "--budget",
+     "1.0"
+    ]
+   ],
+   "trace_render": [],
+   "touched": [
+    "issue-42"
+   ],
+   "audit": [
+    "{\"ts\":\"<ts>\",\"issue\":42,\"action\":\"announced\",\"run\":\"issue-42\",\"detail\":\"model=deepseek-flash harness=forge image=sovereign-node/agent:local:? skills=3\"}",
+    "{\"ts\":\"<ts>\",\"issue\":42,\"action\":\"failed\",\"run\":\"issue-42\",\"detail\":\"rc=1\"}"
+   ],
+   "_stderr": []
+  },
+  "trace_ok": {
+   "exit": 0,
+   "stdout": [
+    "[dispatch-run] #42: no difficulty label, using default tier -> model=deepseek-flash budget=\"1.0\"",
+    "[dispatch-run] #42: operator-applied label 'trace' -> tracing this run"
+   ],
+   "calls": [
+    [
+     "GET",
+     "GET labels?limit=100",
+     null
+    ],
+    [
+     "GET",
+     "GET issues/42",
+     null
+    ],
+    [
+     "POST",
+     "POST issues/42/comments",
+     {
+      "body": "Dispatched to an ephemeral `agent-dev` tenant (operator-authorized). Claimed with `in-progress`.\n\n**Jail summary**\n- **Model:** `deepseek-flash` (budget $1.0, resolved via `default-tier`)\n- **Harness:** `forge`\n- **Image:** `sovereign-node/agent:local` (sha256: `?`)\n- **Skills available:** coordination,propose-change,wrap-upstream (3)\n\nDeliverable is a node-config PR + a comment here; if I'm blocked I'll say so."
+     }
+    ],
+    [
+     "GET",
+     "GET issues/42/timeline?limit=100",
+     null
+    ],
+    [
+     "POST",
+     "POST issues/42/comments",
+     {
+      "body": "Run finished — see the agent's comment above for the PR. **To request changes:** leave your feedback as a comment here, then **remove the `in-progress` label**; that re-launches a tenant which reads your feedback and revises the same PR. (A comment alone does nothing — removing the label is the 'go again' signal.) Leave `in-progress` on and the issue rests until you merge or clear it."
+     }
+    ],
+    [
+     "POST",
+     "POST issues/42/comments",
+     {
+      "body": "**Run trace:** https://traces.test.example/task-issue-work-42-20260923/trace.html\n\nwall **1m2s** · 3 requests\n\n| tool | t |\n|---|---|"
+     }
+    ]
+   ],
+   "run_task": [
+    [
+     "tasks/issue-work.md",
+     "--issue",
+     "42",
+     "--model",
+     "deepseek-flash",
+     "--budget",
+     "1.0",
+     "--trace"
+    ]
+   ],
+   "trace_render": [
+    [
+     "traces/task-issue-work-42-20260923",
+     "--wait",
+     "300"
+    ]
+   ],
+   "touched": [],
+   "audit": [
+    "{\"ts\":\"<ts>\",\"issue\":42,\"action\":\"announced\",\"run\":\"issue-42\",\"detail\":\"model=deepseek-flash harness=forge image=sovereign-node/agent:local:? skills=3\"}",
+    "{\"ts\":\"<ts>\",\"issue\":42,\"action\":\"completed\",\"run\":\"issue-42\",\"detail\":\"rc=0\"}",
+    "{\"ts\":\"<ts>\",\"issue\":42,\"action\":\"traced\",\"run\":\"issue-42\",\"detail\":\"task-issue-work-42-20260923\"}"
+   ],
+   "_stderr": []
+  },
+  "trace_render_fails": {
+   "exit": 0,
+   "stdout": [
+    "[dispatch-run] #42: no difficulty label, using default tier -> model=deepseek-flash budget=\"1.0\"",
+    "[dispatch-run] #42: operator-applied label 'trace' -> tracing this run"
+   ],
+   "calls": [
+    [
+     "GET",
+     "GET labels?limit=100",
+     null
+    ],
+    [
+     "GET",
+     "GET issues/42",
+     null
+    ],
+    [
+     "POST",
+     "POST issues/42/comments",
+     {
+      "body": "Dispatched to an ephemeral `agent-dev` tenant (operator-authorized). Claimed with `in-progress`.\n\n**Jail summary**\n- **Model:** `deepseek-flash` (budget $1.0, resolved via `default-tier`)\n- **Harness:** `forge`\n- **Image:** `sovereign-node/agent:local` (sha256: `?`)\n- **Skills available:** coordination,propose-change,wrap-upstream (3)\n\nDeliverable is a node-config PR + a comment here; if I'm blocked I'll say so."
+     }
+    ],
+    [
+     "GET",
+     "GET issues/42/timeline?limit=100",
+     null
+    ],
+    [
+     "DELETE",
+     "DELETE issues/42/labels/7",
+     null
+    ],
+    [
+     "POST",
+     "POST issues/42/comments",
+     {
+      "body": "Dispatch FAILED (exit 2) — released `in-progress` for retry (1h cooldown). Tail:\n\n```\ntrace saved to traces/r1\n```\nFix the cause, then re-assign or wait for the cooldown."
+     }
+    ],
+    [
+     "POST",
+     "POST issues/42/comments",
+     {
+      "body": "Tracing was requested (`trace` label) but no trace was rendered for this run (traces/r1). Render by hand on the host: `./scripts/trace-render.py traces/<run>`."
+     }
+    ]
+   ],
+   "run_task": [
+    [
+     "tasks/issue-work.md",
+     "--issue",
+     "42",
+     "--model",
+     "deepseek-flash",
+     "--budget",
+     "1.0",
+     "--trace"
+    ]
+   ],
+   "trace_render": [
+    [
+     "traces/r1",
+     "--wait",
+     "300"
+    ]
+   ],
+   "touched": [
+    "issue-42"
+   ],
+   "audit": [
+    "{\"ts\":\"<ts>\",\"issue\":42,\"action\":\"announced\",\"run\":\"issue-42\",\"detail\":\"model=deepseek-flash harness=forge image=sovereign-node/agent:local:? skills=3\"}",
+    "{\"ts\":\"<ts>\",\"issue\":42,\"action\":\"failed\",\"run\":\"issue-42\",\"detail\":\"rc=2\"}",
+    "{\"ts\":\"<ts>\",\"issue\":42,\"action\":\"trace_failed\",\"run\":\"issue-42\",\"detail\":\"traces/r1\"}"
+   ],
+   "_stderr": []
+  },
+  "trace_no_dir": {
+   "exit": 0,
+   "stdout": [
+    "[dispatch-run] #42: no difficulty label, using default tier -> model=deepseek-flash budget=\"1.0\"",
+    "[dispatch-run] #42: operator-applied label 'trace' -> tracing this run"
+   ],
+   "calls": [
+    [
+     "GET",
+     "GET labels?limit=100",
+     null
+    ],
+    [
+     "GET",
+     "GET issues/42",
+     null
+    ],
+    [
+     "POST",
+     "POST issues/42/comments",
+     {
+      "body": "Dispatched to an ephemeral `agent-dev` tenant (operator-authorized). Claimed with `in-progress`.\n\n**Jail summary**\n- **Model:** `deepseek-flash` (budget $1.0, resolved via `default-tier`)\n- **Harness:** `forge`\n- **Image:** `sovereign-node/agent:local` (sha256: `?`)\n- **Skills available:** coordination,propose-change,wrap-upstream (3)\n\nDeliverable is a node-config PR + a comment here; if I'm blocked I'll say so."
+     }
+    ],
+    [
+     "GET",
+     "GET issues/42/timeline?limit=100",
+     null
+    ],
+    [
+     "POST",
+     "POST issues/42/comments",
+     {
+      "body": "Run finished — see the agent's comment above for the PR. **To request changes:** leave your feedback as a comment here, then **remove the `in-progress` label**; that re-launches a tenant which reads your feedback and revises the same PR. (A comment alone does nothing — removing the label is the 'go again' signal.) Leave `in-progress` on and the issue rests until you merge or clear it."
+     }
+    ],
+    [
+     "POST",
+     "POST issues/42/comments",
+     {
+      "body": "Tracing was requested (`trace` label) but no trace was rendered for this run (run-task.sh reported no trace directory). Render by hand on the host: `./scripts/trace-render.py traces/<run>`."
+     }
+    ]
+   ],
+   "run_task": [
+    [
+     "tasks/issue-work.md",
+     "--issue",
+     "42",
+     "--model",
+     "deepseek-flash",
+     "--budget",
+     "1.0",
+     "--trace"
+    ]
+   ],
+   "trace_render": [],
+   "touched": [],
+   "audit": [
+    "{\"ts\":\"<ts>\",\"issue\":42,\"action\":\"announced\",\"run\":\"issue-42\",\"detail\":\"model=deepseek-flash harness=forge image=sovereign-node/agent:local:? skills=3\"}",
+    "{\"ts\":\"<ts>\",\"issue\":42,\"action\":\"completed\",\"run\":\"issue-42\",\"detail\":\"rc=0\"}",
+    "{\"ts\":\"<ts>\",\"issue\":42,\"action\":\"trace_failed\",\"run\":\"issue-42\",\"detail\":\"no trace directory\"}"
+   ],
+   "_stderr": []
+  },
+  "forgejo_down": {
+   "exit": 0,
+   "stdout": [
+    "[dispatch-run] #42: no difficulty label, using default tier -> model=deepseek-flash budget=\"1.0\""
+   ],
+   "calls": [
+    [
+     "GET",
+     "GET labels?limit=100",
+     null
+    ],
+    [
+     "GET",
+     "GET issues/42",
+     null
+    ],
+    [
+     "POST",
+     "POST issues/42/comments",
+     {
+      "body": "Dispatched to an ephemeral `agent-dev` tenant (operator-authorized). Claimed with `in-progress`.\n\n**Jail summary**\n- **Model:** `deepseek-flash` (budget $1.0, resolved via `default-tier`)\n- **Harness:** `forge`\n- **Image:** `sovereign-node/agent:local` (sha256: `?`)\n- **Skills available:** coordination,propose-change,wrap-upstream (3)\n\nDeliverable is a node-config PR + a comment here; if I'm blocked I'll say so."
+     }
+    ],
+    [
+     "POST",
+     "POST issues/42/comments",
+     {
+      "body": "Run finished — see the agent's comment above for the PR. **To request changes:** leave your feedback as a comment here, then **remove the `in-progress` label**; that re-launches a tenant which reads your feedback and revises the same PR. (A comment alone does nothing — removing the label is the 'go again' signal.) Leave `in-progress` on and the issue rests until you merge or clear it."
+     }
+    ]
+   ],
+   "run_task": [
+    [
+     "tasks/issue-work.md",
+     "--issue",
+     "42",
+     "--model",
+     "deepseek-flash",
+     "--budget",
+     "1.0"
+    ]
+   ],
+   "trace_render": [],
+   "touched": [],
+   "audit": [
+    "{\"ts\":\"<ts>\",\"issue\":42,\"action\":\"announced\",\"run\":\"issue-42\",\"detail\":\"model=deepseek-flash harness=forge image=sovereign-node/agent:local:? skills=3\"}",
+    "{\"ts\":\"<ts>\",\"issue\":42,\"action\":\"completed\",\"run\":\"issue-42\",\"detail\":\"rc=0\"}"
+   ],
+   "_stderr": [
+    "    obj, end = self.raw_decode(s, idx=_w(s, 0).end())",
+    "               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
+    "  File \"/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/json/decoder.py\", line 355, in raw_decode",
+    "    raise JSONDecodeError(\"Expecting value\", s, err.value) from None",
+    "json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)"
+   ]
+  },
+  "overrides": {
+   "exit": 0,
+   "stdout": [
+    "[dispatch-run] #42: operator-applied label 'difficulty:trivial' -> tier 'trivial'",
+    "[dispatch-run] #42: resolved tier 'trivial' -> model=deepseek-flash budget=\"0.5\""
+   ],
+   "calls": [
+    [
+     "GET",
+     "GET labels?limit=100",
+     null
+    ],
+    [
+     "GET",
+     "GET issues/42",
+     null
+    ],
+    [
+     "GET",
+     "GET issues/42/timeline?limit=100",
+     null
+    ],
+    [
+     "GET",
+     "GET llm:/v1/models",
+     null
+    ],
+    [
+     "POST",
+     "POST issues/42/comments",
+     {
+      "body": "Dispatched to an ephemeral `bot` tenant (operator-authorized). Claimed with `in-progress`.\n\n**Jail summary**\n- **Model:** `deepseek-flash` (budget $0.5, resolved via `difficulty-label`)\n- **Harness:** `forge`\n- **Image:** `custom/jail:2` (sha256: `ab12cd34ef56`)\n- **Skills available:** coordination,propose-change,wrap-upstream (3)\n\nDeliverable is a node-config PR + a comment here; if I'm blocked I'll say so."
+     }
+    ],
+    [
+     "POST",
+     "POST issues/42/comments",
+     {
+      "body": "Run finished — see the agent's comment above for the PR. **To request changes:** leave your feedback as a comment here, then **remove the `in-progress` label**; that re-launches a tenant which reads your feedback and revises the same PR. (A comment alone does nothing — removing the label is the 'go again' signal.) Leave `in-progress` on and the issue rests until you merge or clear it."
+     }
+    ]
+   ],
+   "run_task": [
+    [
+     "tasks/issue-work.md",
+     "--issue",
+     "42",
+     "--model",
+     "deepseek-flash",
+     "--budget",
+     "0.5"
+    ]
+   ],
+   "trace_render": [],
+   "touched": [],
+   "audit": [
+    "{\"ts\":\"<ts>\",\"issue\":42,\"action\":\"announced\",\"run\":\"issue-42\",\"detail\":\"model=deepseek-flash harness=forge image=custom/jail:2:ab12cd34ef56 skills=3\"}",
+    "{\"ts\":\"<ts>\",\"issue\":42,\"action\":\"completed\",\"run\":\"issue-42\",\"detail\":\"rc=0\"}"
+   ],
+   "_stderr": []
+  },
+  "bad_issue_number": {
+   "exit": 2,
+   "stdout": [
+    "dispatch-run: issue must be an integer"
+   ],
+   "calls": [],
+   "run_task": [],
+   "trace_render": [],
+   "touched": [],
+   "audit": [],
+   "_stderr": []
+  },
+  "missing_issue_number": {
+   "exit": 1,
+   "stdout": [],
+   "calls": [],
+   "run_task": [],
+   "trace_render": [],
+   "touched": [],
+   "audit": [],
+   "_stderr": [
+    "/var/folders/jl/5yx5dpb95bn6c7pd73hwqdkr0000gn/T/tmp6w6nyz39/repo/scripts/dispatch-run.sh: line 19: 1: usage: dispatch-run.sh <issue-number>"
+   ]
+  }
+ },
+ "pipelines": {
+  "brief_name": [
+   {
+    "title": "run: digest",
+    "name": "digest",
+    "stderr": ""
+   },
+   {
+    "title": "RUN: Digest",
+    "name": "igest",
+    "stderr": ""
+   },
+   {
+    "title": "Run:weekly-report",
+    "name": "weekly-report",
+    "stderr": ""
+   },
+   {
+    "title": "run: ../etc/passwd",
+    "name": "etcpasswd",
+    "stderr": ""
+   },
+   {
+    "title": "  run:\t spaced out  ",
+    "name": "spacedout",
+    "stderr": ""
+   },
+   {
+    "title": "run: a_b-c.d",
+    "name": "a_b-cd",
+    "stderr": ""
+   },
+   {
+    "title": "run:",
+    "name": "",
+    "stderr": ""
+   },
+   {
+    "title": "digest",
+    "name": "digest",
+    "stderr": ""
+   },
+   {
+    "title": "run: run: x",
+    "name": "runx",
+    "stderr": ""
+   },
+   {
+    "title": "rün: x",
+    "name": "rnx",
+    "stderr": ""
+   },
+   {
+    "title": "run: ümlaut_ok",
+    "name": "mlaut_ok",
+    "stderr": ""
+   },
+   {
+    "title": "run: x",
+    "name": "x",
+    "stderr": ""
+   },
+   {
+    "title": "run: ;rm -rf /",
+    "name": "rm-rf",
+    "stderr": ""
+   },
+   {
+    "title": "Run:  MIXED_case-1",
+    "name": "_case-1",
+    "stderr": ""
+   },
+   {
+    "title": "prefix run: x",
+    "name": "prefixrunx",
+    "stderr": ""
+   },
+   {
+    "title": "run: x\ttab",
+    "name": "xtab",
+    "stderr": ""
+   }
+  ],
+  "tiers": [
+   {
+    "yaml": "default: easy\ntiers:\n  easy: { model: deepseek-flash, budget_usd: 1.00 }\n  hard: { model: glm-5.2, budget_usd: 4 }\n",
+    "key": "easy",
+    "tier_json": "{\"default\": \"easy\", \"tiers\": {\"easy\": {\"model\": \"deepseek-flash\", \"budget_usd\": 1.0}, \"hard\": {\"model\": \"glm-5.2\", \"budget_usd\": 4}}}",
+    "resolve": "deepseek-flash:1.0",
+    "case": "resolved|deepseek-flash|1.0",
+    "default": "deepseek-flash:1.0",
+    "default_split": "deepseek-flash|1.0"
+   },
+   {
+    "yaml": "default: easy\ntiers:\n  easy: { model: deepseek-flash, budget_usd: 1.00 }\n  hard: { model: glm-5.2, budget_usd: 4 }\n",
+    "key": "hard",
+    "tier_json": "{\"default\": \"easy\", \"tiers\": {\"easy\": {\"model\": \"deepseek-flash\", \"budget_usd\": 1.0}, \"hard\": {\"model\": \"glm-5.2\", \"budget_usd\": 4}}}",
+    "resolve": "glm-5.2:4",
+    "case": "resolved|glm-5.2|4",
+    "default": "deepseek-flash:1.0",
+    "default_split": "deepseek-flash|1.0"
+   },
+   {
+    "yaml": "default: easy\ntiers:\n  easy: { model: deepseek-flash, budget_usd: 1.00 }\n  hard: { model: glm-5.2, budget_usd: 4 }\n",
+    "key": "missing",
+    "tier_json": "{\"default\": \"easy\", \"tiers\": {\"easy\": {\"model\": \"deepseek-flash\", \"budget_usd\": 1.0}, \"hard\": {\"model\": \"glm-5.2\", \"budget_usd\": 4}}}",
+    "resolve": "unknown:missing->default:easy",
+    "case": "unknown",
+    "default": "deepseek-flash:1.0",
+    "default_split": "deepseek-flash|1.0"
+   },
+   {
+    "yaml": "default: easy\ntiers:\n  easy: { model: deepseek-flash, budget_usd: 1.00 }\n  hard: { model: glm-5.2, budget_usd: 4 }\n",
+    "key": "1",
+    "tier_json": "{\"default\": \"easy\", \"tiers\": {\"easy\": {\"model\": \"deepseek-flash\", \"budget_usd\": 1.0}, \"hard\": {\"model\": \"glm-5.2\", \"budget_usd\": 4}}}",
+    "resolve": "unknown:1->default:easy",
+    "case": "unknown",
+    "default": "deepseek-flash:1.0",
+    "default_split": "deepseek-flash|1.0"
+   },
+   {
+    "yaml": "default: easy\ntiers:\n  easy: { model: deepseek-flash, budget_usd: 1.00 }\n  hard: { model: glm-5.2, budget_usd: 4 }\n",
+    "key": "bogus",
+    "tier_json": "{\"default\": \"easy\", \"tiers\": {\"easy\": {\"model\": \"deepseek-flash\", \"budget_usd\": 1.0}, \"hard\": {\"model\": \"glm-5.2\", \"budget_usd\": 4}}}",
+    "resolve": "unknown:bogus->default:easy",
+    "case": "unknown",
+    "default": "deepseek-flash:1.0",
+    "default_split": "deepseek-flash|1.0"
+   },
+   {
+    "yaml": "tiers:\n  easy: { model: m, budget_usd: 0.5 }\n",
+    "key": "easy",
+    "tier_json": "{\"tiers\": {\"easy\": {\"model\": \"m\", \"budget_usd\": 0.5}}}",
+    "resolve": "m:0.5",
+    "case": "resolved|m|0.5",
+    "default": "",
+    "default_split": "|"
+   },
+   {
+    "yaml": "tiers:\n  easy: { model: m, budget_usd: 0.5 }\n",
+    "key": "hard",
+    "tier_json": "{\"tiers\": {\"easy\": {\"model\": \"m\", \"budget_usd\": 0.5}}}",
+    "resolve": "unknown:hard->default:moderate",
+    "case": "unknown",
+    "default": "",
+    "default_split": "|"
+   },
+   {
+    "yaml": "tiers:\n  easy: { model: m, budget_usd: 0.5 }\n",
+    "key": "missing",
+    "tier_json": "{\"tiers\": {\"easy\": {\"model\": \"m\", \"budget_usd\": 0.5}}}",
+    "resolve": "unknown:missing->default:moderate",
+    "case": "unknown",
+    "default": "",
+    "default_split": "|"
+   },
+   {
+    "yaml": "tiers:\n  easy: { model: m, budget_usd: 0.5 }\n",
+    "key": "1",
+    "tier_json": "{\"tiers\": {\"easy\": {\"model\": \"m\", \"budget_usd\": 0.5}}}",
+    "resolve": "unknown:1->default:moderate",
+    "case": "unknown",
+    "default": "",
+    "default_split": "|"
+   },
+   {
+    "yaml": "tiers:\n  easy: { model: m, budget_usd: 0.5 }\n",
+    "key": "bogus",
+    "tier_json": "{\"tiers\": {\"easy\": {\"model\": \"m\", \"budget_usd\": 0.5}}}",
+    "resolve": "unknown:bogus->default:moderate",
+    "case": "unknown",
+    "default": "",
+    "default_split": "|"
+   },
+   {
+    "yaml": "default: missing\ntiers:\n  easy: { model: m, budget_usd: 0.5 }\n",
+    "key": "easy",
+    "tier_json": "{\"default\": \"missing\", \"tiers\": {\"easy\": {\"model\": \"m\", \"budget_usd\": 0.5}}}",
+    "resolve": "m:0.5",
+    "case": "resolved|m|0.5",
+    "default": "",
+    "default_split": "|"
+   },
+   {
+    "yaml": "default: missing\ntiers:\n  easy: { model: m, budget_usd: 0.5 }\n",
+    "key": "hard",
+    "tier_json": "{\"default\": \"missing\", \"tiers\": {\"easy\": {\"model\": \"m\", \"budget_usd\": 0.5}}}",
+    "resolve": "unknown:hard->default:missing",
+    "case": "unknown",
+    "default": "",
+    "default_split": "|"
+   },
+   {
+    "yaml": "default: missing\ntiers:\n  easy: { model: m, budget_usd: 0.5 }\n",
+    "key": "missing",
+    "tier_json": "{\"default\": \"missing\", \"tiers\": {\"easy\": {\"model\": \"m\", \"budget_usd\": 0.5}}}",
+    "resolve": "unknown:missing->default:missing",
+    "case": "unknown",
+    "default": "",
+    "default_split": "|"
+   },
+   {
+    "yaml": "default: missing\ntiers:\n  easy: { model: m, budget_usd: 0.5 }\n",
+    "key": "1",
+    "tier_json": "{\"default\": \"missing\", \"tiers\": {\"easy\": {\"model\": \"m\", \"budget_usd\": 0.5}}}",
+    "resolve": "unknown:1->default:missing",
+    "case": "unknown",
+    "default": "",
+    "default_split": "|"
+   },
+   {
+    "yaml": "default: missing\ntiers:\n  easy: { model: m, budget_usd: 0.5 }\n",
+    "key": "bogus",
+    "tier_json": "{\"default\": \"missing\", \"tiers\": {\"easy\": {\"model\": \"m\", \"budget_usd\": 0.5}}}",
+    "resolve": "unknown:bogus->default:missing",
+    "case": "unknown",
+    "default": "",
+    "default_split": "|"
+   },
+   {
+    "yaml": "default: easy\ntiers:\n  easy: { model: 'vendor/x:free', budget_usd: 1.0 }\n",
+    "key": "easy",
+    "tier_json": "{\"default\": \"easy\", \"tiers\": {\"easy\": {\"model\": \"vendor/x:free\", \"budget_usd\": 1.0}}}",
+    "resolve": "vendor/x:free:1.0",
+    "case": "resolved|vendor/x|free:1.0",
+    "default": "vendor/x:free:1.0",
+    "default_split": "vendor/x|free:1.0"
+   },
+   {
+    "yaml": "default: easy\ntiers:\n  easy: { model: 'vendor/x:free', budget_usd: 1.0 }\n",
+    "key": "hard",
+    "tier_json": "{\"default\": \"easy\", \"tiers\": {\"easy\": {\"model\": \"vendor/x:free\", \"budget_usd\": 1.0}}}",
+    "resolve": "unknown:hard->default:easy",
+    "case": "unknown",
+    "default": "vendor/x:free:1.0",
+    "default_split": "vendor/x|free:1.0"
+   },
+   {
+    "yaml": "default: easy\ntiers:\n  easy: { model: 'vendor/x:free', budget_usd: 1.0 }\n",
+    "key": "missing",
+    "tier_json": "{\"default\": \"easy\", \"tiers\": {\"easy\": {\"model\": \"vendor/x:free\", \"budget_usd\": 1.0}}}",
+    "resolve": "unknown:missing->default:easy",
+    "case": "unknown",
+    "default": "vendor/x:free:1.0",
+    "default_split": "vendor/x|free:1.0"
+   },
+   {
+    "yaml": "default: easy\ntiers:\n  easy: { model: 'vendor/x:free', budget_usd: 1.0 }\n",
+    "key": "1",
+    "tier_json": "{\"default\": \"easy\", \"tiers\": {\"easy\": {\"model\": \"vendor/x:free\", \"budget_usd\": 1.0}}}",
+    "resolve": "unknown:1->default:easy",
+    "case": "unknown",
+    "default": "vendor/x:free:1.0",
+    "default_split": "vendor/x|free:1.0"
+   },
+   {
+    "yaml": "default: easy\ntiers:\n  easy: { model: 'vendor/x:free', budget_usd: 1.0 }\n",
+    "key": "bogus",
+    "tier_json": "{\"default\": \"easy\", \"tiers\": {\"easy\": {\"model\": \"vendor/x:free\", \"budget_usd\": 1.0}}}",
+    "resolve": "unknown:bogus->default:easy",
+    "case": "unknown",
+    "default": "vendor/x:free:1.0",
+    "default_split": "vendor/x|free:1.0"
+   },
+   {
+    "yaml": "default: easy\ntiers:\n  easy: { budget_usd: 1.0 }\n",
+    "key": "easy",
+    "tier_json": "{\"default\": \"easy\", \"tiers\": {\"easy\": {\"budget_usd\": 1.0}}}",
+    "resolve": "",
+    "case": "none",
+    "default": ":1.0",
+    "default_split": "|1.0"
+   },
+   {
+    "yaml": "default: easy\ntiers:\n  easy: { budget_usd: 1.0 }\n",
+    "key": "hard",
+    "tier_json": "{\"default\": \"easy\", \"tiers\": {\"easy\": {\"budget_usd\": 1.0}}}",
+    "resolve": "unknown:hard->default:easy",
+    "case": "unknown",
+    "default": ":1.0",
+    "default_split": "|1.0"
+   },
+   {
+    "yaml": "default: easy\ntiers:\n  easy: { budget_usd: 1.0 }\n",
+    "key": "missing",
+    "tier_json": "{\"default\": \"easy\", \"tiers\": {\"easy\": {\"budget_usd\": 1.0}}}",
+    "resolve": "unknown:missing->default:easy",
+    "case": "unknown",
+    "default": ":1.0",
+    "default_split": "|1.0"
+   },
+   {
+    "yaml": "default: easy\ntiers:\n  easy: { budget_usd: 1.0 }\n",
+    "key": "1",
+    "tier_json": "{\"default\": \"easy\", \"tiers\": {\"easy\": {\"budget_usd\": 1.0}}}",
+    "resolve": "unknown:1->default:easy",
+    "case": "unknown",
+    "default": ":1.0",
+    "default_split": "|1.0"
+   },
+   {
+    "yaml": "default: easy\ntiers:\n  easy: { budget_usd: 1.0 }\n",
+    "key": "bogus",
+    "tier_json": "{\"default\": \"easy\", \"tiers\": {\"easy\": {\"budget_usd\": 1.0}}}",
+    "resolve": "unknown:bogus->default:easy",
+    "case": "unknown",
+    "default": ":1.0",
+    "default_split": "|1.0"
+   },
+   {
+    "yaml": "default: easy\ntiers:\n  easy: { model: m }\n",
+    "key": "easy",
+    "tier_json": "{\"default\": \"easy\", \"tiers\": {\"easy\": {\"model\": \"m\"}}}",
+    "resolve": "",
+    "case": "none",
+    "default": "m:0.5",
+    "default_split": "m|0.5"
+   },
+   {
+    "yaml": "default: easy\ntiers:\n  easy: { model: m }\n",
+    "key": "hard",
+    "tier_json": "{\"default\": \"easy\", \"tiers\": {\"easy\": {\"model\": \"m\"}}}",
+    "resolve": "unknown:hard->default:easy",
+    "case": "unknown",
+    "default": "m:0.5",
+    "default_split": "m|0.5"
+   },
+   {
+    "yaml": "default: easy\ntiers:\n  easy: { model: m }\n",
+    "key": "missing",
+    "tier_json": "{\"default\": \"easy\", \"tiers\": {\"easy\": {\"model\": \"m\"}}}",
+    "resolve": "unknown:missing->default:easy",
+    "case": "unknown",
+    "default": "m:0.5",
+    "default_split": "m|0.5"
+   },
+   {
+    "yaml": "default: easy\ntiers:\n  easy: { model: m }\n",
+    "key": "1",
+    "tier_json": "{\"default\": \"easy\", \"tiers\": {\"easy\": {\"model\": \"m\"}}}",
+    "resolve": "unknown:1->default:easy",
+    "case": "unknown",
+    "default": "m:0.5",
+    "default_split": "m|0.5"
+   },
+   {
+    "yaml": "default: easy\ntiers:\n  easy: { model: m }\n",
+    "key": "bogus",
+    "tier_json": "{\"default\": \"easy\", \"tiers\": {\"easy\": {\"model\": \"m\"}}}",
+    "resolve": "unknown:bogus->default:easy",
+    "case": "unknown",
+    "default": "m:0.5",
+    "default_split": "m|0.5"
+   },
+   {
+    "yaml": "default: 1\ntiers:\n  1: { model: one, budget_usd: 1 }\n",
+    "key": "easy",
+    "tier_json": "{\"default\": 1, \"tiers\": {\"1\": {\"model\": \"one\", \"budget_usd\": 1}}}",
+    "resolve": "",
+    "case": "none",
+    "default": "",
+    "default_split": "|"
+   },
+   {
+    "yaml": "default: 1\ntiers:\n  1: { model: one, budget_usd: 1 }\n",
+    "key": "hard",
+    "tier_json": "{\"default\": 1, \"tiers\": {\"1\": {\"model\": \"one\", \"budget_usd\": 1}}}",
+    "resolve": "",
+    "case": "none",
+    "default": "",
+    "default_split": "|"
+   },
+   {
+    "yaml": "default: 1\ntiers:\n  1: { model: one, budget_usd: 1 }\n",
+    "key": "missing",
+    "tier_json": "{\"default\": 1, \"tiers\": {\"1\": {\"model\": \"one\", \"budget_usd\": 1}}}",
+    "resolve": "",
+    "case": "none",
+    "default": "",
+    "default_split": "|"
+   },
+   {
+    "yaml": "default: 1\ntiers:\n  1: { model: one, budget_usd: 1 }\n",
+    "key": "1",
+    "tier_json": "{\"default\": 1, \"tiers\": {\"1\": {\"model\": \"one\", \"budget_usd\": 1}}}",
+    "resolve": "one:1",
+    "case": "resolved|one|1",
+    "default": "",
+    "default_split": "|"
+   },
+   {
+    "yaml": "default: 1\ntiers:\n  1: { model: one, budget_usd: 1 }\n",
+    "key": "bogus",
+    "tier_json": "{\"default\": 1, \"tiers\": {\"1\": {\"model\": \"one\", \"budget_usd\": 1}}}",
+    "resolve": "",
+    "case": "none",
+    "default": "",
+    "default_split": "|"
+   },
+   {
+    "yaml": "",
+    "key": "easy",
+    "tier_json": "null",
+    "resolve": "",
+    "case": "none",
+    "default": "",
+    "default_split": "|"
+   },
+   {
+    "yaml": "",
+    "key": "hard",
+    "tier_json": "null",
+    "resolve": "",
+    "case": "none",
+    "default": "",
+    "default_split": "|"
+   },
+   {
+    "yaml": "",
+    "key": "missing",
+    "tier_json": "null",
+    "resolve": "",
+    "case": "none",
+    "default": "",
+    "default_split": "|"
+   },
+   {
+    "yaml": "",
+    "key": "1",
+    "tier_json": "null",
+    "resolve": "",
+    "case": "none",
+    "default": "",
+    "default_split": "|"
+   },
+   {
+    "yaml": "",
+    "key": "bogus",
+    "tier_json": "null",
+    "resolve": "",
+    "case": "none",
+    "default": "",
+    "default_split": "|"
+   },
+   {
+    "yaml": "default: [x\n",
+    "key": "easy",
+    "tier_json": "{\"error\": \"while parsing a flow sequence\\n  in \\\"config/dispatch-tiers.yaml\\\", line 1, column 10\\nexpected ',' or ']', but got '<stream end>'\\n  in \\\"config/dispatch-tiers.yaml\\\", line 2, column 1\"}",
+    "resolve": "error:while parsing a flow sequence\n  in \"config/dispatch-tiers.yaml\", line 1, column 10\nexpected ',' or ']', but got '<stream end>'\n  in \"config/dispatch-tiers.yaml\", line 2, column 1",
+    "case": "error",
+    "default": "",
+    "default_split": "|"
+   },
+   {
+    "yaml": "default: [x\n",
+    "key": "hard",
+    "tier_json": "{\"error\": \"while parsing a flow sequence\\n  in \\\"config/dispatch-tiers.yaml\\\", line 1, column 10\\nexpected ',' or ']', but got '<stream end>'\\n  in \\\"config/dispatch-tiers.yaml\\\", line 2, column 1\"}",
+    "resolve": "error:while parsing a flow sequence\n  in \"config/dispatch-tiers.yaml\", line 1, column 10\nexpected ',' or ']', but got '<stream end>'\n  in \"config/dispatch-tiers.yaml\", line 2, column 1",
+    "case": "error",
+    "default": "",
+    "default_split": "|"
+   },
+   {
+    "yaml": "default: [x\n",
+    "key": "missing",
+    "tier_json": "{\"error\": \"while parsing a flow sequence\\n  in \\\"config/dispatch-tiers.yaml\\\", line 1, column 10\\nexpected ',' or ']', but got '<stream end>'\\n  in \\\"config/dispatch-tiers.yaml\\\", line 2, column 1\"}",
+    "resolve": "error:while parsing a flow sequence\n  in \"config/dispatch-tiers.yaml\", line 1, column 10\nexpected ',' or ']', but got '<stream end>'\n  in \"config/dispatch-tiers.yaml\", line 2, column 1",
+    "case": "error",
+    "default": "",
+    "default_split": "|"
+   },
+   {
+    "yaml": "default: [x\n",
+    "key": "1",
+    "tier_json": "{\"error\": \"while parsing a flow sequence\\n  in \\\"config/dispatch-tiers.yaml\\\", line 1, column 10\\nexpected ',' or ']', but got '<stream end>'\\n  in \\\"config/dispatch-tiers.yaml\\\", line 2, column 1\"}",
+    "resolve": "error:while parsing a flow sequence\n  in \"config/dispatch-tiers.yaml\", line 1, column 10\nexpected ',' or ']', but got '<stream end>'\n  in \"config/dispatch-tiers.yaml\", line 2, column 1",
+    "case": "error",
+    "default": "",
+    "default_split": "|"
+   },
+   {
+    "yaml": "default: [x\n",
+    "key": "bogus",
+    "tier_json": "{\"error\": \"while parsing a flow sequence\\n  in \\\"config/dispatch-tiers.yaml\\\", line 1, column 10\\nexpected ',' or ']', but got '<stream end>'\\n  in \\\"config/dispatch-tiers.yaml\\\", line 2, column 1\"}",
+    "resolve": "error:while parsing a flow sequence\n  in \"config/dispatch-tiers.yaml\", line 1, column 10\nexpected ',' or ']', but got '<stream end>'\n  in \"config/dispatch-tiers.yaml\", line 2, column 1",
+    "case": "error",
+    "default": "",
+    "default_split": "|"
+   },
+   {
+    "yaml": "tiers: []\n",
+    "key": "easy",
+    "tier_json": "{\"tiers\": []}",
+    "resolve": "unknown:easy->default:moderate",
+    "case": "unknown",
+    "default": "",
+    "default_split": "|"
+   },
+   {
+    "yaml": "tiers: []\n",
+    "key": "hard",
+    "tier_json": "{\"tiers\": []}",
+    "resolve": "unknown:hard->default:moderate",
+    "case": "unknown",
+    "default": "",
+    "default_split": "|"
+   },
+   {
+    "yaml": "tiers: []\n",
+    "key": "missing",
+    "tier_json": "{\"tiers\": []}",
+    "resolve": "unknown:missing->default:moderate",
+    "case": "unknown",
+    "default": "",
+    "default_split": "|"
+   },
+   {
+    "yaml": "tiers: []\n",
+    "key": "1",
+    "tier_json": "{\"tiers\": []}",
+    "resolve": "unknown:1->default:moderate",
+    "case": "unknown",
+    "default": "",
+    "default_split": "|"
+   },
+   {
+    "yaml": "tiers: []\n",
+    "key": "bogus",
+    "tier_json": "{\"tiers\": []}",
+    "resolve": "unknown:bogus->default:moderate",
+    "case": "unknown",
+    "default": "",
+    "default_split": "|"
+   },
+   {
+    "yaml": null,
+    "key": "easy",
+    "tier_json": "{\"error\": \"[Errno 2] No such file or directory: 'config/dispatch-tiers.yaml'\"}",
+    "resolve": "error:[Errno 2] No such file or directory: 'config/dispatch-tiers.yaml'",
+    "case": "error",
+    "default": "",
+    "default_split": "|"
+   },
+   {
+    "yaml": null,
+    "key": "hard",
+    "tier_json": "{\"error\": \"[Errno 2] No such file or directory: 'config/dispatch-tiers.yaml'\"}",
+    "resolve": "error:[Errno 2] No such file or directory: 'config/dispatch-tiers.yaml'",
+    "case": "error",
+    "default": "",
+    "default_split": "|"
+   },
+   {
+    "yaml": null,
+    "key": "missing",
+    "tier_json": "{\"error\": \"[Errno 2] No such file or directory: 'config/dispatch-tiers.yaml'\"}",
+    "resolve": "error:[Errno 2] No such file or directory: 'config/dispatch-tiers.yaml'",
+    "case": "error",
+    "default": "",
+    "default_split": "|"
+   },
+   {
+    "yaml": null,
+    "key": "1",
+    "tier_json": "{\"error\": \"[Errno 2] No such file or directory: 'config/dispatch-tiers.yaml'\"}",
+    "resolve": "error:[Errno 2] No such file or directory: 'config/dispatch-tiers.yaml'",
+    "case": "error",
+    "default": "",
+    "default_split": "|"
+   },
+   {
+    "yaml": null,
+    "key": "bogus",
+    "tier_json": "{\"error\": \"[Errno 2] No such file or directory: 'config/dispatch-tiers.yaml'\"}",
+    "resolve": "error:[Errno 2] No such file or directory: 'config/dispatch-tiers.yaml'",
+    "case": "error",
+    "default": "",
+    "default_split": "|"
+   }
+  ],
+  "llm_check": [
+   {
+    "body": "",
+    "target": "glm-5.2",
+    "out": "error:Expecting value: line 1 column 1 (char 0)"
+   },
+   {
+    "body": "",
+    "target": "",
+    "out": "error:Expecting value: line 1 column 1 (char 0)"
+   },
+   {
+    "body": "{bad",
+    "target": "glm-5.2",
+    "out": "error:Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"
+   },
+   {
+    "body": "{bad",
+    "target": "",
+    "out": "error:Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"
+   },
+   {
+    "body": "[]",
+    "target": "glm-5.2",
+    "out": "error:'list' object has no attribute 'get'"
+   },
+   {
+    "body": "[]",
+    "target": "",
+    "out": "error:'list' object has no attribute 'get'"
+   },
+   {
+    "body": "{\"data\": []}",
+    "target": "glm-5.2",
+    "out": "not_found"
+   },
+   {
+    "body": "{\"data\": []}",
+    "target": "",
+    "out": "not_found"
+   },
+   {
+    "body": "{\"data\": [{\"id\": \"glm-5.2\"}]}",
+    "target": "glm-5.2",
+    "out": "live"
+   },
+   {
+    "body": "{\"data\": [{\"id\": \"glm-5.2\"}]}",
+    "target": "",
+    "out": "not_found"
+   },
+   {
+    "body": "{\"data\": [{\"id\": \"openrouter/glm-5.2\"}]}",
+    "target": "glm-5.2",
+    "out": "live"
+   },
+   {
+    "body": "{\"data\": [{\"id\": \"openrouter/glm-5.2\"}]}",
+    "target": "",
+    "out": "not_found"
+   },
+   {
+    "body": "{\"data\": [{\"id\": \"xglm-5.2\"}]}",
+    "target": "glm-5.2",
+    "out": "not_found"
+   },
+   {
+    "body": "{\"data\": [{\"id\": \"xglm-5.2\"}]}",
+    "target": "",
+    "out": "not_found"
+   },
+   {
+    "body": "{\"data\": [{}]}",
+    "target": "glm-5.2",
+    "out": "not_found"
+   },
+   {
+    "body": "{\"data\": [{}]}",
+    "target": "",
+    "out": "live"
+   },
+   {
+    "body": "{\"error\": {\"message\": \"401\"}}",
+    "target": "glm-5.2",
+    "out": "not_found"
+   },
+   {
+    "body": "{\"error\": {\"message\": \"401\"}}",
+    "target": "",
+    "out": "not_found"
+   },
+   {
+    "body": "{\"data\": \"str\"}",
+    "target": "glm-5.2",
+    "out": "error:'str' object has no attribute 'get'"
+   },
+   {
+    "body": "{\"data\": \"str\"}",
+    "target": "",
+    "out": "error:'str' object has no attribute 'get'"
+   },
+   {
+    "body": "{\"data\": [{\"id\": null}]}",
+    "target": "glm-5.2",
+    "out": "error:'NoneType' object has no attribute 'endswith'"
+   },
+   {
+    "body": "{\"data\": [{\"id\": null}]}",
+    "target": "",
+    "out": "error:'NoneType' object has no attribute 'endswith'"
+   }
+  ],
+  "issue_number": [
+   {
+    "in": "42",
+    "valid": true
+   },
+   {
+    "in": "0",
+    "valid": true
+   },
+   {
+    "in": "007",
+    "valid": true
+   },
+   {
+    "in": "4x2",
+    "valid": false
+   },
+   {
+    "in": "",
+    "valid": false
+   },
+   {
+    "in": " 1",
+    "valid": false
+   },
+   {
+    "in": "1 ",
+    "valid": false
+   },
+   {
+    "in": "-1",
+    "valid": false
+   },
+   {
+    "in": "1\n2",
+    "valid": false
+   },
+   {
+    "in": "１",
+    "valid": false
+   },
+   {
+    "in": "12345678901234567890",
+    "valid": true
+   }
+  ],
+  "trace_dir": [
+   {
+    "in": "",
+    "out": ""
+   },
+   {
+    "in": "trace saved to traces/r1\n",
+    "out": "traces/r1"
+   },
+   {
+    "in": "a trace saved to traces/x trace saved to traces/y\n",
+    "out": "traces/y"
+   },
+   {
+    "in": "trace saved to traces/a\nzzz\ntrace saved to traces/b-c.d_e (ok)\n",
+    "out": "traces/b-c.d_e"
+   },
+   {
+    "in": "trace saved to traces/\n",
+    "out": "traces/"
+   },
+   {
+    "in": "trace saved to traces/../etc\n",
+    "out": "traces/.."
+   },
+   {
+    "in": "trace saved to /abs/traces/q\n",
+    "out": ""
+   }
+  ]
+ }
+}
