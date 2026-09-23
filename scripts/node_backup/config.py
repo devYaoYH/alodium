@@ -2,9 +2,9 @@
 config — where the repository is, and where the passphrase comes from.
 
 The decisions here (which env file wins, local path vs backend URL, which
-passphrase source takes precedence) are pure functions over a dict; the two
-effects they need — running the password command, reading a file — are
-injected, so the tests never touch the Keychain.
+passphrase source takes precedence) are pure functions over a dict; the
+effects they need — running the password command, reading a file, asking the
+platform keyring — are injected, so the tests never touch the Keychain.
 """
 
 import os
@@ -98,39 +98,64 @@ def classify_repository(value: str, home: str) -> Repository:
         f"backend URL")
 
 
-def resolve_passphrase(env: dict, run_command=None, read_file=None, home="") -> str:
+# How to put a passphrase where the default source looks for it. Every
+# "no passphrase" error ends with this, whichever source came up empty.
+SET_HINT = "store one with: ./scripts/backup.sh passphrase set"
+
+# The explicit overrides, in precedence order. They are restic's own variable
+# names, so a backup.env written for plain restic means the same thing here.
+EXPLICIT_SOURCES = ("RESTIC_PASSWORD_COMMAND", "RESTIC_PASSWORD_FILE", "RESTIC_PASSWORD")
+KEYRING_SOURCE = "keyring"
+
+
+def passphrase_source(env: dict) -> str:
+    """Which source resolve_passphrase will use: the first explicit override
+    backup.env sets, else the platform keyring (the default)."""
+    for name in EXPLICIT_SOURCES:
+        if env.get(name):
+            return name
+    return KEYRING_SOURCE
+
+
+def resolve_passphrase(env: dict, run_command=None, read_file=None, home="",
+                       keyring_get=None, account=None) -> str:
     """The passphrase, resolved ON THE HOST, in documented precedence order.
 
-    RESTIC_PASSWORD_COMMAND wins because the preferred source is the macOS
-    Keychain, and `security` exists here, not in the restic image. The result
-    is handed to the container as a mounted file, so it never reaches argv and
-    never reaches the container's environment where `docker inspect` would
-    print it.
-    """
-    command = env.get("RESTIC_PASSWORD_COMMAND", "")
-    passfile = env.get("RESTIC_PASSWORD_FILE", "")
-    literal = env.get("RESTIC_PASSWORD", "")
+    The default is the platform keyring: the macOS Keychain, Windows
+    Credential Manager, or the Linux Secret Service, all through `keyring`.
+    backup.env can override it with restic's own variables, in the order
+    command > file > literal. An override is a deliberate choice, so it wins,
+    and an existing Keychain setup that uses RESTIC_PASSWORD_COMMAND keeps
+    working without any Python package.
 
-    if command:
+    Whatever the source, the result goes to the container as a mounted file.
+    It never reaches argv, and never reaches the container's environment where
+    `docker inspect` would print it.
+    """
+    source = passphrase_source(env)
+    if source == "RESTIC_PASSWORD_COMMAND":
+        command = env[source]
         value = (run_command or _default_run_command)(command)
-        source = f"passphrase lookup failed: {command}"
-    elif passfile:
+        failure = f"passphrase lookup failed: {command}"
+    elif source == "RESTIC_PASSWORD_FILE":
+        passfile = env[source]
         expanded = passfile.replace("~", home, 1) if passfile.startswith("~/") else passfile
         value = (read_file or _default_read_file)(expanded)
-        source = f"passphrase file is empty or unreadable: {passfile}"
-    elif literal:
-        value = literal
-        source = "RESTIC_PASSWORD is set but empty"
+        failure = f"passphrase file is empty or unreadable: {passfile}"
+    elif source == "RESTIC_PASSWORD":
+        value = env[source]
+        failure = "RESTIC_PASSWORD is set but empty"
     else:
-        raise BackupError(
-            "backup.env supplies no passphrase — set RESTIC_PASSWORD_COMMAND "
-            "(preferred), RESTIC_PASSWORD_FILE, or RESTIC_PASSWORD")
+        from . import keyring_store
+        account = account or keyring_store.default_account()
+        value = (keyring_get or keyring_store.get)(keyring_store.SERVICE, account)
+        failure = (f"backup.env supplies no passphrase override, and the platform "
+                   f"keyring has no entry for service '{keyring_store.SERVICE}', "
+                   f"account '{account}'")
 
     value = (value or "").strip("\n")
     if not value:
-        raise BackupError(
-            f"{source}. For the Keychain path, create the item first: "
-            f'security add-generic-password -a "$USER" -s alodium-restic -w')
+        raise BackupError(f"{failure}. To use the platform keyring, {SET_HINT}")
     return value
 
 

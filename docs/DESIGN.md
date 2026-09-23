@@ -309,10 +309,13 @@ quietly snapshotted nothing at all. Running where the data is makes the backup
 path identical on macOS, Windows/WSL2 and Linux — which is the same property
 the restore path needs. Host-side state lives in `~/.alodium` (mode 700):
 `backups/restic` for the repository, `cache/restic` for restic's cache, and
-`backup.env` (mode 600) naming the repository and how to fetch the passphrase.
-The passphrase itself is resolved on the host — the macOS Keychain via
-`--password-command` — and never enters a tracked file, argv, or a container's
-environment.
+`backup.env` (mode 600) naming the repository and, optionally, a passphrase
+override. The passphrase itself is resolved on the host, by default from the
+platform keyring (macOS Keychain, Windows Credential Manager, or Linux Secret
+Service, through Python's `keyring`, which is the host side's one pinned
+dependency). It never enters a tracked file, argv, or a container's
+environment. restic's own `RESTIC_PASSWORD_COMMAND`/`_FILE` remain explicit
+overrides for a host without a keyring.
 
 Because the Docker daemon here is stopped deliberately to reclaim RAM, a
 partially-up node is a normal state and the backup has three outcomes, not two.

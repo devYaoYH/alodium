@@ -9,7 +9,11 @@ plain dicts, so `test_plan.py` and `test_policy.py` check them in milliseconds
 with no Docker daemon and no fault injection.
 
 `runner` is the only module that shells out. `config` resolves where the
-repository and the passphrase come from.
+repository and the passphrase come from. `keyring_store` is the only module
+that touches the platform secret store.
 
-Stdlib only — the node's python3 is what runs this, with no pip.
+Stdlib only, with one exception: `keyring_store` imports the `keyring` package
+(pinned in scripts/requirements-host.txt), lazily and only when the platform
+keyring is the chosen passphrase source. Nothing else may import a
+third-party package, and the tests never do.
 """

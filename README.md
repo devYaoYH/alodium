@@ -99,9 +99,18 @@ and mirrors, and `search.<domain>` for the Ring 0 agent-search audit. See
 
        mkdir -p ~/.alodium && chmod 700 ~/.alodium
        cp scripts/backup.env.example ~/.alodium/backup.env
-       chmod 600 ~/.alodium/backup.env      # then edit: repo path + passphrase
+       chmod 600 ~/.alodium/backup.env      # then edit: repo path
+       python3 -m venv ~/.alodium/venv      # host-side Python deps (keyring)
+       ~/.alodium/venv/bin/pip install -r scripts/requirements-host.txt
+       ./scripts/backup.sh passphrase set --generate   # write it on paper
        ./scripts/backup.sh init             # creates the repository, once
        ./scripts/backup.sh                  # a snapshot; scheduling comes next
+
+   The passphrase lives in the platform keyring: the macOS Keychain, Windows
+   Credential Manager, or the Linux Secret Service, never a tracked file.
+   `backup.sh passphrase check` shows which source resolves it without
+   printing it. A host with no keyring (headless Linux) sets
+   `RESTIC_PASSWORD_FILE` in `backup.env` instead; see the comments there.
 
    restic runs in a pinned container with every volume mounted read-only —
    no host `restic`, and nothing that can write to your data. Every database
@@ -166,7 +175,7 @@ never sees:
 | `.env`                    | your domain, email, every secret and minted key |
 | `manifest/node.yaml`      | your placement manifest (copied from the example) |
 | `caddy/local/*.caddy`     | your extra routes/snippets, auto-imported by the Caddyfile |
-| `~/.alodium/backup.env`   | restic repo + how to fetch the passphrase (mode 600) |
+| `~/.alodium/backup.env`   | restic repo, plus an optional passphrase override (mode 600) |
 
 Tracked config files reference the local layer only through `${VARS}` and
 the `import local/*.caddy` glob — if you find yourself typing your domain
@@ -176,7 +185,7 @@ or an IP range into a tracked file, stop: it goes in `.env`
 ## Non-negotiables
 
 - `.env` and `~/.alodium/backup.env` never enter git; the restic passphrase
-  lives in the Keychain and on paper, never in a tracked file.
+  lives in the platform keyring and on paper, never in a tracked file.
 - The box accepts no inbound connections except through Caddy (and Forgejo SSH if
   you enable it deliberately).
 - Agents get LiteLLM *virtual* keys — never provider keys — and no deploy path.

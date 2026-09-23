@@ -14,7 +14,8 @@ Covers:
     plus exactly one prune, and NOTHING when the run is degraded
   - the complete pool's selector can never match a partial snapshot
   - every production data mount is :ro, at /data/<volume>, dumps included
-  - passphrase precedence: command > file > literal, and empty is an error
+  - passphrase precedence: command > file > literal (> keyring, see
+    test_keyring.py), and empty is an error
   - repository classification: local path vs backend URL vs nonsense
   - the local-layer preflight message
 
@@ -154,15 +155,21 @@ def raises(fn, needle):
     return False
 
 
+# With no override the keyring is the source, so "no source at all" now means
+# no override AND an empty keyring. Injected, so no real store is asked.
 check("passphrase: no source at all is an error",
-      raises(lambda: config.resolve_passphrase({}), "supplies no passphrase"))
+      raises(lambda: config.resolve_passphrase({}, keyring_get=lambda s, a: None,
+                                               account="u"),
+             "supplies no passphrase"))
 check("passphrase: a command that returns nothing is an error, not an empty key",
       raises(lambda: config.resolve_passphrase({"RESTIC_PASSWORD_COMMAND": "c"},
                                                run_command=lambda c: ""), "lookup failed"))
-check("passphrase: the empty-result message points at the Keychain recipe",
+# The recipe for storing a passphrase is now `backup.sh passphrase set` on
+# every platform, not the macOS-only `security add-generic-password`.
+check("passphrase: the empty-result message points at the recipe for storing one",
       raises(lambda: config.resolve_passphrase({"RESTIC_PASSWORD_COMMAND": "c"},
                                                run_command=lambda c: "\n"),
-             "add-generic-password"))
+             "backup.sh passphrase set"))
 check("passphrase: trailing newline is stripped, inner content is not",
       config.resolve_passphrase({"RESTIC_PASSWORD": "a b\n"}) == "a b")
 
