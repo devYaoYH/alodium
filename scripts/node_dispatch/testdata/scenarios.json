@@ -1,0 +1,2100 @@
+{
+ "_comment": "Scenario INPUTS for node_dispatch/test_equivalence.py. Each one was executed against the bash scripts/task-dispatcher.sh and scripts/dispatch-run.sh at source_commit (see bash_baseline.json) with a fake Forgejo, docker, run-task and trace-render; the bash's observable behavior is recorded there. Routes are 'METHOD path' relative to /api/v1/repos/<COORDINATION_REPO>/, or 'GET llm:/v1/models'. A route value is a JSON body (status 200), {status, body}, or \"down\" (no response). Unrouted GETs answer 404; unrouted writes answer 201 {}. \"down\": true takes the whole of git.<domain> down.",
+ "briefs": {
+  "digest": "---\ntask: digest\nmodel: glm-5.2   # the good one\nbudget_usd: 1.25\nharness: forge\ndispatch: auto\n---\nDo the digest.\n",
+  "manual": "---\ntask: manual\nmodel: m1\n---\nThis body says\ndispatch: auto\nbut only frontmatter counts.\n",
+  "bodyonly": "No frontmatter here.\ndispatch: auto\n",
+  "bare": "---\ndispatch: auto   # yes\n---\nbody\n",
+  "dup": "---\ndispatch: auto\ndispatch: auto\n---\n",
+  "issue-work": "---\ntask: issue-work\nmodel: deepseek-flash\nharness: forge   # h\nbudget_usd: 2.00\ndispatch: auto\n---\nwork the issue\n"
+ },
+ "dispatcher": {
+  "empty_disabled": {
+   "routes": {
+    "GET issues?state=open&labels=task-request&type=issues": [],
+    "GET labels": [
+     {
+      "id": 9,
+      "name": "blocked"
+     }
+    ]
+   },
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "skills": [
+    "coordination",
+    "propose-change",
+    "wrap-upstream"
+   ]
+  },
+  "requests_mix": {
+   "routes": {
+    "GET issues?state=open&labels=task-request&type=issues": [
+     {
+      "number": 1,
+      "title": "run: nosuch",
+      "assignees": [],
+      "labels": []
+     },
+     {
+      "number": 2,
+      "title": "run: manual",
+      "assignees": [],
+      "labels": []
+     },
+     {
+      "number": 3,
+      "title": "run: ../Digest!",
+      "assignees": [],
+      "labels": []
+     },
+     {
+      "number": 4,
+      "title": "RUN:   digest  ",
+      "assignees": [],
+      "labels": []
+     },
+     {
+      "number": 5,
+      "title": "run: dup",
+      "assignees": [],
+      "labels": []
+     },
+     {
+      "number": 6,
+      "title": "digest",
+      "assignees": [],
+      "labels": []
+     },
+     {
+      "number": 7,
+      "title": "run: bodyonly",
+      "assignees": [],
+      "labels": []
+     },
+     {
+      "number": 8,
+      "title": "run:",
+      "assignees": [],
+      "labels": []
+     },
+     {
+      "number": 9,
+      "title": "  run:\tbare",
+      "assignees": [],
+      "labels": []
+     }
+    ],
+    "GET labels": [
+     {
+      "id": 9,
+      "name": "blocked"
+     },
+     {
+      "id": 7,
+      "name": "in-progress"
+     },
+     {
+      "id": 3,
+      "name": "task-request"
+     }
+    ],
+    "GET issues?state=open&type=issues&limit=50": []
+   },
+   "run_task": {
+    "rc": 0,
+    "output": "run line 1\nrun line 2\nrun line 3\nrun line 4\nrun line 5\nrun line 6\nrun line 7\nrun line 8\nrun line 9\nrun line 10\nrun line 11\nrun line 12\nrun line 13\nrun line 14\nrun line 15\nrun line 16\nrun line 17\nrun line 18\nrun line 19\nrun line 20\n"
+   },
+   "image_id": "sha256:ab12cd34ef560000000000000000000000000000000000000000000000000000",
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk",
+    "AGENT_FAST_MODEL": "flash-x"
+   },
+   "skills": [
+    "coordination",
+    "propose-change",
+    "wrap-upstream"
+   ]
+  },
+  "request_cooldown": {
+   "routes": {
+    "GET issues?state=open&labels=task-request&type=issues": [
+     {
+      "number": 4,
+      "title": "run: digest",
+      "assignees": [],
+      "labels": []
+     },
+     {
+      "number": 9,
+      "title": "run: bare",
+      "assignees": [],
+      "labels": []
+     }
+    ],
+    "GET labels": [
+     {
+      "id": 9,
+      "name": "blocked"
+     },
+     {
+      "id": 7,
+      "name": "in-progress"
+     },
+     {
+      "id": 3,
+      "name": "task-request"
+     }
+    ],
+    "GET issues?state=open&type=issues&limit=50": []
+   },
+   "stamps": {
+    "digest": 100,
+    "bare": 4000
+   },
+   "run_task": {
+    "rc": 3,
+    "output": "boom\n\n"
+   },
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk",
+    "AGENT_FAST_MODEL": "flash-x",
+    "AGENT_IMAGE": "custom/jail:1"
+   },
+   "skills": [
+    "coordination",
+    "propose-change",
+    "wrap-upstream"
+   ]
+  },
+  "request_defaults": {
+   "routes": {
+    "GET issues?state=open&labels=task-request&type=issues": [
+     {
+      "number": 9,
+      "title": "run: bare",
+      "assignees": [],
+      "labels": []
+     }
+    ],
+    "GET labels": [
+     {
+      "id": 9,
+      "name": "blocked"
+     },
+     {
+      "id": 7,
+      "name": "in-progress"
+     },
+     {
+      "id": 3,
+      "name": "task-request"
+     }
+    ],
+    "GET issues?state=open&type=issues&limit=50": []
+   },
+   "run_task": {
+    "rc": 0,
+    "output": ""
+   },
+   "skills": [],
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   }
+  },
+  "dry_run": {
+   "argv": [
+    "--dry-run"
+   ],
+   "routes": {
+    "GET issues?state=open&labels=task-request&type=issues": [
+     {
+      "number": 4,
+      "title": "run: digest",
+      "assignees": [],
+      "labels": []
+     },
+     {
+      "number": 2,
+      "title": "run: manual",
+      "assignees": [],
+      "labels": []
+     }
+    ],
+    "GET labels": [
+     {
+      "id": 9,
+      "name": "blocked"
+     },
+     {
+      "id": 7,
+      "name": "in-progress"
+     },
+     {
+      "id": 3,
+      "name": "task-request"
+     }
+    ],
+    "GET issues?state=open&type=issues&limit=50": [
+     {
+      "number": 10,
+      "title": "t",
+      "assignees": [
+       {
+        "login": "agent-dev"
+       }
+      ],
+      "labels": []
+     },
+     {
+      "number": 11,
+      "title": "t",
+      "assignees": [
+       {
+        "login": "agent-dev"
+       }
+      ],
+      "labels": []
+     }
+    ],
+    "GET issues/10/timeline?limit=100": [
+     {
+      "type": "assignees",
+      "user": {
+       "login": "operator"
+      },
+      "assignee": {
+       "login": "agent-dev"
+      },
+      "removed": false,
+      "created_at": "2026-09-01T00:00:00Z"
+     }
+    ],
+    "GET issues/11/timeline?limit=100": [
+     {
+      "type": "assignees",
+      "user": {
+       "login": "agent-dev"
+      },
+      "assignee": {
+       "login": "agent-dev"
+      },
+      "removed": false,
+      "created_at": "2026-09-01T00:00:00Z"
+     }
+    ]
+   },
+   "spool": [
+    "a.nudge",
+    "b.nudge",
+    "keep.txt"
+   ],
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "skills": [
+    "coordination",
+    "propose-change",
+    "wrap-upstream"
+   ]
+  },
+  "assigned_gates": {
+   "routes": {
+    "GET issues?state=open&labels=task-request&type=issues": [],
+    "GET labels": [
+     {
+      "id": 9,
+      "name": "blocked"
+     },
+     {
+      "id": 7,
+      "name": "in-progress"
+     },
+     {
+      "id": 3,
+      "name": "task-request"
+     }
+    ],
+    "GET issues?state=open&type=issues&limit=50": [
+     {
+      "number": 20,
+      "title": "t",
+      "assignees": [
+       {
+        "login": "agent-dev"
+       }
+      ],
+      "labels": []
+     },
+     {
+      "number": 21,
+      "title": "t",
+      "assignees": [
+       {
+        "login": "agent-dev"
+       }
+      ],
+      "labels": [
+       {
+        "name": "in-progress"
+       }
+      ]
+     },
+     {
+      "number": 22,
+      "title": "t",
+      "assignees": [
+       {
+        "login": "someone"
+       }
+      ],
+      "labels": []
+     },
+     {
+      "number": 23,
+      "title": "t",
+      "assignees": [
+       {
+        "login": "agent-dev"
+       },
+       {
+        "login": "someone"
+       }
+      ],
+      "labels": []
+     },
+     {
+      "number": 24,
+      "title": "t",
+      "assignees": [
+       {
+        "login": "agent-dev"
+       }
+      ],
+      "labels": []
+     },
+     {
+      "number": 25,
+      "title": "t",
+      "assignees": [
+       {
+        "login": "agent-dev"
+       }
+      ],
+      "labels": []
+     },
+     {
+      "number": 26,
+      "title": "t",
+      "assignees": [
+       {
+        "login": "agent-dev"
+       }
+      ],
+      "labels": []
+     },
+     {
+      "number": 27,
+      "title": "t",
+      "assignees": [
+       {
+        "login": "agent-dev"
+       }
+      ],
+      "labels": []
+     }
+    ],
+    "GET issues/20/timeline?limit=100": [
+     {
+      "type": "label",
+      "user": {
+       "login": "operator"
+      },
+      "label": {
+       "name": "bug"
+      },
+      "body": "1",
+      "created_at": "2026-09-01T00:00:00Z"
+     },
+     {
+      "type": "assignees",
+      "user": {
+       "login": "operator"
+      },
+      "assignee": {
+       "login": "agent-dev"
+      },
+      "removed": false,
+      "created_at": "2026-09-01T00:00:00Z"
+     }
+    ],
+    "GET issues/23/timeline?limit=100": [
+     {
+      "type": "assignees",
+      "user": {
+       "login": "operator"
+      },
+      "assignee": {
+       "login": "agent-dev"
+      },
+      "removed": false,
+      "created_at": "2026-09-01T00:00:00Z"
+     },
+     {
+      "type": "assignees",
+      "user": {
+       "login": "agent-dev"
+      },
+      "assignee": {
+       "login": "agent-dev"
+      },
+      "removed": false,
+      "created_at": "2026-09-02T00:00:00Z"
+     }
+    ],
+    "GET issues/24/timeline?limit=100": [
+     {
+      "type": "assignees",
+      "user": {
+       "login": "operator"
+      },
+      "assignee": {
+       "login": "agent-dev"
+      },
+      "removed": false,
+      "created_at": "2026-09-01T00:00:00Z"
+     },
+     {
+      "type": "assignees",
+      "user": {
+       "login": "agent-dev"
+      },
+      "assignee": {
+       "login": "agent-dev"
+      },
+      "removed": true,
+      "created_at": "2026-09-02T00:00:00Z"
+     }
+    ],
+    "GET issues/25/timeline?limit=100": [
+     {
+      "type": "assignees",
+      "user": {
+       "login": "operator"
+      },
+      "assignee": {
+       "login": "agent-dev"
+      },
+      "removed": false,
+      "created_at": "2026-09-01T00:00:00Z"
+     }
+    ],
+    "GET issues/26/timeline?limit=100": [
+     {
+      "type": "assignees",
+      "user": {
+       "login": "operator"
+      },
+      "assignee": {
+       "login": "agent-dev"
+      },
+      "removed": false,
+      "created_at": "2026-09-03T00:00:00Z"
+     },
+     {
+      "type": "assignees",
+      "user": {
+       "login": "agent-dev"
+      },
+      "assignee": {
+       "login": "agent-dev"
+      },
+      "removed": false,
+      "created_at": "2026-09-02T00:00:00Z"
+     },
+     {
+      "type": "assignees",
+      "user": {
+       "login": "operator"
+      },
+      "assignee": {
+       "login": "someone"
+      },
+      "removed": false,
+      "created_at": "2026-09-04T00:00:00Z"
+     }
+    ],
+    "GET issues/27/timeline?limit=100": []
+   },
+   "stamps": {
+    "issue-25": 10
+   },
+   "ps": 3,
+   "spool": [
+    "x.nudge",
+    ".hidden.nudge",
+    "keep.txt"
+   ],
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "skills": [
+    "coordination",
+    "propose-change",
+    "wrap-upstream"
+   ]
+  },
+  "host_cap": {
+   "routes": {
+    "GET issues?state=open&labels=task-request&type=issues": [],
+    "GET labels": [
+     {
+      "id": 9,
+      "name": "blocked"
+     },
+     {
+      "id": 7,
+      "name": "in-progress"
+     },
+     {
+      "id": 3,
+      "name": "task-request"
+     }
+    ],
+    "GET issues?state=open&type=issues&limit=50": [
+     {
+      "number": 30,
+      "title": "t",
+      "assignees": [
+       {
+        "login": "agent-dev"
+       }
+      ],
+      "labels": []
+     }
+    ],
+    "GET issues/30/timeline?limit=100": [
+     {
+      "type": "assignees",
+      "user": {
+       "login": "operator"
+      },
+      "assignee": {
+       "login": "agent-dev"
+      },
+      "removed": false,
+      "created_at": "2026-09-01T00:00:00Z"
+     }
+    ]
+   },
+   "ps": 4,
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "skills": [
+    "coordination",
+    "propose-change",
+    "wrap-upstream"
+   ]
+  },
+  "unlimited": {
+   "routes": {
+    "GET issues?state=open&labels=task-request&type=issues": [],
+    "GET labels": [
+     {
+      "id": 9,
+      "name": "blocked"
+     },
+     {
+      "id": 7,
+      "name": "in-progress"
+     },
+     {
+      "id": 3,
+      "name": "task-request"
+     }
+    ],
+    "GET issues?state=open&type=issues&limit=50": [
+     {
+      "number": 31,
+      "title": "t",
+      "assignees": [
+       {
+        "login": "agent-dev"
+       }
+      ],
+      "labels": []
+     }
+    ],
+    "GET issues/31/timeline?limit=100": [
+     {
+      "type": "assignees",
+      "user": {
+       "login": "operator"
+      },
+      "assignee": {
+       "login": "agent-dev"
+      },
+      "removed": false,
+      "created_at": "2026-09-01T00:00:00Z"
+     }
+    ]
+   },
+   "ps": 9,
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk",
+    "DISPATCH_MAX_CONCURRENCY": "0"
+   },
+   "skills": [
+    "coordination",
+    "propose-change",
+    "wrap-upstream"
+   ]
+  },
+  "operator_override": {
+   "routes": {
+    "GET issues?state=open&labels=task-request&type=issues": [],
+    "GET labels": [
+     {
+      "id": 9,
+      "name": "blocked"
+     },
+     {
+      "id": 7,
+      "name": "in-progress"
+     },
+     {
+      "id": 3,
+      "name": "task-request"
+     }
+    ],
+    "GET issues?state=open&type=issues&limit=50": [
+     {
+      "number": 32,
+      "title": "t",
+      "assignees": [
+       {
+        "login": "bot"
+       }
+      ],
+      "labels": []
+     },
+     {
+      "number": 33,
+      "title": "t",
+      "assignees": [
+       {
+        "login": "bot"
+       }
+      ],
+      "labels": []
+     },
+     {
+      "number": 34,
+      "title": "t",
+      "assignees": [
+       {
+        "login": "agent-dev"
+       }
+      ],
+      "labels": []
+     }
+    ],
+    "GET issues/32/timeline?limit=100": [
+     {
+      "type": "assignees",
+      "user": {
+       "login": "operator"
+      },
+      "assignee": {
+       "login": "bot"
+      },
+      "removed": false,
+      "created_at": "2026-09-01T00:00:00Z"
+     }
+    ],
+    "GET issues/33/timeline?limit=100": [
+     {
+      "type": "assignees",
+      "user": {
+       "login": "alice"
+      },
+      "assignee": {
+       "login": "bot"
+      },
+      "removed": false,
+      "created_at": "2026-09-01T00:00:00Z"
+     }
+    ]
+   },
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "bot",
+    "LITELLM_MASTER_KEY": "mk",
+    "OPERATOR_LOGIN": "alice"
+   },
+   "skills": [
+    "coordination",
+    "propose-change",
+    "wrap-upstream"
+   ]
+  },
+  "spawn_fails": {
+   "routes": {
+    "GET issues?state=open&labels=task-request&type=issues": [],
+    "GET labels": [
+     {
+      "id": 9,
+      "name": "blocked"
+     },
+     {
+      "id": 7,
+      "name": "in-progress"
+     },
+     {
+      "id": 3,
+      "name": "task-request"
+     }
+    ],
+    "GET issues?state=open&type=issues&limit=50": [
+     {
+      "number": 35,
+      "title": "t",
+      "assignees": [
+       {
+        "login": "agent-dev"
+       }
+      ],
+      "labels": []
+     }
+    ],
+    "GET issues/35/timeline?limit=100": [
+     {
+      "type": "assignees",
+      "user": {
+       "login": "operator"
+      },
+      "assignee": {
+       "login": "agent-dev"
+      },
+      "removed": false,
+      "created_at": "2026-09-01T00:00:00Z"
+     }
+    ]
+   },
+   "spawn_fails": true,
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "skills": [
+    "coordination",
+    "propose-change",
+    "wrap-upstream"
+   ]
+  },
+  "forgejo_down": {
+   "down": true,
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "skills": [
+    "coordination",
+    "propose-change",
+    "wrap-upstream"
+   ]
+  },
+  "comment_post_down": {
+   "routes": {
+    "GET issues?state=open&labels=task-request&type=issues": [
+     {
+      "number": 1,
+      "title": "run: nosuch",
+      "assignees": [],
+      "labels": []
+     },
+     {
+      "number": 4,
+      "title": "run: digest",
+      "assignees": [],
+      "labels": []
+     }
+    ],
+    "GET labels": [
+     {
+      "id": 9,
+      "name": "blocked"
+     },
+     {
+      "id": 7,
+      "name": "in-progress"
+     },
+     {
+      "id": 3,
+      "name": "task-request"
+     }
+    ],
+    "GET issues?state=open&type=issues&limit=50": [],
+    "POST issues/1/comments": "down"
+   },
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "skills": [
+    "coordination",
+    "propose-change",
+    "wrap-upstream"
+   ]
+  },
+  "claim_post_down": {
+   "routes": {
+    "GET issues?state=open&labels=task-request&type=issues": [],
+    "GET labels": [
+     {
+      "id": 9,
+      "name": "blocked"
+     },
+     {
+      "id": 7,
+      "name": "in-progress"
+     },
+     {
+      "id": 3,
+      "name": "task-request"
+     }
+    ],
+    "GET issues?state=open&type=issues&limit=50": [
+     {
+      "number": 36,
+      "title": "t",
+      "assignees": [
+       {
+        "login": "agent-dev"
+       }
+      ],
+      "labels": []
+     }
+    ],
+    "GET issues/36/timeline?limit=100": [
+     {
+      "type": "assignees",
+      "user": {
+       "login": "operator"
+      },
+      "assignee": {
+       "login": "agent-dev"
+      },
+      "removed": false,
+      "created_at": "2026-09-01T00:00:00Z"
+     }
+    ],
+    "POST issues/36/labels": "down"
+   },
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "skills": [
+    "coordination",
+    "propose-change",
+    "wrap-upstream"
+   ]
+  },
+  "labels_unreadable": {
+   "routes": {
+    "GET issues?state=open&labels=task-request&type=issues": [
+     {
+      "number": 1,
+      "title": "run: nosuch",
+      "assignees": [],
+      "labels": []
+     }
+    ],
+    "GET labels": {
+     "status": 404,
+     "body": {
+      "message": "not found"
+     }
+    }
+   },
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "skills": [
+    "coordination",
+    "propose-change",
+    "wrap-upstream"
+   ]
+  },
+  "timeline_unreadable": {
+   "routes": {
+    "GET issues?state=open&labels=task-request&type=issues": [],
+    "GET labels": [
+     {
+      "id": 9,
+      "name": "blocked"
+     },
+     {
+      "id": 7,
+      "name": "in-progress"
+     },
+     {
+      "id": 3,
+      "name": "task-request"
+     }
+    ],
+    "GET issues?state=open&type=issues&limit=50": [
+     {
+      "number": 37,
+      "title": "t",
+      "assignees": [
+       {
+        "login": "agent-dev"
+       }
+      ],
+      "labels": []
+     }
+    ],
+    "GET issues/37/timeline?limit=100": {
+     "status": 500,
+     "body": "oops"
+    }
+   },
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "skills": [
+    "coordination",
+    "propose-change",
+    "wrap-upstream"
+   ]
+  },
+  "lock_held": {
+   "lock_age": 60,
+   "routes": {
+    "GET issues?state=open&labels=task-request&type=issues": [],
+    "GET labels": [
+     {
+      "id": 9,
+      "name": "blocked"
+     },
+     {
+      "id": 7,
+      "name": "in-progress"
+     },
+     {
+      "id": 3,
+      "name": "task-request"
+     }
+    ],
+    "GET issues?state=open&type=issues&limit=50": []
+   },
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "skills": [
+    "coordination",
+    "propose-change",
+    "wrap-upstream"
+   ]
+  },
+  "lock_stale": {
+   "lock_age": 4000,
+   "routes": {
+    "GET issues?state=open&labels=task-request&type=issues": [],
+    "GET labels": [
+     {
+      "id": 9,
+      "name": "blocked"
+     },
+     {
+      "id": 7,
+      "name": "in-progress"
+     },
+     {
+      "id": 3,
+      "name": "task-request"
+     }
+    ],
+    "GET issues?state=open&type=issues&limit=50": []
+   },
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "skills": [
+    "coordination",
+    "propose-change",
+    "wrap-upstream"
+   ]
+  }
+ },
+ "dispatch_run": {
+  "default_tier": {
+   "routes": {
+    "GET labels?limit=100": [
+     {
+      "id": 9,
+      "name": "blocked"
+     },
+     {
+      "id": 7,
+      "name": "in-progress"
+     },
+     {
+      "id": 3,
+      "name": "task-request"
+     }
+    ],
+    "GET issues/42": {
+     "labels": []
+    },
+    "GET issues/42/timeline?limit=100": []
+   },
+   "run_task": {
+    "rc": 0,
+    "output": "ok\n"
+   },
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "skills": [
+    "coordination",
+    "propose-change",
+    "wrap-upstream"
+   ],
+   "argv": [
+    "42"
+   ],
+   "tiers": "default: easy\ntiers:\n  trivial:  { model: deepseek-flash, budget_usd: 0.50 }\n  easy:     { model: deepseek-flash, budget_usd: 1.00 }\n  moderate: { model: minimax-m3,     budget_usd: 2.00 }\n  hard:     { model: glm-5.2,        budget_usd: 4.00 }\n"
+  },
+  "hard_live": {
+   "routes": {
+    "GET labels?limit=100": [
+     {
+      "id": 9,
+      "name": "blocked"
+     },
+     {
+      "id": 7,
+      "name": "in-progress"
+     },
+     {
+      "id": 3,
+      "name": "task-request"
+     }
+    ],
+    "GET issues/42": {
+     "labels": [
+      {
+       "name": "difficulty:hard"
+      },
+      {
+       "name": "trace"
+      }
+     ]
+    },
+    "GET issues/42/timeline?limit=100": [
+     {
+      "type": "label",
+      "user": {
+       "login": "operator"
+      },
+      "label": {
+       "name": "difficulty:hard"
+      },
+      "body": "1",
+      "created_at": "2026-09-01T00:00:00Z"
+     },
+     {
+      "type": "label",
+      "user": {
+       "login": "agent-dev"
+      },
+      "label": {
+       "name": "trace"
+      },
+      "body": "1",
+      "created_at": "2026-09-01T00:00:00Z"
+     }
+    ],
+    "GET llm:/v1/models": {
+     "data": [
+      {
+       "id": "deepseek-flash"
+      },
+      {
+       "id": "openrouter/glm-5.2"
+      },
+      {
+       "id": "qwen"
+      }
+     ]
+    }
+   },
+   "run_task": {
+    "rc": 0,
+    "output": "done\n"
+   },
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "skills": [
+    "coordination",
+    "propose-change",
+    "wrap-upstream"
+   ],
+   "argv": [
+    "42"
+   ],
+   "tiers": "default: easy\ntiers:\n  trivial:  { model: deepseek-flash, budget_usd: 0.50 }\n  easy:     { model: deepseek-flash, budget_usd: 1.00 }\n  moderate: { model: minimax-m3,     budget_usd: 2.00 }\n  hard:     { model: glm-5.2,        budget_usd: 4.00 }\n"
+  },
+  "hard_by_agent": {
+   "routes": {
+    "GET labels?limit=100": [
+     {
+      "id": 9,
+      "name": "blocked"
+     },
+     {
+      "id": 7,
+      "name": "in-progress"
+     },
+     {
+      "id": 3,
+      "name": "task-request"
+     }
+    ],
+    "GET issues/42": {
+     "labels": [
+      {
+       "name": "difficulty:hard"
+      }
+     ]
+    },
+    "GET issues/42/timeline?limit=100": [
+     {
+      "type": "label",
+      "user": {
+       "login": "agent-dev"
+      },
+      "label": {
+       "name": "difficulty:hard"
+      },
+      "body": "1",
+      "created_at": "2026-09-01T00:00:00Z"
+     }
+    ]
+   },
+   "run_task": {
+    "rc": 0,
+    "output": ""
+   },
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "skills": [
+    "coordination",
+    "propose-change",
+    "wrap-upstream"
+   ],
+   "argv": [
+    "42"
+   ],
+   "tiers": "default: easy\ntiers:\n  trivial:  { model: deepseek-flash, budget_usd: 0.50 }\n  easy:     { model: deepseek-flash, budget_usd: 1.00 }\n  moderate: { model: minimax-m3,     budget_usd: 2.00 }\n  hard:     { model: glm-5.2,        budget_usd: 4.00 }\n"
+  },
+  "relabelled_by_agent": {
+   "routes": {
+    "GET labels?limit=100": [
+     {
+      "id": 9,
+      "name": "blocked"
+     },
+     {
+      "id": 7,
+      "name": "in-progress"
+     },
+     {
+      "id": 3,
+      "name": "task-request"
+     }
+    ],
+    "GET issues/42": {
+     "labels": [
+      {
+       "name": "difficulty:hard"
+      }
+     ]
+    },
+    "GET issues/42/timeline?limit=100": [
+     {
+      "type": "label",
+      "user": {
+       "login": "operator"
+      },
+      "label": {
+       "name": "difficulty:hard"
+      },
+      "body": "1",
+      "created_at": "2026-09-01T00:00:00Z"
+     },
+     {
+      "type": "label",
+      "user": {
+       "login": "operator"
+      },
+      "label": {
+       "name": "difficulty:hard"
+      },
+      "body": "",
+      "created_at": "2026-09-01T00:00:00Z"
+     },
+     {
+      "type": "label",
+      "user": {
+       "login": "agent-dev"
+      },
+      "label": {
+       "name": "difficulty:hard"
+      },
+      "body": "1",
+      "created_at": "2026-09-01T00:00:00Z"
+     }
+    ]
+   },
+   "run_task": {
+    "rc": 0,
+    "output": ""
+   },
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "skills": [
+    "coordination",
+    "propose-change",
+    "wrap-upstream"
+   ],
+   "argv": [
+    "42"
+   ],
+   "tiers": "default: easy\ntiers:\n  trivial:  { model: deepseek-flash, budget_usd: 0.50 }\n  easy:     { model: deepseek-flash, budget_usd: 1.00 }\n  moderate: { model: minimax-m3,     budget_usd: 2.00 }\n  hard:     { model: glm-5.2,        budget_usd: 4.00 }\n"
+  },
+  "unknown_tier": {
+   "routes": {
+    "GET labels?limit=100": [
+     {
+      "id": 9,
+      "name": "blocked"
+     },
+     {
+      "id": 7,
+      "name": "in-progress"
+     },
+     {
+      "id": 3,
+      "name": "task-request"
+     }
+    ],
+    "GET issues/42": {
+     "labels": [
+      {
+       "name": "difficulty:bogus"
+      }
+     ]
+    },
+    "GET issues/42/timeline?limit=100": [
+     {
+      "type": "label",
+      "user": {
+       "login": "operator"
+      },
+      "label": {
+       "name": "difficulty:bogus"
+      },
+      "body": "1",
+      "created_at": "2026-09-01T00:00:00Z"
+     }
+    ]
+   },
+   "run_task": {
+    "rc": 0,
+    "output": ""
+   },
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "skills": [
+    "coordination",
+    "propose-change",
+    "wrap-upstream"
+   ],
+   "argv": [
+    "42"
+   ],
+   "tiers": "default: easy\ntiers:\n  trivial:  { model: deepseek-flash, budget_usd: 0.50 }\n  easy:     { model: deepseek-flash, budget_usd: 1.00 }\n  moderate: { model: minimax-m3,     budget_usd: 2.00 }\n  hard:     { model: glm-5.2,        budget_usd: 4.00 }\n"
+  },
+  "model_not_served": {
+   "routes": {
+    "GET labels?limit=100": [
+     {
+      "id": 9,
+      "name": "blocked"
+     },
+     {
+      "id": 7,
+      "name": "in-progress"
+     },
+     {
+      "id": 3,
+      "name": "task-request"
+     }
+    ],
+    "GET issues/42": {
+     "labels": [
+      {
+       "name": "difficulty:moderate"
+      }
+     ]
+    },
+    "GET issues/42/timeline?limit=100": [
+     {
+      "type": "label",
+      "user": {
+       "login": "operator"
+      },
+      "label": {
+       "name": "difficulty:moderate"
+      },
+      "body": "1",
+      "created_at": "2026-09-01T00:00:00Z"
+     }
+    ],
+    "GET llm:/v1/models": {
+     "data": [
+      {
+       "id": "deepseek-flash"
+      },
+      {
+       "id": "openrouter/glm-5.2"
+      },
+      {
+       "id": "qwen"
+      }
+     ]
+    }
+   },
+   "run_task": {
+    "rc": 0,
+    "output": ""
+   },
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "skills": [
+    "coordination",
+    "propose-change",
+    "wrap-upstream"
+   ],
+   "argv": [
+    "42"
+   ],
+   "tiers": "default: easy\ntiers:\n  trivial:  { model: deepseek-flash, budget_usd: 0.50 }\n  easy:     { model: deepseek-flash, budget_usd: 1.00 }\n  moderate: { model: minimax-m3,     budget_usd: 2.00 }\n  hard:     { model: glm-5.2,        budget_usd: 4.00 }\n"
+  },
+  "litellm_down": {
+   "routes": {
+    "GET labels?limit=100": [
+     {
+      "id": 9,
+      "name": "blocked"
+     },
+     {
+      "id": 7,
+      "name": "in-progress"
+     },
+     {
+      "id": 3,
+      "name": "task-request"
+     }
+    ],
+    "GET issues/42": {
+     "labels": [
+      {
+       "name": "difficulty:hard"
+      }
+     ]
+    },
+    "GET issues/42/timeline?limit=100": [
+     {
+      "type": "label",
+      "user": {
+       "login": "operator"
+      },
+      "label": {
+       "name": "difficulty:hard"
+      },
+      "body": "1",
+      "created_at": "2026-09-01T00:00:00Z"
+     }
+    ],
+    "GET llm:/v1/models": "down"
+   },
+   "run_task": {
+    "rc": 0,
+    "output": ""
+   },
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "skills": [
+    "coordination",
+    "propose-change",
+    "wrap-upstream"
+   ],
+   "argv": [
+    "42"
+   ],
+   "tiers": "default: easy\ntiers:\n  trivial:  { model: deepseek-flash, budget_usd: 0.50 }\n  easy:     { model: deepseek-flash, budget_usd: 1.00 }\n  moderate: { model: minimax-m3,     budget_usd: 2.00 }\n  hard:     { model: glm-5.2,        budget_usd: 4.00 }\n"
+  },
+  "litellm_401": {
+   "routes": {
+    "GET labels?limit=100": [
+     {
+      "id": 9,
+      "name": "blocked"
+     },
+     {
+      "id": 7,
+      "name": "in-progress"
+     },
+     {
+      "id": 3,
+      "name": "task-request"
+     }
+    ],
+    "GET issues/42": {
+     "labels": [
+      {
+       "name": "difficulty:hard"
+      }
+     ]
+    },
+    "GET issues/42/timeline?limit=100": [
+     {
+      "type": "label",
+      "user": {
+       "login": "operator"
+      },
+      "label": {
+       "name": "difficulty:hard"
+      },
+      "body": "1",
+      "created_at": "2026-09-01T00:00:00Z"
+     }
+    ],
+    "GET llm:/v1/models": {
+     "status": 401,
+     "body": {
+      "error": {
+       "message": "bad key"
+      }
+     }
+    }
+   },
+   "run_task": {
+    "rc": 0,
+    "output": ""
+   },
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "skills": [
+    "coordination",
+    "propose-change",
+    "wrap-upstream"
+   ],
+   "argv": [
+    "42"
+   ],
+   "tiers": "default: easy\ntiers:\n  trivial:  { model: deepseek-flash, budget_usd: 0.50 }\n  easy:     { model: deepseek-flash, budget_usd: 1.00 }\n  moderate: { model: minimax-m3,     budget_usd: 2.00 }\n  hard:     { model: glm-5.2,        budget_usd: 4.00 }\n"
+  },
+  "no_tier_table": {
+   "tiers": null,
+   "routes": {
+    "GET labels?limit=100": [
+     {
+      "id": 9,
+      "name": "blocked"
+     },
+     {
+      "id": 7,
+      "name": "in-progress"
+     },
+     {
+      "id": 3,
+      "name": "task-request"
+     }
+    ],
+    "GET issues/42": {
+     "labels": [
+      {
+       "name": "difficulty:hard"
+      }
+     ]
+    },
+    "GET issues/42/timeline?limit=100": [
+     {
+      "type": "label",
+      "user": {
+       "login": "operator"
+      },
+      "label": {
+       "name": "difficulty:hard"
+      },
+      "body": "1",
+      "created_at": "2026-09-01T00:00:00Z"
+     }
+    ]
+   },
+   "run_task": {
+    "rc": 0,
+    "output": ""
+   },
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "skills": [
+    "coordination",
+    "propose-change",
+    "wrap-upstream"
+   ],
+   "argv": [
+    "42"
+   ]
+  },
+  "run_fails": {
+   "routes": {
+    "GET labels?limit=100": [
+     {
+      "id": 9,
+      "name": "blocked"
+     },
+     {
+      "id": 7,
+      "name": "in-progress"
+     },
+     {
+      "id": 3,
+      "name": "task-request"
+     }
+    ],
+    "GET issues/42": {
+     "labels": []
+    },
+    "GET issues/42/timeline?limit=100": []
+   },
+   "run_task": {
+    "rc": 3,
+    "output": "\u001b[32mstarting\u001b[0m tenant\r\nProcessing request...\n\n   \nREASONING about it\nstep 1\nstep 2\nstep 3\nstep 4\nstep 5\nstep 6\nstep 7\nstep 8\nstep 9\nstep 10\nstep 11\nstep 12\nstep 13\nstep 14\nstep 15\nPress Ctrl+C to stop\nerror: \u001b[1mexploded\u001b[0m\r\n\n"
+   },
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "skills": [
+    "coordination",
+    "propose-change",
+    "wrap-upstream"
+   ],
+   "argv": [
+    "42"
+   ],
+   "tiers": "default: easy\ntiers:\n  trivial:  { model: deepseek-flash, budget_usd: 0.50 }\n  easy:     { model: deepseek-flash, budget_usd: 1.00 }\n  moderate: { model: minimax-m3,     budget_usd: 2.00 }\n  hard:     { model: glm-5.2,        budget_usd: 4.00 }\n"
+  },
+  "run_fails_no_label": {
+   "routes": {
+    "GET labels?limit=100": [
+     {
+      "id": 9,
+      "name": "blocked"
+     }
+    ],
+    "GET issues/42": {
+     "labels": []
+    },
+    "GET issues/42/timeline?limit=100": []
+   },
+   "run_task": {
+    "rc": 1,
+    "output": "nope"
+   },
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "skills": [
+    "coordination",
+    "propose-change",
+    "wrap-upstream"
+   ],
+   "argv": [
+    "42"
+   ],
+   "tiers": "default: easy\ntiers:\n  trivial:  { model: deepseek-flash, budget_usd: 0.50 }\n  easy:     { model: deepseek-flash, budget_usd: 1.00 }\n  moderate: { model: minimax-m3,     budget_usd: 2.00 }\n  hard:     { model: glm-5.2,        budget_usd: 4.00 }\n"
+  },
+  "trace_ok": {
+   "routes": {
+    "GET labels?limit=100": [
+     {
+      "id": 9,
+      "name": "blocked"
+     },
+     {
+      "id": 7,
+      "name": "in-progress"
+     },
+     {
+      "id": 3,
+      "name": "task-request"
+     }
+    ],
+    "GET issues/42": {
+     "labels": [
+      {
+       "name": "trace"
+      }
+     ]
+    },
+    "GET issues/42/timeline?limit=100": [
+     {
+      "type": "label",
+      "user": {
+       "login": "operator"
+      },
+      "label": {
+       "name": "trace"
+      },
+      "body": "1",
+      "created_at": "2026-09-01T00:00:00Z"
+     }
+    ]
+   },
+   "run_task": {
+    "rc": 0,
+    "output": "x\nwrote: trace saved to traces/old-run\n[run-task] trace saved to traces/task-issue-work-42-20260923 (open it)\ny\n"
+   },
+   "files": {
+    "traces/task-issue-work-42-20260923/summary.md": "wall **1m2s** · 3 requests\n\n| tool | t |\n|---|---|\n\n"
+   },
+   "trace_render_rc": 0,
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "skills": [
+    "coordination",
+    "propose-change",
+    "wrap-upstream"
+   ],
+   "argv": [
+    "42"
+   ],
+   "tiers": "default: easy\ntiers:\n  trivial:  { model: deepseek-flash, budget_usd: 0.50 }\n  easy:     { model: deepseek-flash, budget_usd: 1.00 }\n  moderate: { model: minimax-m3,     budget_usd: 2.00 }\n  hard:     { model: glm-5.2,        budget_usd: 4.00 }\n"
+  },
+  "trace_render_fails": {
+   "routes": {
+    "GET labels?limit=100": [
+     {
+      "id": 9,
+      "name": "blocked"
+     },
+     {
+      "id": 7,
+      "name": "in-progress"
+     },
+     {
+      "id": 3,
+      "name": "task-request"
+     }
+    ],
+    "GET issues/42": {
+     "labels": [
+      {
+       "name": "trace"
+      }
+     ]
+    },
+    "GET issues/42/timeline?limit=100": [
+     {
+      "type": "label",
+      "user": {
+       "login": "operator"
+      },
+      "label": {
+       "name": "trace"
+      },
+      "body": "1",
+      "created_at": "2026-09-01T00:00:00Z"
+     }
+    ]
+   },
+   "run_task": {
+    "rc": 2,
+    "output": "trace saved to traces/r1\n"
+   },
+   "files": {
+    "traces/r1/summary.md": "s\n"
+   },
+   "trace_render_rc": 1,
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "skills": [
+    "coordination",
+    "propose-change",
+    "wrap-upstream"
+   ],
+   "argv": [
+    "42"
+   ],
+   "tiers": "default: easy\ntiers:\n  trivial:  { model: deepseek-flash, budget_usd: 0.50 }\n  easy:     { model: deepseek-flash, budget_usd: 1.00 }\n  moderate: { model: minimax-m3,     budget_usd: 2.00 }\n  hard:     { model: glm-5.2,        budget_usd: 4.00 }\n"
+  },
+  "trace_no_dir": {
+   "routes": {
+    "GET labels?limit=100": [
+     {
+      "id": 9,
+      "name": "blocked"
+     },
+     {
+      "id": 7,
+      "name": "in-progress"
+     },
+     {
+      "id": 3,
+      "name": "task-request"
+     }
+    ],
+    "GET issues/42": {
+     "labels": [
+      {
+       "name": "trace"
+      }
+     ]
+    },
+    "GET issues/42/timeline?limit=100": [
+     {
+      "type": "label",
+      "user": {
+       "login": "operator"
+      },
+      "label": {
+       "name": "trace"
+      },
+      "body": "1",
+      "created_at": "2026-09-01T00:00:00Z"
+     }
+    ]
+   },
+   "run_task": {
+    "rc": 0,
+    "output": "no trace line\n"
+   },
+   "trace_render_rc": 0,
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "skills": [
+    "coordination",
+    "propose-change",
+    "wrap-upstream"
+   ],
+   "argv": [
+    "42"
+   ],
+   "tiers": "default: easy\ntiers:\n  trivial:  { model: deepseek-flash, budget_usd: 0.50 }\n  easy:     { model: deepseek-flash, budget_usd: 1.00 }\n  moderate: { model: minimax-m3,     budget_usd: 2.00 }\n  hard:     { model: glm-5.2,        budget_usd: 4.00 }\n"
+  },
+  "forgejo_down": {
+   "down": true,
+   "run_task": {
+    "rc": 0,
+    "output": "fine\n"
+   },
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "skills": [
+    "coordination",
+    "propose-change",
+    "wrap-upstream"
+   ],
+   "argv": [
+    "42"
+   ],
+   "tiers": "default: easy\ntiers:\n  trivial:  { model: deepseek-flash, budget_usd: 0.50 }\n  easy:     { model: deepseek-flash, budget_usd: 1.00 }\n  moderate: { model: minimax-m3,     budget_usd: 2.00 }\n  hard:     { model: glm-5.2,        budget_usd: 4.00 }\n"
+  },
+  "overrides": {
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "bot",
+    "LITELLM_MASTER_KEY": "mk",
+    "AGENT_IMAGE": "custom/jail:2",
+    "OPERATOR_LOGIN": "alice"
+   },
+   "routes": {
+    "GET labels?limit=100": [
+     {
+      "id": 9,
+      "name": "blocked"
+     },
+     {
+      "id": 7,
+      "name": "in-progress"
+     },
+     {
+      "id": 3,
+      "name": "task-request"
+     }
+    ],
+    "GET issues/42": {
+     "labels": [
+      {
+       "name": "difficulty:trivial"
+      }
+     ]
+    },
+    "GET issues/42/timeline?limit=100": [
+     {
+      "type": "label",
+      "user": {
+       "login": "alice"
+      },
+      "label": {
+       "name": "difficulty:trivial"
+      },
+      "body": "1",
+      "created_at": "2026-09-01T00:00:00Z"
+     }
+    ],
+    "GET llm:/v1/models": {
+     "data": [
+      {
+       "id": "deepseek-flash"
+      },
+      {
+       "id": "openrouter/glm-5.2"
+      },
+      {
+       "id": "qwen"
+      }
+     ]
+    }
+   },
+   "run_task": {
+    "rc": 0,
+    "output": ""
+   },
+   "image_id": "sha256:ab12cd34ef560000000000000000000000000000000000000000000000000000",
+   "skills": [
+    "coordination",
+    "propose-change",
+    "wrap-upstream"
+   ],
+   "argv": [
+    "42"
+   ],
+   "tiers": "default: easy\ntiers:\n  trivial:  { model: deepseek-flash, budget_usd: 0.50 }\n  easy:     { model: deepseek-flash, budget_usd: 1.00 }\n  moderate: { model: minimax-m3,     budget_usd: 2.00 }\n  hard:     { model: glm-5.2,        budget_usd: 4.00 }\n"
+  },
+  "bad_issue_number": {
+   "argv": [
+    "4x2"
+   ],
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "skills": [
+    "coordination",
+    "propose-change",
+    "wrap-upstream"
+   ],
+   "tiers": "default: easy\ntiers:\n  trivial:  { model: deepseek-flash, budget_usd: 0.50 }\n  easy:     { model: deepseek-flash, budget_usd: 1.00 }\n  moderate: { model: minimax-m3,     budget_usd: 2.00 }\n  hard:     { model: glm-5.2,        budget_usd: 4.00 }\n"
+  },
+  "missing_issue_number": {
+   "argv": [],
+   "env": {
+    "NODE_DOMAIN": "test.example",
+    "AGENT_FORGEJO_TOKEN": "tok",
+    "COORDINATION_REPO": "operator/coordination",
+    "FORGEJO_ADMIN_USER": "operator",
+    "AGENT_GIT_USER": "agent-dev",
+    "LITELLM_MASTER_KEY": "mk"
+   },
+   "skills": [
+    "coordination",
+    "propose-change",
+    "wrap-upstream"
+   ],
+   "tiers": "default: easy\ntiers:\n  trivial:  { model: deepseek-flash, budget_usd: 0.50 }\n  easy:     { model: deepseek-flash, budget_usd: 1.00 }\n  moderate: { model: minimax-m3,     budget_usd: 2.00 }\n  hard:     { model: glm-5.2,        budget_usd: 4.00 }\n"
+  }
+ }
+}

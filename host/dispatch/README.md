@@ -67,15 +67,29 @@ digest becomes `?` and the rest of the block still posts.
 
 ### Debugging a failed launch
 
-The detached `dispatch-run.sh` (assigned-issue flow) writes stdout+stderr to
+The detached issue run (assigned-issue flow) writes stdout+stderr to
 `.task-dispatch/dispatch-run.log` in the node-config checkout root on the
-host — that's where a "failure to launch" abort (e.g. an unbound variable
-under `set -u`) shows up. The dispatcher pass itself (launchd/cron) logs to
+host — that's where a "failure to launch" abort (e.g. a variable missing from
+`.env`) shows up. The dispatcher pass itself (launchd/cron) logs to
 `.task-dispatch/dispatch.log`, and every dispatch writes one JSON line to
 `.task-dispatch/dispatch-audit.log`. All three are gitignored host state. The
 doorbell Actions runner only writes the nudge marker; it never sees the
 dispatch process, so its run logs won't contain the failure — read the
 `.task-dispatch/` files on the host.
+
+### Where the code lives
+
+`scripts/task-dispatcher.sh` and `scripts/dispatch-run.sh` are thin wrappers
+kept for the paths the plist, `up.sh` and the docs know. The pass is
+`scripts/task_dispatcher.py`; the detached issue run it spawns (directly,
+under the same python — no bash needed to detach) is `scripts/dispatch_run.py`.
+The gates are pure functions in `scripts/node_dispatch/` (brief-name
+sanitising and the `dispatch: auto` check, the operator-assignment and
+operator-label checks, tier resolution), and what the dispatcher shares with
+deploy-watch — `.env` parsing, the pass lock, the pinned Forgejo client — is
+`scripts/node_host/`. Standard library only, plus PyYAML for the tier table
+exactly as before. `node_dispatch/test_equivalence.py` replays scenarios
+recorded from the bash implementation; `./scripts/verify-config.sh` runs it.
 
 ## Residual blast radius (stated honestly)
 
