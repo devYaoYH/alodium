@@ -24,6 +24,46 @@ domain and are comfortable with Docker. See `docs/PHILOSOPHY.md` for why this ex
 > the development plane, and the reviewed-change workflow). Curious how it was built?
 > Jump to [Built with GPT‑5.6 & Codex](#built-with-gpt56--codex).
 
+## A first look
+
+**Home — your daily front door.** Open calendars, notes, feeds, and the assistant
+from one dashboard, or ask your engineering org through the shared prompt bar.
+
+![Alodium Home dashboard with everyday app shortcuts and the shared assistant prompt bar](docs/images/home.jpg)
+
+<details>
+<summary>Explore proposals, operations, security, and the live service map</summary>
+
+**Workshop — ask, inspect, approve.** The co-pilot plans work; proposals and agent
+handoffs come back here for your attention. Your explicit approval is the
+release gate.
+
+![Workshop controls for proposals to approve, agent handoffs, and the engineering co-pilot](docs/images/workshop.jpg)
+
+**Operations — see what is running.** Reach the git change ledger, model gateway,
+identity provider, and search audit, with live container status below.
+
+![Operations dashboard with Forgejo, LiteLLM, Pocket ID, search audit, and container status](docs/images/operations.jpg)
+
+**Security — understand who can do what.** Resident engineering, the conversational
+assistant, ephemeral tasks, and the operator have distinct roles. Agents propose
+changes; the operator controls merges, deployment, and policy.
+
+![Security dashboard showing the four tenant roles and their boundaries](docs/images/tenant-boundaries.jpg)
+
+**The Floor — follow the connections.** Select a room to highlight its declared
+paths and inspect its role. Here, the Inference Reactor represents the LLM
+gateway, with incoming and outgoing connections shown alongside service status.
+
+![The Floor live topology with the Inference Reactor selected and its declared connections highlighted](docs/images/floor-pathways.jpg)
+
+</details>
+
+These are browser captures from a local deployment, not mockups. Personal daily
+summaries are hidden; crops exclude proposal titles, live spending figures, and
+authentication history. Status indicators reflect that deployment at capture
+time. See [capture notes](docs/SCREENSHOTS.md) for sources and privacy checks.
+
 ## What is here now
 
 | Plane | Services | Purpose |
