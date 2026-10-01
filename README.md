@@ -62,7 +62,7 @@ gateway, with incoming and outgoing connections shown alongside service status.
 These are browser captures from a local deployment, not mockups. Personal daily
 summaries are hidden; crops exclude proposal titles, live spending figures, and
 authentication history. Status indicators reflect that deployment at capture
-time. See [capture notes](docs/SCREENSHOTS.md) for sources and privacy checks.
+time.
 
 ## What is here now
 
